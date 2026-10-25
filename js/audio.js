@@ -1013,6 +1013,24 @@
         [84, 88, 91, 96].forEach(m => I.bell(o, h, m, 0.5, 0.07, { ratio: 2, index: 0.8, decay: 0.9 }));
         nz(o, h, { type: 'highpass', f: 6000, dur: 0.6, a: 0.05, vol: 0.07 });
       },
+      charge(t) {
+        // 转职蓄力：上扬的光之鸣响
+        const o = so({ rev: 0.6, dly: 0.2 });
+        tone(o, t, { type: 'sawtooth', f: 110, f2: 880, sw: 1.3, dur: 1.4, a: 0.6, vol: 0.06, lp: 2200 });
+        tone(o, t, { f: 220, f2: 1760, sw: 1.3, dur: 1.4, a: 0.6, vol: 0.05, vib: 12, vr: 7 });
+        nz(o, t, { f: 600, f2: 7000, sw: 1.3, q: 2, dur: 1.4, a: 1, vol: 0.12 });
+        [72, 76, 79, 83, 86, 91, 95].forEach((m, i) => I.bell(o, t + 0.4 + i * 0.13, m, 0.3, 0.04, { ratio: 2, index: 0.6, decay: 0.7 }));
+      },
+      promote(t) {
+        // 转职完成：铜管和弦 + 太鼓 + 钹 + 钟声
+        const o = so({ rev: 0.5, dly: 0.15 });
+        I.taiko(o, t, 0.8, 58); I.crash(o, t, 0.6);
+        [[0, 67, 0.12], [0.13, 72, 0.12], [0.26, 76, 0.12], [0.39, 79, 0.9]].forEach(([d, m, l]) => I.brass(o, t + d, m, l, 0.45));
+        I.brass(o, t + 0.39, 72, 0.9, 0.3); I.brass(o, t + 0.39, 76, 0.9, 0.3); I.brass(o, t + 0.39, 60, 0.9, 0.3);
+        I.taiko(o, t + 0.39, 0.7, 52);
+        [84, 88, 91, 96, 100].forEach((m, i) => I.bell(o, t + 0.39 + i * 0.06, m, 0.6, 0.07, { ratio: 2, index: 0.8, decay: 1.4 }));
+        nz(o, t + 0.39, { type: 'highpass', f: 6000, dur: 0.9, a: 0.05, vol: 0.08 });
+      },
       win(t) {
         const o = so({ rev: 0.4 });
         [[0, 67, 0.1], [0.12, 72, 0.1], [0.24, 76, 0.1], [0.36, 79, 0.55]].forEach(([d, m, l]) => I.brass(o, t + d, m, l, 0.45));
@@ -1029,7 +1047,7 @@
     // 各音效响度校准（以短时响度为准，使其均落在音乐之上）
     const SFX_GAIN = {
       select: 5.8, move: 3.2, hit: 2.1, crit: 1.5, miss: 9, slash: 3.6, arrow: 2.4, magic: 2.9, fire: 2.6, ice: 4, bolt: 4.6,
-      wind: 6.3, rock: 1.2, dark: 1.25, holy: 1.2, heal: 3.3, buff: 5.3, status: 3.2, summon: 0.95, chest: 6.7, die: 1.95, turn: 0.85, levelup: 3.1, win: 0.95, lose: 1.2,
+      wind: 6.3, rock: 1.2, dark: 1.25, holy: 1.2, heal: 3.3, buff: 5.3, status: 3.2, summon: 0.95, chest: 6.7, die: 1.95, turn: 0.85, levelup: 3.1, win: 0.95, lose: 1.2, charge: 3.5, promote: 0.9,
     };
     let lastSfx = {};
     function sfx(name, when) {
@@ -1135,7 +1153,7 @@
     get current() { try { return eng ? eng.curName() : null; } catch (e) { return null; } },
     tracks: Object.keys(TRACKS).filter(k => !TRACKS[k].once),
     jingles: Object.keys(TRACKS).filter(k => TRACKS[k].once),
-    sfxNames: ['select', 'move', 'hit', 'crit', 'miss', 'slash', 'arrow', 'magic', 'fire', 'ice', 'bolt', 'wind', 'rock', 'dark', 'holy', 'heal', 'buff', 'status', 'summon', 'chest', 'die', 'turn', 'levelup', 'win', 'lose'],
+    sfxNames: ['select', 'move', 'hit', 'crit', 'miss', 'slash', 'arrow', 'magic', 'fire', 'ice', 'bolt', 'wind', 'rock', 'dark', 'holy', 'heal', 'buff', 'status', 'summon', 'chest', 'die', 'turn', 'levelup', 'win', 'lose', 'charge', 'promote'],
     // 调试：曲目信息与离线渲染（测试用，不影响正常播放）
     _info(name) { const d = TRACKS[name]; return d ? { bpm: d.bpm, bars: d.bars, key: d.key, seconds: d.seconds, once: !!d.once, desc: d.desc } : null; },
     _state() { try { return eng ? Object.assign({ ctx: ctx.state, time: ctx.currentTime }, eng.state()) : { ctx: 'none' }; } catch (e) { return { error: String(e) }; } },

@@ -860,6 +860,7 @@ async function gainExp(u, amt) {
     u.exp -= 100;
     const r = levelUp(u);
     if (!AUTO) {
+      if (r.promoted && typeof promoteAnim === 'function') await promoteAnim(u, r.from);
       sfx('levelup');
       const rows = STATS.map(k => `<div class="lv-row"><span>${STAT_NAME[k]}</span><b>${k === 'hp' ? u.mhp : k === 'mp' ? u.mmp : u[k]}</b>${r.gains[k] ? `<em>+${r.gains[k]}</em>` : ''}</div>`).join('');
       let extra = '';
@@ -875,7 +876,7 @@ function levelUp(u) {
   u.lv++;
   const gains = {};
   for (const k of STATS) { const g = C.growth[k]; gains[k] = Math.floor(g) + (Math.random() < g % 1 ? 1 : 0); }
-  const nt = tierForLevel(u.cls, u.lv), promoted = nt > u.tier;
+  const from = u.tier, nt = tierForLevel(u.cls, u.lv), promoted = nt > u.tier;
   if (promoted) { u.tier = nt; for (const k of STATS) gains[k] += (C.promo && C.promo[k]) || 0; }
   for (const k of STATS) {
     if (k === 'hp') { u.mhp += gains.hp; u.hp += gains.hp; }
@@ -883,7 +884,7 @@ function levelUp(u) {
     else u[k] += gains[k];
   }
   const newSkills = skillsOf(u).filter(s => !before.has(s));
-  return { gains, promoted, newSkills };
+  return { gains, promoted, from, newSkills };
 }
 
 // ---------- 法术目标 ----------
