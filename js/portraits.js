@@ -1,5 +1,6 @@
 // 对话立绘：64×72 代码绘制的 90 年代动画风半身像（无外部图片）
-// getPortrait(id, variant) → HTMLCanvasElement（已缓存），放大显示时请使用 image-rendering: pixelated
+// getPortrait(id, variant, tier) → HTMLCanvasElement（已缓存），放大显示时请使用 image-rendering: pixelated
+// tier = 职业阶（CLASSES[cls].tiers 的下标）：转职后换装；省略则为角色默认外观
 (function (G) {
 'use strict';
 const W = 64, H = 72, N = W * H;
@@ -350,7 +351,7 @@ function drawHuman(S) {
   const c = { p, F, S, skin, hairPal };
   const HT = [S.scale || 1.18, 31, 33];
   // 1 背后（披风、翅膀、武器）
-  TF = null; if (S.back) S.back(c);
+  TF = null; for (const f of [].concat(S.back || [])) f(c);
   TF = HT;
   if (S.headBack === 'hood') hoodBack(c, rp(S.hood || '#f0eef4', { coolHue: 235 }));
   else if (S.headBack) S.headBack(c);
@@ -364,6 +365,7 @@ function drawHuman(S) {
   // 4 服装
   TF = null;
   (BODY[S.body] || BODY.tunic)(c);
+  for (const f of [].concat(S.over || [])) f(c); // 转职装备层（画面坐标）
   TF = HT;
   // 5 耳朵
   if (!S.noEar) {
@@ -393,8 +395,7 @@ function drawHuman(S) {
   if (hs.after) hs.after(c);
   // 10 头饰
   const fn = v => (typeof v === 'string' ? HEAD[v] : v);
-  if (S.head) fn(S.head)(c);
-  if (S.acc) fn(S.acc)(c);
+  for (const h of [].concat(S.head || [], S.acc || [])) fn(h)(c);
   TF = null;
   if (S.front) S.front(c);
   return p.render(S.bg || BG);
@@ -831,7 +832,7 @@ const BODY = {
   lightArmor(c) {
     const { S } = c;
     torso(c, rp(S.cloth || '#2c5aa0'));
-    const st = METAL.steel;
+    const st = S.metal || METAL.steel;
     piece(c, blob([19, 74, 19.5, 63, 24, 57.5, 31, 56.6, 38.5, 57.5, 43.5, 62, 44.5, 74], 0.9), st, 'metal', { s: 3, d: 1, hl: 2, dx: 1, dy: 0.3 });
     piece(c, blob([23, 52, 31, 54.5, 40, 52, 41, 57, 31, 60, 22, 57]), st, 'metal', { s: 1, hl: 1 });
     c.p.line([31, 60, 31, 73], 'metal', 2, true);
@@ -986,7 +987,8 @@ const BODY = {
     piece(c, poly([37, 55, 43, 54, 46, 74, 38, 74]), cp, 'cloth', { s: 2, hl: 1 });
     for (const y of [62, 67, 72]) { rivet(c, 22, y); rivet(c, 41, y); }
     // 金肩章
-    const g = METAL.gold;
+    if (S.epaulette === false) return;
+    const g = S.epaulette || METAL.gold;
     piece(c, ell(9, 58.5, 7.5, 3, -0.2), g, 'metal', { s: 1, hl: 1 });
     piece(c, ell(53, 59.5, 6, 2.6, 0.2), g, 'metal', { s: 1, hl: 1 });
     for (let x = 3; x <= 15; x += 2) p.line([x, 60.5, x - 0.3, 63.5], 'metal', 2, true);
@@ -1077,7 +1079,8 @@ const HEAD = {
     piece(c, lock(19, 24, 11, 34, 2, 2, 1.2), pal, 'acc', { s: 1, hl: 1 });
     const b = piece(c, blob([19.2, 21.2, 31, 19, 43.6, 20.6, 43.6, 24.2, 31, 22.8, 19.2, 25]), pal, 'acc', { s: 1, hl: 1, dy: 1, dx: 0.3 });
     p.cast(b, ['skin', 'hair'], 0, 1, 2, 3);
-    if (S.bandPlate) piece(c, poly([27, 20.4, 35, 20.2, 35, 23.2, 27, 23.4]), METAL.steel, 'metal', { s: 1, hl: 1 });
+    if (S.bandPlate) piece(c, poly([27, 20.4, 35, 20.2, 35, 23.2, 27, 23.4]), Array.isArray(S.bandPlate) ? S.bandPlate : METAL.steel, 'metal', { s: 1, hl: 1 });
+    if (S.bandGem) piece(c, ell(31, 21.8, 1.3, 1.3), rp(S.bandGem), 'acc', { s: 0, hl: 1 });
   },
   hood(c) { hoodFront(c, rp(c.S.hood || '#f0eef4', { coolHue: 235 })); if (c.S.hoodTrim) HEAD._trim(c); },
   _trim(c) { // 兜帽金边 + 额饰
@@ -1086,7 +1089,7 @@ const HEAD = {
   },
   mitre(c) {
     const { p } = c;
-    const w = rp('#f2eef4', { coolHue: 240 });
+    const w = c.S.mitre ? rp(c.S.mitre) : rp('#f2eef4', { coolHue: 240 });
     const m = piece(c, blob([19.5, 23, 20, 12, 25, -1, 31, -6, 37, -1, 42, 12, 42.5, 23, 31, 21], 0.9), w, 'hat', { s: 3, d: 1, hl: 1, dx: 1, dy: 0.2 });
     const g = METAL.gold;
     piece(c, blob([19.3, 19.5, 31, 17.5, 42.7, 19.5, 42.8, 23.4, 31, 21.5, 19.2, 23.6]), g, 'metal', { s: 1, hl: 1 });
@@ -1117,32 +1120,43 @@ const HEAD = {
     const brim = piece(c, blob([5, 6, 12, 13, 21, 18.5, 31, 21.6, 41, 18.5, 50, 13, 57, 6, 52, 6.5, 44, 8, 38, 5.6, 31, 7.4, 24, 5.6, 18, 8, 10, 6.5], 0.9), hp, 'hat', { s: 2, d: 1, hl: 1, dy: 1, dx: 0.4 });
     p.line([5.5, 7, 12, 12.6, 21, 18, 31, 21, 41, 18, 50, 12.6, 56.5, 7], brim, 5, true);
     p.line([10, 8, 20, 10.5, 31, 12.5], brim, 2, true); p.line([31, 12.5, 42, 10.5, 52, 8], brim, 1, true);
-    const f = piece(c, lock(27, 7, 10, 0, 3, 3, 0.5), rp('#e8e0d0'), 'feather', { s: 1, hl: 1 });
-    p.line([27, 7, 18, 2.5, 11, 0.5], f, 2, true);
+    if (c.S.hatTrim) p.fill(ring(blob([5, 6, 12, 13, 21, 18.5, 31, 21.6, 41, 18.5, 50, 13, 57, 6, 52, 6.5, 44, 8, 38, 5.6, 31, 7.4, 24, 5.6, 18, 8, 10, 6.5], 0.9), blob([6.6, 6.8, 12.6, 12, 21, 17.2, 31, 20.2, 41, 17.2, 49.4, 12, 55.4, 6.8, 52, 7.8, 44, 9.2, 38, 6.9, 31, 8.6, 24, 6.9, 18, 9.2, 10, 7.8], 0.9)), p.obj(c.S.hatTrim, 'metal'), 4);
+    if (c.S.hatFeather !== false) {
+      const f = piece(c, lock(27, 7, 10, 0, 3, 3, 0.5), rp(c.S.hatFeather || '#e8e0d0'), 'feather', { s: 1, hl: 1 });
+      p.line([27, 7, 18, 2.5, 11, 0.5], f, 2, true);
+      if (c.S.hatPlume) { const f2 = piece(c, lock(29, 6, 14, -6, 3.4, 4, 0.5), rp(c.S.hatPlume), 'feather', { s: 1, hl: 1 }); p.line([29, 6, 21, -1.5, 15, -5], f2, 2, true); }
+    }
     TF = old;
     p.cast('hat', ['skin', 'hair'], 0, 1, 2, 3); p.cast('hat', ['skin', 'hair'], 0, 2, 2, 3);
   },
   feathers(c) { // 戴薇拉：鹰羽头饰
     const { p } = c;
     const fp = rp('#f0e8dc'), tip = rp('#5a3a22');
-    const list = [[24, 18, 12, 4, 2.6, 2], [28, 16, 22, -2, 2.6, 1], [33, 16, 35, -3, 2.6, -1], [38, 17, 47, 1, 2.6, -2], [41, 19, 53, 9, 2.6, -2]];
+    const all = { 3: [[26, 17, 18, 4, 2.4, 1.5], [33, 16, 35, 2, 2.4, -1], [39, 18, 48, 6, 2.4, -2]],
+      5: [[24, 18, 12, 4, 2.6, 2], [28, 16, 22, -2, 2.6, 1], [33, 16, 35, -3, 2.6, -1], [38, 17, 47, 1, 2.6, -2], [41, 19, 53, 9, 2.6, -2]],
+      7: [[22, 19, 7, 9, 2.8, 2], [24, 18, 12, 0, 2.8, 2], [28, 16, 21, -5, 2.8, 1], [33, 16, 35, -6, 2.8, -1], [38, 17, 49, -3, 2.8, -2], [41, 19, 56, 5, 2.8, -2], [43, 21, 58, 15, 2.6, -2]] };
+    const list = all[c.S.featherN || 5];
     for (const l of list) {
       const f = piece(c, lock(...l), fp, 'feather', { s: 1, hl: 1, dy: 0.3 });
       p.shade(ell(l[2] + (l[0] - l[2]) * 0.18, l[3] + (l[1] - l[3]) * 0.18, 3, 3), f, 1);
       p.line([l[0], l[1], (l[0] + l[2]) / 2, (l[1] + l[3]) / 2], f, 2, true);
     }
-    const b = piece(c, blob([19.4, 20.5, 31, 18.6, 43.4, 20, 43.4, 23.4, 31, 22.2, 19.4, 24]), rp('#b02a2a'), 'acc', { s: 1, hl: 1 });
-    for (const x of [24, 31, 38]) piece(c, ell(x, 21.3, 1.2, 1.2), rp('#30b0b0'), 'acc', { s: 0, hl: 1 });
+    const b = piece(c, blob([19.4, 20.5, 31, 18.6, 43.4, 20, 43.4, 23.4, 31, 22.2, 19.4, 24]), c.S.featherBand || rp('#b02a2a'), 'acc', { s: 1, hl: 1 });
+    if (c.S.featherGems !== false) for (const x of [24, 31, 38]) piece(c, ell(x, 21.3, 1.2, 1.2), rp('#30b0b0'), 'acc', { s: 0, hl: 1 });
+    if (c.S.featherBand && c.S.featherGems !== false) { const g = piece(c, ell(31, 19.6, 2.2, 2.4), rp('#30b0b0'), 'acc', { s: 1, hl: 1 }); p.px(30.5, 18.6, g, 5); }
     p.cast(b, ['skin', 'hair'], 0, 1, 2, 3);
   },
   plumeHelm(c) { // 韩凯蒂：开面盔 + 羽饰
     const { p, S } = c;
-    const mt = METAL.silver;
+    const mt = S.helmMetal || METAL.silver;
     const pl = rp(S.plume || '#d82a3a');
-    piece(c, union(lock(31, 9, 52, 4, 3.5, -3, 1), lock(33, 8, 56, 14, 3.5, -2, 1), lock(35, 9, 54, 22, 3, -1, 1)), pl, 'plume', { s: 2, hl: 1 });
+    if (S.plume !== false) piece(c, union(lock(31, 9, 52, 4, 3.5, -3, 1), lock(33, 8, 56, 14, 3.5, -2, 1), lock(35, 9, 54, 22, 3, -1, 1)), pl, 'plume', { s: 2, hl: 1 });
+    if (S.helmWings) for (const d of [-1, 1]) { const x0 = d < 0 ? 19 : 43.5; for (let i = 0; i < 3; i++) piece(c, lock(x0, 20 - i * 2.2, x0 + d * (12 - i * 2), 13 - i * 6, 3 - i * 0.4, d * 1.5, 0.4), rp(S.helmWings), 'wing', { s: 1, hl: 1 }); }
+    if (S.helmHorns) piece(c, union(lock(20, 15, 8, 1, 3.2, 3, 0.3), lock(42, 14, 53, -1, 3.2, -3, 0.3)), rp(S.helmHorns), 'horn', { s: 2, hl: 1 });
     const h = piece(c, ring(blob([17.5, 30, 18, 15, 24, 8, 31, 6, 39, 8, 45, 15, 45.5, 30, 42.5, 33, 42.5, 22, 38, 19.5, 31, 19, 24, 19.6, 20, 22, 20, 33]), new Path2D()), mt, 'metal', { s: 3, d: 1, hl: 2, dx: 1, dy: 0.5 });
-    piece(c, blob([18, 22, 31, 18, 45, 22, 45, 24.5, 31, 21, 18, 24.5]), METAL.gold, 'metal', { s: 1, hl: 1 });
-    piece(c, poly([29.5, 6.5, 32.5, 6.5, 32.5, 19, 29.5, 19]), mt, 'metal', { s: 1, hl: 1 });
+    piece(c, blob([18, 22, 31, 18, 45, 22, 45, 24.5, 31, 21, 18, 24.5]), S.helmBand || METAL.gold, 'metal', { s: 1, hl: 1 });
+    piece(c, poly([29.5, 6.5, 32.5, 6.5, 32.5, 19, 29.5, 19]), S.helmRidge || mt, 'metal', { s: 1, hl: 1 });
+    if (S.helmGem) { const g = piece(c, ell(31, 20.2, 1.8, 1.8), rp(S.helmGem), 'acc', { s: 0, hl: 1 }); p.px(30.5, 19.4, g, 5); }
     p.cast('metal', ['skin', 'hair'], 0, 1, 2, 3);
   },
   kettle(c) { // 士兵铁盔（护鼻）
@@ -1177,8 +1191,14 @@ const HEAD = {
     piece(c, poly([12.5, 23, 19, 22.5, 19.5, 31, 12, 28.5]), mt, 'metal', { s: 1, hl: 1 });
     piece(c, poly([43.5, 22.5, 50, 23, 50.5, 28.5, 43, 31]), mt, 'metal', { s: 2, hl: 1 });
     for (const [x0, x1] of [[13, 19], [44, 50]]) p.line([x0, 25.5, x1, 25.5], 'metal', 4, true);
-    piece(c, union(lock(31, 17, 18, 0, 1.8, 2.5, 0.4), lock(31, 17, 44, 0, 1.8, -2.5, 0.4)), METAL.gold, 'acc', { s: 1, hl: 1 });
-    piece(c, ell(31, 17.5, 2.6, 2.6), METAL.gold, 'acc', { s: 1, hl: 1 });
+    const kw = S.kuwa;
+    if (kw === 'small') piece(c, union(lock(31, 17, 23, 7, 1.6, 1.5, 0.4), lock(31, 17, 39, 7, 1.6, -1.5, 0.4)), METAL.gold, 'acc', { s: 1, hl: 1 });
+    else if (kw === 'big' || kw === 'grand') {
+      piece(c, union(lock(31, 17, 12, -6, 2.6, 4, 0.5), lock(31, 17, 50, -6, 2.6, -4, 0.5)), METAL.gold, 'acc', { s: 1, hl: 1 });
+      if (kw === 'grand') { const sun = piece(c, ell(31, 9, 5.2, 5.2), rp('#d8281e'), 'acc', { s: 1, d: 0, hl: 1 }); piece(c, ring(ell(31, 9, 6.4, 6.4), ell(31, 9, 5.2, 5.2)), METAL.gold, 'acc', { s: 0, hl: 1 }); piece(c, poly([30, 14, 32, 14, 32.5, 18, 29.5, 18]), METAL.gold, 'acc', { s: 0, hl: 1 }); }
+    } else if (kw !== 'none') piece(c, union(lock(31, 17, 18, 0, 1.8, 2.5, 0.4), lock(31, 17, 44, 0, 1.8, -2.5, 0.4)), METAL.gold, 'acc', { s: 1, hl: 1 });
+    if (kw !== 'none') piece(c, ell(31, 17.5, 2.6, 2.6), METAL.gold, 'acc', { s: 1, hl: 1 });
+    if (S.kabutoMon) piece(c, ell(31, 17.5, 1.3, 1.3), rp(S.kabutoMon), 'acc', { s: 0, hl: 1 });
     p.cast('metal', ['skin', 'hair'], 0, 1, 2, 3); p.cast('metal', ['skin', 'hair'], 0, 2, 2, 3);
   },
   hawkHelm(c) { // 鹰首盔
@@ -1273,28 +1293,31 @@ function bow(c) {
   p.line([44 + Math.cos(-PI * 0.42) * 15, 46 + Math.sin(-PI * 0.42) * 26, 44 + Math.cos(PI * 0.42) * 15, 46 + Math.sin(PI * 0.42) * 26], p.add(rect(0, 0, 0, 0), ['#202020', '#5a5a60', '#7a7a80', '#9a9aa0', '#c0c0c8', '#e0e0e8'], 'string', { ol: false }), 2);
   piece(c, rect(57, 43, 3, 6), rp('#5a2a1a'), 'acc', { s: 0, hl: 1 });
 }
-function wings(c, col) {
+function wings(c, col, sc, n) {
   const { p } = c;
   const fp = rp(col || '#8a5a32'), tip = rp('#f0e6d6');
+  sc = sc || 1; n = n || 6;
   for (const [sx, dir] of [[15, -1], [48, 1]]) {
-    for (let i = 0; i < 6; i++) {
-      const a = -PI / 2 + dir * (0.18 + i * 0.2), L = 30 - i * 2.5;
+    for (let i = 0; i < n; i++) {
+      const a = -PI / 2 + dir * (0.18 + i * 0.2 * 6 / n), L = (30 - i * 2.5 * 6 / n) * sc;
       const tx = sx + Math.cos(a) * L, ty = 58 + Math.sin(a) * L;
       const id = piece(c, lock(sx, 58, tx, ty, 3.6, dir * 2, 0.4), i % 2 ? fp : rp(col ? mix(col, '#000000', 0.15) : '#7a4a2a'), 'wing', { s: 2, d: 0, hl: 1 });
       p.shade(ell(tx - Math.cos(a) * 3, ty - Math.sin(a) * 3, 3.5, 3.5), id, 4);
     }
   }
 }
-function sword(c, x, y) {
+function sword(c, x, y, blade, guard) {
   const { p } = c;
   const dx = -0.32, dy = 1, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
   const P = (t, n) => [x + ux * t + nx * n, y + uy * t + ny * n];
   const q = (...a) => poly([].concat(...a));
-  piece(c, q(P(8.5, -1.5), P(8.5, 1.5), P(40, 1.5), P(40, -1.5)), METAL.steel, 'metal', { s: 1, hl: 1 });
+  piece(c, q(P(8.5, -1.5), P(8.5, 1.5), P(40, 1.5), P(40, -1.5)), blade || METAL.steel, 'metal', { s: 1, hl: 1 });
   piece(c, q(P(1.5, -1), P(1.5, 1), P(7.5, 1), P(7.5, -1)), rp('#5a2a1a'), 'acc', { s: 1, hl: 0 });
   for (let t = 2.5; t < 7.5; t += 2) p.line([...P(t, -1), ...P(t + 0.7, 1)], 'acc', 2, true);
-  piece(c, q(P(7.2, -4.6), P(7.2, 4.6), P(9, 4.6), P(9, -4.6)), METAL.gold, 'metal', { s: 0, hl: 1 });
-  piece(c, ell(...P(0, 0), 1.8, 1.8), METAL.gold, 'metal', { s: 0, hl: 1 });
+  const gw = guard ? 6.2 : 4.6;
+  piece(c, q(P(7.2, -gw), P(7.2, gw), P(9, gw), P(9, -gw)), guard || METAL.gold, 'metal', { s: 0, hl: 1 });
+  if (guard) for (const n of [-gw, gw]) piece(c, ell(...P(7.4, n), 1.5, 1.5), guard, 'metal', { s: 0, hl: 1 });
+  piece(c, ell(...P(0, 0), 1.8, 1.8), guard || METAL.gold, 'metal', { s: 0, hl: 1 });
 }
 // 神巫头冠
 function shamanHat(c) {
@@ -1680,7 +1703,7 @@ const MONSTERS = {
     return p.render(BG);
   },
   wolfman(v, hero) { return wolfHead(v, hero); },
-  wolfHero(v) { return wolfHead(v, true); },
+  wolfHero(v, hero, tier) { return wolfHead(v, true, tier); },
   dragon(v) {
     const p = mpic();
     const col = vcol(v, '#c43c26', DRAGON_COL);
@@ -1837,22 +1860,47 @@ const MONSTERS = {
   spiritFire(v) { return vortex(v, '#f07030'); },
   spiritWater(v) { return vortex(v, '#4a90e0'); },
   spiritEarth(v) { return vortex(v, '#b08040'); },
-  babyDragon(v) {
+  babyDragon(v, hero, tier) {
     const p = mpic();
-    const col = vcol(v, '#44b060', DRAGON_COL);
-    const pal = ramp(col, { lit: 0.42 }), belly = ramp('#f4e2a8'), wing = ramp(mix(col, '#203040', 0.35));
-    for (const [sx, d] of [[17, -1], [47, 1]]) mp(p, blob([sx, 62, sx + d * 6, 48, sx + d * 15, 40, sx + d * 14, 47, sx + d * 17, 51, sx + d * 13, 55, sx + d * 15, 60, sx + d * 6, 66]), wing, 'wing', { s: 1, d: 0, hl: 1 });
+    // 拉拉的阶：0 小龙 1 飞龙（默认）2 火龙 3 巨火龙
+    const T = tier == null ? 1 : tier;
+    const col = T >= 2 ? (T === 3 ? '#c8321e' : '#e0682a') : T === 0 ? '#5cc070' : vcol(v, '#44b060', DRAGON_COL);
+    const pal = ramp(col, { lit: 0.42 }), belly = ramp(T >= 2 ? '#f8d878' : '#f4e2a8'), wing = ramp(T >= 2 ? (T === 3 ? '#5a1418' : '#8a2a1a') : mix(col, '#203040', 0.35));
+    const fire = ['#3a0800', '#a02008', '#e05010', '#f89020', '#ffd050', '#fff4c0'];
+    if (T === 3) { // 火焰光晕
+      const fl = p.obj(fire, 'aura', { ol: false });
+      for (let i = 0; i < 11; i++) { const a = PI * (1.05 + i * 0.09), r = 27 + (i % 2) * 4; p.fill(lock(32 + Math.cos(a) * 20, 34 + Math.sin(a) * 20, 32 + Math.cos(a) * r, 34 + Math.sin(a) * r, 3.4, (i % 2 ? 1 : -1), 0.2), fl, i % 2 ? 2 : 3); }
+    }
+    const ws = [0.55, 1, 1.3, 1.55][T] || 1;
+    for (const [sx, d] of [[17, -1], [47, 1]]) {
+      const W0 = [sx, 62, sx + d * 6, 48, sx + d * 15, 40, sx + d * 14, 47, sx + d * 17, 51, sx + d * 13, 55, sx + d * 15, 60, sx + d * 6, 66];
+      const Wp = W0.map((q, i) => (i % 2 ? 62 + (q - 62) * ws : sx + (q - sx) * ws));
+      const wid = mp(p, blob(Wp), wing, 'wing', { s: 1, d: 0, hl: 1 });
+      if (T >= 2) { for (const k of [2, 4]) p.line([sx, 62, Wp[k * 2], Wp[k * 2 + 1]], wid, 4, true); mp(p, ell(Wp[4], Wp[5], 1.6, 1.6), T === 3 ? METAL.gold : BONE, 'claw', { s: 0, hl: 1 }); }
+    }
     mp(p, blob([10, 74, 12, 63, 20, 57, 32, 55, 44, 57, 52, 63, 54, 74]), pal, 'skin', { s: 3, d: 1, hl: 1 });
     mp(p, blob([22, 74, 23, 64, 32, 60, 41, 64, 42, 74]), belly, 'belly', { s: 2, d: 0, hl: 1 });
     for (let y = 65; y < 74; y += 3) p.line([24, y, 40, y], 'belly', 2, true);
+    if (T === 3) { // 金项圈 + 宝石
+      mp(p, blob([14, 64, 22, 58.5, 32, 57, 42, 58.5, 50, 64, 46, 66, 32, 61.5, 18, 66]), METAL.gold, 'metal', { s: 1, d: 0, hl: 1 });
+      const g = mp(p, ell(32, 62.5, 2.4, 2.6), ramp('#20b0e0', { lit: 0.5 }), 'acc', { s: 0, hl: 1 }); p.px(31, 61.5, g, 5);
+    }
     // 角与头冠刺
-    mp(p, union(lock(23, 17, 18, 5, 2.8, 1, 0.8), lock(37, 16, 42, 4.5, 2.6, -1, 0.8)), BONE, 'horn', { s: 1, hl: 1 });
-    spikes(p, [[17, 24, 10, 20, 0], [15, 32, 8, 31, 0]], ramp('#f0c040'), 'spike', 2.2);
+    const hornPal = T === 3 ? METAL.gold : BONE;
+    if (T === 0) mp(p, union(lock(24, 18, 21, 10, 2.4, 0.5, 0.8), lock(36, 17, 39, 9.5, 2.2, -0.5, 0.8)), BONE, 'horn', { s: 1, hl: 1 });
+    else if (T === 1) mp(p, union(lock(23, 17, 18, 5, 2.8, 1, 0.8), lock(37, 16, 42, 4.5, 2.6, -1, 0.8)), BONE, 'horn', { s: 1, hl: 1 });
+    else {
+      mp(p, union(lock(23, 18, 12, 1, 3.6, 3, 0.6), lock(37, 16, 47, 0, 3.4, -3, 0.6)), hornPal, 'horn', { s: 1, d: 0, hl: 1 });
+      if (T === 3) mp(p, union(lock(19, 22, 6, 13, 2.6, 2, 0.5), lock(41, 18, 53, 10, 2.4, -2, 0.5)), hornPal, 'horn', { s: 1, hl: 1 });
+      for (const l of [[21, 9, 18, 13], [42, 8, 40, 12]]) p.line(l, 'horn', 1, true);
+    }
+    if (T === 1) spikes(p, [[17, 24, 10, 20, 0], [15, 32, 8, 31, 0]], ramp('#f0c040'), 'spike', 2.2);
+    else if (T >= 2) spikes(p, [[18, 21, 9, 14, 1], [16, 27, 6, 23, 0.5], [15, 33, 5, 33, 0], [16, 39, 7, 42, -0.5]].slice(0, T === 3 ? 4 : 3), fire, 'spike', T === 3 ? 3 : 2.6);
     // 头：圆脑袋 + 短圆吻
     const h = mp(p, blob([14, 36, 15, 24, 22, 15.5, 31, 13, 40, 15.5, 46, 23, 50, 30, 54, 34, 55, 40, 52, 46, 44, 51, 33, 53.5, 23, 52, 16, 46]), pal, 'skin', { s: 3, d: 1, hl: 2, dx: 1, dy: 0.5 });
     p.shade(ell(24, 21, 5, 3), h, 5, t => t >= 4);
     // 大眼睛
-    const ep = eyePal(v === 'red' ? '#d04020' : '#c87010', '#10200c');
+    const ep = eyePal(T >= 2 ? (T === 3 ? '#f0a010' : '#e07010') : v === 'red' ? '#d04020' : '#c87010', '#10200c');
     const e = p.obj(ep, 'eye', { ol: false });
     const map = { K: [e, 0], k: [e, 1], W: [e, 2], w: [e, 3], D: [e, 4], I: [e, 5], L: [e, 6], H: [e, 7], P: [e, 8] };
     p.tmpl(21, 26, ['..KKKKK..', '.KKKKKKK.', 'KKDDDDDKK', 'KHHDDDDIK', 'KHHPPDIIK', 'KDPPPPIIK', 'KIIPPIILK', '.KLLLLLK.', '..KKKKK..'], map);
@@ -1864,6 +1912,11 @@ const MONSTERS = {
     const m = p.add(blob([36, 43, 43, 44.6, 51, 43, 48, 47.4, 42, 48.4, 38, 46.4]), MOUTH_IN, 'mouth');
     p.shade(blob([39, 46.5, 43, 45.5, 47, 46.5, 43, 48]), m, 4);
     fang(p, 47.5, 43.6, 1.8, 0.8);
+    if (T >= 2) { // 鼻孔火星 / 额前宝石
+      const fl = p.obj(fire, 'spark', { ol: false });
+      for (const [x, y, t] of [[55, 35, 4], [57, 33, 3], [58, 35.5, 5], [60, 32, 2], [59, 30, 3]]) p.px(x, y, fl, t);
+      if (T === 3) { const g = mp(p, poly([31, 14, 34, 18, 31, 22, 28, 18]), METAL.gold, 'metal', { s: 0, hl: 1 }); const j = mp(p, ell(31, 18, 1.4, 1.9), ramp('#e02030', { lit: 0.5 }), 'acc', { s: 0, hl: 1 }); p.px(30.5, 17, j, 5); }
+    }
     return p.render(BG);
   },
   turtle(v) {
@@ -1883,13 +1936,23 @@ const MONSTERS = {
 };
 
 // 狼族头部（坎培特 / 敌方狼人）
-function wolfHead(v, hero) {
+function wolfHead(v, hero, tier) {
   const p = mpic();
+  // 坎培特的阶：0 狼族士兵 1 狼战士（默认）2 狼嚎战士
+  const T = hero ? (tier == null ? 1 : tier) : -1;
   const furCol = hero ? '#9a9cac' : vcol(v, '#7a5a3e');
   const fur = ramp(furCol, { shift: 10 }), cream = ramp(hero ? '#e6e4ee' : '#d8c0a0', { coolHue: 230 });
-  const c = { p, S: { cloth: hero ? '#2e4a7a' : '#5a2a2a', fur: hero ? '#5a5a6a' : '#3a2a1c' } };
+  const c = { p, S: { cloth: hero ? (T === 0 ? '#6a4a2e' : T === 2 ? '#1e2e5a' : '#2e4a7a') : '#5a2a2a', fur: hero ? (T === 0 ? '#5a4030' : '#5a5a6a') : '#3a2a1c' } };
+  if (T === 2) { GEAR.aura('#e0a040')(c); GEAR.cape('#9a1e24', METAL.gold)(c); }
   BODY.wolf(c);
-  if (hero) piece(c, blob([22, 56, 31, 59, 42, 56, 41, 60, 31, 63, 23, 60]), METAL.gold, 'metal', { s: 1, hl: 1 });
+  if (T === 0) piece(c, lock(10, 57, 46, 74, 2.6, 1.5, 2.6), rp('#4a3020'), 'cloth', { s: 1, hl: 1 });
+  if (T >= 1) piece(c, blob([22, 56, 31, 59, 42, 56, 41, 60, 31, 63, 23, 60]), METAL.gold, 'metal', { s: 1, hl: 1 });
+  if (T === 2) {
+    GEAR.pauldrons(METAL.steel, 'L', true)(c);
+    for (const [x, y] of [[2, 54], [8, 51.5], [14, 52.5]]) mp(p, poly([x - 1.8, y + 3, x + 1.8, y + 3, x + 0.6, y - 4]), METAL.silver, 'spike', { s: 0, hl: 1 });
+    pauldron(c, 52, 64, 8.5, 5.5, METAL.gold, 1, 0.2);
+    emblem(c, 31.5, 66, 2.4, '#d02030');
+  }
   // 颈部鬃毛
   const ruff = [];
   for (let i = 0; i < 8; i++) ruff.push(lock(17 + i * 3.6, 42 + Math.abs(i - 4) * 0.4, 13 + i * 4.4, 55 + (i % 2) * 3, 3.6, (i % 2 ? 1 : -1), 0.3));
@@ -1908,9 +1971,17 @@ function wolfHead(v, hero) {
   // 鼻
   const nose = p.add(blob([57, 29.5, 61, 30, 63, 33, 61, 35.5, 57.5, 34]), ['#000000', '#08080c', '#14141c', '#22222c', '#4a4a5a', '#9090a0'], 'nose');
   p.px(59, 31, nose, 5);
+  // 狼嚎战士：战纹 + 獠牙项链 + 金耳环
+  if (T === 2) {
+    const wp = p.obj(['#3a0408', '#8a1014', '#c42020', '#e04030', '#f08060', '#ffc0a0'], 'paint', { ol: false });
+    for (const [x0, y0, x1, y1] of [[20, 30, 27, 33], [21, 34, 28, 37], [23, 38, 30, 40.5]]) { p.line([x0, y0, x1, y1], wp, 3); p.line([x0, y0 + 1, x1 - 1, y1 + 1], wp, 2); }
+    p.line([31, 15, 33, 21, 35, 22.5], wp, 3);
+    for (let i = 0; i < 5; i++) { const x = 22 + i * 4.5, y = 58 + Math.sin((i / 4) * PI) * 3; mp(p, poly([x - 1.3, y, x + 1.3, y, x, y + 4.2]), TOOTH, 'tooth', { s: 0, hl: 1 }); }
+    mp(p, ring(ell(30, 19, 2, 2.4), ell(30, 19, 1, 1.4)), METAL.gold, 'acc', { s: 0, hl: 1 });
+  }
   // 眼
-  const ec = hero ? '#e8b030' : '#ff4020';
-  meye(p, 36, 26, 3, 1.8, ec, { rot: -0.3, glow: !hero, px: 1 });
+  const ec = hero ? (T === 2 ? '#ffc030' : '#e8b030') : '#ff4020';
+  meye(p, 36, 26, 3, 1.8, ec, { rot: -0.3, glow: !hero || T === 2, px: 1 });
   mp(p, lock(29, 23.5, 43, 22, 1.6, -1), fur, 'fur', { s: 0, hl: 1 });
   // 嘴
   if (hero) { p.line([44, 44, 51, 42, 57, 39.4], cr, 1); p.line([40, 46, 44, 44], cr, 2); }
@@ -1965,6 +2036,337 @@ function cyclopsEye(c) {
 }
 
 // =====================================================================
+// 转职外观：getPortrait(id, variant, tier) 时在基础设定上叠加每阶装备
+// （脸、发色与标志物不变；阶数越高越华丽）
+// =====================================================================
+const mir = (a) => a.map((v, i) => (i % 2 ? v : 62.5 - v));
+const shiftY = (a, d) => a.map((v, i) => (i % 2 ? v + d : v));
+function emblem(c, x, y, r, gem) {
+  piece(c, ell(x, y, r + 1.2, r + 1.3), METAL.gold, 'acc', { s: 1, hl: 1 });
+  const g = piece(c, ell(x, y, r * 0.6, r * 0.65), rp(gem), 'acc', { s: 0, hl: 1 });
+  c.p.px(x - 0.6, y - 0.8, g, 5);
+}
+// —— 身体层（画面坐标，S.over / S.back 中使用）——
+const GEAR = {
+  // 胸甲 + 护喉
+  breast: (mt, gem) => c => {
+    piece(c, blob([19, 74, 19.5, 63, 24, 57.5, 31, 56.6, 38.5, 57.5, 43.5, 62, 44.5, 74], 0.9), mt, 'metal', { s: 3, d: 1, hl: 2, dx: 1, dy: 0.3 });
+    piece(c, blob([23, 52, 31, 54.5, 40, 52, 41, 57, 31, 60, 22, 57]), mt, 'metal', { s: 1, hl: 1 });
+    c.p.line([31, 61, 31, 73], 'metal', 2, true);
+    if (gem) emblem(c, 31.5, 66, 2.2, gem);
+  },
+  // 肩甲：side 'L' / 'R' 只画一侧；big = 加大 + 金铆钉
+  pauldrons: (mt, side, big) => c => {
+    if (side !== 'R') pauldron(c, 9.5, 60.5, big ? 12.5 : 10.5, big ? 7.8 : 6.5, mt, 3, -0.2);
+    if (side !== 'L') pauldron(c, 54, 62, big ? 10.5 : 8.5, big ? 7.2 : 6, mt, 2, 0.2);
+    if (big) { rivet(c, 4, 58); rivet(c, 9.5, 56); rivet(c, 15, 57); rivet(c, 51, 58.5); rivet(c, 57, 59); }
+  },
+  // 半披肩：trim = 下缘金边
+  mantle: (col, trim, side) => c => {
+    const L = [-1, 72, -1, 60, 4, 55.5, 12, 52.6, 21, 51.8, 25.5, 55.5, 23, 61.5, 16, 67, 7, 71];
+    for (const a of side === 'L' ? [L] : [L, mir(L)]) {
+      if (trim) piece(c, blob(shiftY(a, 1.8)), trim, 'metal', { s: 1, hl: 1 });
+      const id = piece(c, blob(a), rp(col), 'cloth', { s: 2, d: 1, hl: 1, dy: 0.7 });
+      c.p.line([a[4], a[5] + 3, a[8] - 1, a[9] + 4, a[12], a[13]], id, 2, true);
+    }
+  },
+  // 披风（背后，在两肩上方外扬）
+  cape: (col, trim) => c => {
+    const a = [-1, 74, -1, 50, 3, 45.5, 8, 49, 16, 52, 47, 52, 55, 49, 60, 45.5, 65, 50, 65, 74];
+    if (trim) piece(c, blob(shiftY(a, -1.8)), trim, 'metal', { s: 1, hl: 1 });
+    const id = piece(c, blob(a), rp(col), 'cape', { s: 2, d: 1, hl: 1 });
+    c.p.line([3, 49, 1, 60], id, 2, true); c.p.line([60, 49, 62, 60], id, 2, true);
+  },
+  // 高立领（背后，自肩头呈扇形张开）
+  collar: (col, lining, trim) => c => {
+    const L = [25, 58, 14, 56.5, 6.5, 50, 3, 37, 9, 40, 15, 46, 21, 51];
+    for (const a of [L, mir(L)]) {
+      if (trim) piece(c, blob(a.map((v, i) => (i % 2 ? v - 1.4 : v + (v < 31 ? -1.4 : 1.4)))), trim, 'metal', { s: 1, hl: 1 });
+      piece(c, blob(a), rp(col), 'cape', { s: 2, d: 1, hl: 1 });
+      if (lining) piece(c, blob(a.map((v, i) => (i % 2 ? 0.7 * v + 0.3 * 53 : 0.7 * v + 0.3 * (a[0] < 31 ? 16 : 46.5)))), rp(lining), 'cape', { s: 1, hl: 1 });
+    }
+  },
+  // 圣光环（背后）
+  aura: (col) => c => {
+    const { p } = c, pal = rp(col, { lit: 0.5 });
+    const id = p.obj(pal, 'aura', { ol: false });
+    for (let i = 0; i < 24; i++) { const a = i / 24 * PI * 2, r0 = 23.5, r1 = i % 2 ? 27.5 : 30.5; p.line([31 + Math.cos(a) * r0, 27 + Math.sin(a) * r0, 31 + Math.cos(a) * r1, 27 + Math.sin(a) * r1], id, i % 2 ? 2 : 3); }
+    p.fill(ring(ell(31, 27, 25, 25), ell(31, 27, 22.6, 22.6)), id, 4);
+    p.fill(ring(ell(31, 27, 23.6, 23.6), ell(31, 27, 23, 23)), id, 5);
+  },
+  // 斜挎皮带
+  strap: (col) => c => { piece(c, lock(8, 58, 46, 74, 3, 1.5, 3), rp(col || '#6a4020'), 'cloth', { s: 1, hl: 1 }); rivet(c, 27, 66); },
+  // 交叉皮带（格斗者）
+  xstrap: (col) => c => {
+    piece(c, union(lock(10, 57, 44, 74, 2.6, 1, 2.6), lock(52, 58, 18, 74, 2.6, -1, 2.6)), rp(col || '#5a3418'), 'cloth', { s: 1, hl: 1 });
+    piece(c, ell(31, 66.5, 2.6, 2.4), METAL.steel, 'metal', { s: 1, hl: 1 });
+  },
+  // 罩袍 + 十字
+  tabard: (col, cross) => c => {
+    piece(c, blob([17, 74, 18.5, 62, 24, 58.5, 39, 58.5, 44.5, 62, 46, 74]), rp(col), 'cloth', { s: 2, d: 1, hl: 1 });
+    piece(c, union(rect(30, 61, 3, 12), rect(26, 64, 11, 3)), cross || METAL.gold, 'acc', { s: 1, hl: 1 });
+  },
+  // 武士胴甲（漆札 + 缕线）
+  dou: (col, lace) => c => {
+    const id = piece(c, blob([18, 74, 18.5, 63, 23, 59, 31, 58, 39, 59, 44, 63, 45, 74], 0.9), rp(col), 'metal', { s: 3, d: 1, hl: 2, dx: 1, dy: 0.3 });
+    for (const y of [63, 67, 71]) c.p.line([18.5, y, 31, y - 1, 44.5, y], id, 1, true);
+    const lc = c.p.obj(lace ? rp(lace) : rp('#d8c8a0'), 'acc', { ol: false });
+    for (let x = 21; x < 44; x += 3) for (const y of [64.5, 68.5, 72.5]) c.p.px(x, y - (x > 26 && x < 37 ? 1 : 0), lc, 4);
+    piece(c, blob([23, 58.5, 31, 57.4, 39, 58.5, 38, 61, 31, 60, 24, 61]), lace ? METAL.gold : rp('#c8b890'), 'acc', { s: 0, hl: 1 });
+  },
+  // 阵羽织（武将披肩）
+  jinbaori: (col, trim) => c => {
+    for (const a of [[-1, 74, -1, 60, 5, 55, 14, 53, 21, 53.5, 19, 62, 17, 74], mir([-1, 74, -1, 60, 5, 55, 14, 53, 21, 53.5, 19, 62, 17, 74])]) {
+      if (trim) piece(c, blob(a.map((v, i) => (i % 2 ? v : (a[0] < 31 ? v + 1.6 : v - 1.6)))), trim, 'metal', { s: 1, hl: 1 });
+      piece(c, blob(a), rp(col), 'cloth', { s: 2, d: 1, hl: 1 });
+    }
+  },
+  // 孟祈的红围巾（叠在铠甲之上）
+  scarf: (col) => c => {
+    const sc = rp(col || '#cc262a');
+    const sid = piece(c, blob([22.5, 50.5, 30, 53.5, 39.5, 50.5, 40.5, 55, 31, 58.5, 22, 55.5]), sc, 'scarf', { s: 2, hl: 1 });
+    piece(c, lock(27, 56, 24.5, 70.5, 3, 1, 1.6), sc, 'scarf', { s: 1, hl: 1 });
+    piece(c, lock(29.5, 56.5, 30.5, 67, 2.4, -0.5, 1.2), sc, 'scarf', { s: 1, hl: 1 });
+    folds(c, sid, [[25, 54, 31, 56.4, 37, 54]]);
+  },
+  emblem: (gem, x, y, r) => c => emblem(c, x || 31.5, y || 66, r || 2.4, gem),
+  // 圣职披肩（胸前两条垂带 + 金十字）
+  stole: (col) => c => {
+    const st = rp(col);
+    piece(c, poly([22, 56, 26.5, 57.5, 27.5, 74, 22.5, 74]), st, 'cloth', { s: 1, hl: 1 });
+    piece(c, poly([36.5, 57.5, 41, 56, 41.5, 74, 36.5, 74]), st, 'cloth', { s: 2, hl: 1 });
+    for (const x of [25, 39]) piece(c, union(rect(x - 0.6, 66, 1.8, 5), rect(x - 1.9, 67.4, 4.4, 1.6)), METAL.gold, 'acc', { s: 0, hl: 1 });
+  },
+  // 圣职大十字
+  cross: (big) => c => piece(c, union(rect(30, big ? 60 : 62, 3, big ? 12 : 9), rect(26.5, big ? 63 : 64.5, 10, 2.6)), METAL.gold, 'acc', { s: 1, hl: 1 }),
+  // 星纹（披肩 / 法袍点缀）
+  stars: (col, pts) => c => {
+    const id = c.p.obj(rp(col || '#f4e070', { lit: 0.5 }), 'acc', { ol: false });
+    for (const [x, y] of pts || [[6, 63], [14, 59], [50, 61], [57, 65], [10, 68]]) { c.p.px(x, y, id, 5); c.p.px(x - 1, y, id, 3); c.p.px(x + 1, y, id, 3); c.p.px(x, y - 1, id, 3); c.p.px(x, y + 1, id, 3); }
+  },
+  // 皮护腕 / 臂甲（画面左下角）
+  bracer: (mt) => c => { piece(c, poly([0, 66, 7, 64, 9, 74, 0, 74]), mt, 'metal', { s: 1, hl: 1 }); },
+  // 弩（背后右肩）
+  crossbow: (mt, wood, rep) => c => {
+    const { p } = c;
+    const w = rp(wood || '#7a4a22');
+    piece(c, lock(47, 62, 56, 30, 3.4, 0, 2.6), w, 'acc', { s: 1, hl: 1 });
+    const pts = [], inn = [];
+    for (let i = 0; i <= 12; i++) { const t = i / 12, x = 45 + t * 20, y = 31 - Math.sin(t * PI) * 4 + t * 6; const ww = 1.7 - Math.abs(t - 0.5) * 1.6; pts.push(x, y - ww); inn.unshift(x, y + ww); }
+    piece(c, poly(pts.concat(inn)), mt, 'metal', { s: 1, hl: 1 });
+    p.line([45.5, 31.5, 54, 40, 64, 37.5], p.add(rect(0, 0, 0, 0), ['#202020', '#5a5a60', '#7a7a80', '#9a9aa0', '#c0c0c8', '#e0e0e8'], 'string', { ol: false }), 3);
+    piece(c, ell(55, 31.5, 2, 2), mt, 'metal', { s: 0, hl: 1 });
+    if (rep) piece(c, poly([50, 41, 57, 36, 60, 40, 53, 45]), mt, 'metal', { s: 1, hl: 1 }); // 连弩弹匣
+  },
+};
+// —— 头部层（脸部坐标）——
+const HG = {
+  // 额环：mt 金属色阶；gem 宝石；wings 两侧羽翼
+  circlet: (mt, gem, wings) => c => {
+    const { p } = c;
+    if (wings) for (const [x0, d] of [[20, -1], [42.5, 1]]) for (let i = 0; i < 3; i++) piece(c, lock(x0, 20.5 - i * 1.2, x0 + d * (11 - i * 2.4), 12 - i * 4, 2.8 - i * 0.5, d * 1.4, 0.4), mt, 'metal', { s: 1, hl: 1 });
+    const b = piece(c, blob([19.4, 20.4, 31, 18.2, 43.4, 20, 43.4, 22.8, 31, 21, 19.4, 23.2]), mt, 'metal', { s: 1, hl: 1, dy: 1, dx: 0.3 });
+    if (gem) {
+      piece(c, poly([28.4, 19.6, 31, 15, 33.6, 19.6, 31, 22.2]), mt, 'metal', { s: 1, hl: 1 });
+      const g = piece(c, ell(31, 19.2, 1.4, 1.7), rp(gem), 'acc', { s: 0, hl: 1 }); p.px(30.5, 18.4, g, 5);
+    }
+    p.cast(b, ['skin', 'hair'], 0, 1, 2, 3);
+  },
+  // 兜帽金边
+  hoodGold: (open) => c => {
+    const o = open || [18.5, 41, 18.5, 24, 23.5, 15, 31, 13, 38.5, 15, 44, 24, 44, 41, 38, 49, 31, 51.5, 24, 49];
+    const big = o.map((v, i) => (i % 2 ? 32 + (v - 32) * 1.065 : 31 + (v - 31) * 1.065));
+    piece(c, ring(blob(big), blob(o)), METAL.gold, 'metal', { s: 1, hl: 1 });
+  },
+  // 猎帽 + 羽毛
+  featherCap: (col, feather, n, band) => c => {
+    const { p } = c;
+    const hp = rp(col);
+    if (n > 1) { const f2 = piece(c, lock(23, 13, 9, 7, 2.6, 2.5, 0.4), rp(n > 2 ? '#f4f0e0' : feather), 'feather', { s: 1, hl: 1 }); p.line([23, 13, 15, 9.5], f2, 2, true); }
+    const f = piece(c, lock(24, 12, 8, -1, 3.2, 3, 0.4), rp(feather), 'feather', { s: 1, hl: 1 });
+    p.line([24, 12, 16, 5, 9, 0], f, 2, true);
+    const cap = piece(c, blob([17.5, 21, 18.5, 13, 24, 8, 32, 6.4, 40, 8.2, 45, 13, 47, 19.5, 41, 17.5, 31, 16.6, 23, 18.6]), hp, 'hat', { s: 3, d: 1, hl: 1, dx: 1, dy: 0.5 });
+    p.line([24, 8.5, 33, 12, 44.5, 16], cap, 2, true);
+    piece(c, blob([17, 19.6, 24, 17.4, 31, 16.4, 41, 17.4, 47.4, 19.4, 47.6, 22, 41, 20, 31, 19, 24, 20, 17, 22.6]), band || hp, band ? 'metal' : 'hat', { s: 1, hl: 1, dy: 1 });
+    if (band) { const g = piece(c, ell(24, 18.6, 1.5, 1.6), rp('#d02a3a'), 'acc', { s: 0, hl: 1 }); p.px(23.5, 18, g, 5); }
+    p.cast(['hat', 'metal'], ['skin', 'hair'], 0, 1, 2, 3); p.cast(['hat', 'metal'], ['skin', 'hair'], 0, 2, 2, 3);
+  },
+  // 魔法帽（帽尖向后垂）
+  mageHat: (col, band, star) => c => {
+    const { p } = c;
+    const old = TF; if (TF) TF = [TF[0], TF[1], TF[2] + 2.5 / (1 - TF[0])];
+    const hp = rp(col);
+    const crown = piece(c, blob([19.5, 15, 21, 8, 25.5, 3.2, 33, 1.4, 42, 2.6, 50, 6, 56, 11.6, 51.5, 11.6, 46, 9.6, 42.5, 9.8, 43.5, 15]), hp, 'hat', { s: 3, d: 1, hl: 1, dx: 1, dy: 0.5 });
+    p.line([26, 4, 33, 7, 41, 6, 49, 8.5], crown, 2, true);
+    const brim = piece(c, blob([4, 18.4, 12, 14.4, 22, 12.6, 31, 12.2, 41, 12.8, 51, 14.6, 59, 18.8, 50, 20.4, 41, 20.4, 31, 19.6, 22, 20.6, 12, 21], 0.9), hp, 'hat', { s: 2, d: 1, hl: 1, dy: 1, dx: 0.4 });
+    p.line([4.5, 19, 12, 20.6, 22, 20.2, 31, 19.2, 41, 20, 50, 20, 58.5, 19], brim, 1, true);
+    if (band) piece(c, blob([20, 12.4, 31, 11, 43, 12.4, 43.2, 15.4, 31, 14, 19.8, 15.6]), Array.isArray(band) ? band : rp(band), 'metal', { s: 1, hl: 1 });
+    if (star) {
+      const sp = rp(star, { lit: 0.5 }), s = piece(c, poly([31, 7, 32.3, 10.6, 36, 12.4, 32.3, 14, 31, 17.6, 29.7, 14, 26, 12.4, 29.7, 10.6]), sp, 'acc', { s: 0, hl: 1 });
+      p.px(31, 12, s, 5);
+      piece(c, ell(55.2, 12.4, 1.8, 1.8), sp, 'acc', { s: 0, hl: 1 });
+    }
+    TF = old;
+    p.cast('hat', ['skin', 'hair'], 0, 1, 2, 3); p.cast('hat', ['skin', 'hair'], 0, 2, 2, 3);
+  },
+  // 小圆帽（祭司）
+  skullcap: (col) => c => {
+    const id = piece(c, blob([20, 18.5, 22, 11.5, 31, 8.6, 40, 11.5, 42.5, 18.5, 31, 15.6]), rp(col), 'hat', { s: 2, d: 1, hl: 1, dy: 0.6 });
+    c.p.line([31, 9, 31, 15.6], id, 2, true);
+    c.p.cast('hat', ['skin', 'hair'], 0, 1, 2, 3);
+  },
+  // 兜帽双角（魔道士）
+  hoodHorns: (col) => c => {
+    piece(c, union(lock(18, 17, 4, 8, 3.8, 4, 0.4), lock(44.5, 16, 58, 6, 3.8, -4, 0.4)), rp(col), 'horn', { s: 2, d: 1, hl: 1 });
+    for (const [x, y] of [[11, 10.5], [52, 9.5]]) c.p.line([x - 1, y + 1.5, x + 1, y - 1.5], 'horn', 1, true);
+  },
+  // 额前宝石链（咒术 / 魔道）
+  hoodGem: (gem) => c => {
+    const g = piece(c, union(poly([31, 13.5, 34.2, 17, 31, 20.5, 27.8, 17])), METAL.gold, 'metal', { s: 1, hl: 1 });
+    const j = piece(c, ell(31, 17, 1.4, 1.8), rp(gem), 'acc', { s: 0, hl: 1 }); c.p.px(30.5, 16.4, j, 5);
+  },
+  // 凤冠（大法师）
+  phoenix: c => {
+    const { p } = c, g = METAL.gold;
+    for (const [x0, d] of [[21, -1], [41.5, 1]]) for (let i = 0; i < 4; i++) piece(c, lock(x0, 18 - i * 1.4, x0 + d * (13 - i * 2.4), 9 - i * 3.6, 2.6 - i * 0.35, d * 1.6, 0.35), g, 'metal', { s: 1, hl: 1 });
+    piece(c, union(lock(31, 16, 31, 5, 3.2, 0, 0.6), lock(31, 14, 25, 6, 2.2, 1, 0.4), lock(31, 14, 37, 6, 2.2, -1, 0.4)), g, 'metal', { s: 1, hl: 1 });
+    const j = piece(c, ell(31, 11, 1.8, 2.1), rp('#e02a5a'), 'acc', { s: 0, hl: 1 }); p.px(30.5, 10, j, 5);
+  },
+};
+const GOLD = METAL.gold, SILVER = METAL.silver, STEEL = METAL.steel;
+const STEEL_BLUE = ['#10162a', '#2e4470', '#46649c', '#6a8ac4', '#a8c4ec', '#eef6ff'];
+// 每位英雄：native = 当前设定对应的阶（tier 未指定时即此外观）；t[i] = 第 i 阶的覆盖项
+const SW = (x, y, bl, gd) => c => sword(c, x, y, bl, gd);
+const TIER_LOOK = {
+  // 作家 → 侠客 → 剑道家 → 圣剑士 → 剑侠 → 剑王 → 剑圣（红围巾贯穿始终）
+  mengqi: { native: 0, t: [
+    {},
+    { over: [GEAR.pauldrons(rp('#7a4a24'), 'L'), GEAR.strap('#5a3418'), GEAR.scarf()], back: SW(53, 35) },
+    { body: 'master', cloth: '#34406e', over: [GEAR.pauldrons(STEEL, 'L'), GEAR.scarf()], head: HG.circlet(STEEL), back: SW(53, 35) },
+    { body: 'lightArmor', cloth: '#3a5ab8', metal: SILVER, over: [GEAR.scarf()], head: HG.circlet(SILVER, '#3a8ae0'), back: SW(53, 35, SILVER) },
+    { body: 'plate', metal: SILVER, cape: '#2a4a9a', over: [GEAR.mantle('#2a4a9a', SILVER, 'L'), GEAR.scarf()], head: HG.circlet(SILVER, '#3a8ae0', true), back: [GEAR.cape('#2a4a9a'), SW(53, 35, SILVER)] },
+    { body: 'plate', metal: SILVER, cape: '#a02a32', over: [GEAR.mantle('#a02a32', GOLD), GEAR.pauldrons(GOLD), GEAR.scarf(), GEAR.emblem('#2a6ae0')], head: HG.circlet(GOLD, '#2a6ae0', true), back: [GEAR.cape('#a02a32', GOLD), SW(53, 35, SILVER, GOLD)] },
+    { body: 'plate', metal: GOLD, cape: '#f0eef6', over: [GEAR.mantle('#f0eef6', GOLD), GEAR.pauldrons(GOLD, null, true), GEAR.scarf(), GEAR.emblem('#d02030', 31.5, 66, 2.8)], head: HG.circlet(GOLD, '#e02a3a', true), back: [GEAR.aura('#f4d468'), GEAR.cape('#f0eef6', GOLD), SW(53, 35, ['#2a1a40', '#5a7ab0', '#8ab4e8', '#c4e4ff', '#eef8ff', '#ffffff'], GOLD)] },
+  ] },
+  // 剑士 → 高级剑士 → 银剑士 → 黄金剑士 → 大剑师（青绿色基调）
+  oz: { native: 0, t: [
+    {},
+    { over: [GEAR.pauldrons(STEEL, 'L'), GEAR.bracer(STEEL)], head: 'headband', band: '#2e7a6a', bandPlate: true },
+    { body: 'lightArmor', cloth: '#2e7a6a', metal: SILVER, over: [GEAR.strap('#6a4020')], head: 'headband', band: '#2e7a6a', bandPlate: SILVER, back: SW(52, 36, SILVER) },
+    { body: 'lightArmor', cloth: '#2e7a6a', metal: GOLD, over: [GEAR.mantle('#2e7a6a', GOLD, 'L'), GEAR.pauldrons(GOLD, 'R')], head: HG.circlet(GOLD, '#30c090'), back: [GEAR.cape('#2e7a6a'), SW(52, 36, SILVER, GOLD)] },
+    { body: 'plate', metal: GOLD, cape: '#1e6a5a', over: [GEAR.mantle('#f0ece0', GOLD), GEAR.pauldrons(GOLD, null, true), GEAR.emblem('#30c090', 31.5, 66, 2.8)], head: HG.circlet(GOLD, '#30c090', true), back: [GEAR.cape('#1e6a5a', GOLD), SW(52, 36, ['#1a2a30', '#4a8a8a', '#7ac4c0', '#b4ece4', '#e4fff8', '#ffffff'], GOLD)] },
+  ] },
+  // 骑枪兵 → 旋风骑士 → 疾风骑士 → 飞马骑士 → 飞龙骑士
+  yangtie: { native: 0, t: [
+    {},
+    { over: [GEAR.mantle('#2c5aa0', null, 'L')], head: HG.circlet(STEEL) },
+    { body: 'plate', metal: STEEL, cape: '#2c5aa0', head: 'kettle', nasal: false, crest: '#3a6ad0', back: GEAR.cape('#2c5aa0') },
+    { body: 'plate', metal: SILVER, cape: '#2c5aa0', over: [GEAR.mantle('#2c5aa0', SILVER, 'L')], head: 'plumeHelm', plume: '#f0f0f8', helmWings: '#f4f4fc', back: GEAR.cape('#2c5aa0', SILVER) },
+    { body: 'plate', metal: STEEL_BLUE, cape: '#1e3a7a', over: [GEAR.mantle('#1e3a7a', GOLD), GEAR.pauldrons(GOLD, null, true), GEAR.emblem('#d02030')], head: 'plumeHelm', helmMetal: STEEL_BLUE, helmRidge: GOLD, helmHorns: '#e8d8b0', helmGem: '#d02030', plume: '#3a7ae0', back: GEAR.cape('#1e3a7a', GOLD) },
+  ] },
+  kaidi: { native: 3, t: [
+    { body: 'lightArmor', cloth: '#a82a3a', head: null },
+    { body: 'lightArmor', cloth: '#a82a3a', over: [GEAR.mantle('#c02a3a', null, 'L')], head: HG.circlet(STEEL) },
+    { body: 'plate', metal: STEEL, head: 'plumeHelm', helmMetal: STEEL, plume: false },
+    {},
+    { metal: GOLD, over: [GEAR.mantle('#c02a3a', GOLD), GEAR.emblem('#2a6ae0')], helmMetal: GOLD, helmBand: SILVER, helmRidge: SILVER, helmHorns: '#f4ecd8', helmGem: '#2a6ae0', helmWings: '#f4f0f8', back: GEAR.cape('#c02a3a', GOLD) },
+  ] },
+  // 战士 → 格斗者 → 圣战士 → 光明战士 → 终极战士
+  klein: { native: 0, t: [
+    {},
+    { over: [GEAR.xstrap(), GEAR.pauldrons(STEEL, 'R'), GEAR.bracer(STEEL)] },
+    { body: 'plate', metal: STEEL, torso: 'broad', over: [GEAR.tabard('#eeeaf0')], bandPlate: GOLD },
+    { body: 'plate', metal: SILVER, torso: 'broad', cape: '#f0eef6', over: [GEAR.tabard('#f4f2f8'), GEAR.pauldrons(GOLD, 'L'), GEAR.emblem('#f0c020', 31.5, 66, 2.6)], bandPlate: GOLD, bandGem: '#3a8ae0', back: GEAR.cape('#f0eef6', GOLD) },
+    { body: 'plate', metal: GOLD, torso: 'broad', cape: '#a01a1a', over: [GEAR.mantle('#a01a1a', GOLD), GEAR.pauldrons(GOLD, null, true), GEAR.emblem('#d02030', 31.5, 66, 2.8)], band: '#c82020', bandPlate: GOLD, bandGem: '#d02030', back: [GEAR.aura('#ff8a3a'), GEAR.cape('#a01a1a', GOLD)] },
+  ] },
+  augustus: { native: 4, t: [
+    { body: 'vest', cloth: '#5a4a3a', skin: 'warm', metal: null, cape: null, emblem: null },
+    { body: 'vest', cloth: '#4a3a2a', metal: null, cape: null, emblem: null, over: [GEAR.xstrap(), GEAR.pauldrons(STEEL, 'R')] },
+    { metal: STEEL, cape: null, emblem: null, over: [GEAR.tabard('#eeeaf0')] },
+    { metal: SILVER, cape: '#f0eef6', emblem: '#3a8ae0', back: GEAR.cape('#f0eef6') },
+    {},
+  ] },
+  // 次级武士 → 中级武士 → 高级武士 → 将军 → 大将军
+  slade: { native: 0, t: [
+    {},
+    { over: [GEAR.dou('#3a2a2e')], head: 'headband', band: '#ece8e0' },
+    { over: [GEAR.dou('#5a1c22')], headBack: kabutoBack, head: 'kabuto', helm: '#2a2a3a', kuwa: 'small' },
+    { armor: '#a82228', over: [GEAR.dou('#8a1c22', '#e8c050')], headBack: kabutoBack, head: 'kabuto', helm: '#2a2a3a', kuwa: 'big' },
+    { armor: '#1e1e28', over: [GEAR.jinbaori('#b01e24', GOLD), GEAR.dou('#1e1e28', '#e8c050')], headBack: kabutoBack, head: 'kabuto', helm: '#1a1a24', kuwa: 'grand', back: GEAR.aura('#f07030') },
+  ] },
+  // 猎人 → 弓箭手 → 神箭手 → 弩手 → 连弩手
+  judy: { native: 0, t: [
+    {},
+    { head: HG.featherCap('#2e6a2e', '#d84a3a', 1), back: [bow, quiver] },
+    { over: [GEAR.mantle('#2a5a2a', rp('#8a5a2c'))], head: HG.featherCap('#2e6a2e', '#d84a3a', 2), back: [bow, quiver] },
+    { body: 'coat', cloth: '#2a5a3a', epaulette: STEEL, over: [GEAR.crossbow(STEEL), GEAR.pauldrons(STEEL, 'L')], head: HG.featherCap('#2a4a2a', '#d84a3a', 2, STEEL), back: null },
+    { body: 'coat', cloth: '#1e4a30', epaulette: GOLD, over: [GEAR.crossbow(GOLD, '#5a2a1a', true), GEAR.mantle('#1e4a30', GOLD, 'L'), GEAR.emblem('#d02a3a', 31.5, 59, 1.8)], head: HG.featherCap('#1e3a24', '#e83a2a', 3, GOLD), back: GEAR.cape('#1e4a30', GOLD) },
+  ] },
+  hake: { native: 3, t: [
+    { body: 'archer', cloth: '#6a5a3a', head: 'bandana', band: '#2a3a6a', back: bow },
+    { body: 'archer', cloth: '#2a3a6a', head: 'bandana', band: '#a82a2a', back: [bow, quiver] },
+    { cloth: '#5a3e26', epaulette: false, hat: '#3a2a1e', hatFeather: false, back: bow },
+    {},
+    { over: [GEAR.crossbow(GOLD, '#5a2a1a', true), GEAR.mantle('#a01a24', GOLD, 'L'), GEAR.emblem('#d02030', 31.5, 59, 1.8)], hatTrim: GOLD, hatFeather: '#f4f0e8', hatPlume: '#d82a2a', back: GEAR.cape('#a01a24', GOLD) },
+  ] },
+  // 修士 → 牧师 → 祭司 → 主教 → 大神官
+  xueer: { native: 0, t: [
+    {},
+    { over: [GEAR.stole('#3a5ab8')], head: ['hood', HG.hoodGold()] },
+    { over: [GEAR.mantle('#3a5ab8', GOLD), GEAR.cross()], head: ['hood', HG.hoodGold(), HG.circlet(GOLD, '#3a8ae0')] },
+    { body: 'highPriest', trim: '#3a5ab8', over: [GEAR.mantle('#f4f2f8', GOLD)], head: ['hood', HG.hoodGold(), 'tiara'] },
+    { body: 'highPriest', trim: '#3a5ab8', over: [GEAR.mantle('#3a5ab8', GOLD), GEAR.stars('#fff4b8', [[6, 64], [14, 60.5], [50, 61.5], [57, 66]]), GEAR.cross(true)], head: ['hood', HG.hoodGold(), HG.circlet(GOLD, '#e02a5a', true)], back: GEAR.aura('#fff0a0') },
+  ] },
+  qu: { native: 3, t: [
+    { body: 'monkRobe', cloth: '#8a7a64', trim: '#5a4a34', headBack: 'hood', head: 'hood', hood: '#a89a84' },
+    { body: 'priestRobe', cloth: '#eeeaf2', trim: '#a82a3a', headBack: 'hood', head: ['hood', HG.hoodGold()], hood: '#f0eef4' },
+    { head: HG.skullcap('#a82a3a') },
+    {},
+    { over: [GEAR.mantle('#a82a3a', GOLD), GEAR.stars('#fff4b8', [[6, 64], [14, 60.5], [50, 61.5], [57, 66]])], mitre: '#f0d070', back: GEAR.aura('#fff0a0') },
+  ] },
+  // 咒术师 → 巫师 → 魔道士
+  hao: { native: 0, t: [
+    {},
+    { over: [GEAR.mantle('#30184a', rp('#8a4ab8'))], head: ['hoodShadow', HG.hoodGold([19.5, 44, 19.5, 26, 24, 19, 31, 17.5, 38.5, 19, 43.5, 26, 43, 42, 37, 49, 31, 51, 25, 49]), HG.hoodGem('#c02040')] },
+    { cloth: '#2a1638', hood: '#3a1a4e', trim: '#1a0e28', over: [GEAR.mantle('#2a1638', GOLD)], head: ['hoodShadow', HG.hoodGold([19.5, 44, 19.5, 26, 24, 19, 31, 17.5, 38.5, 19, 43.5, 26, 43, 42, 37, 49, 31, 51, 25, 49]), HG.hoodHorns('#d8ccb4'), HG.hoodGem('#ff3040')], back: [GEAR.aura('#a040e0'), GEAR.collar('#2a1638', '#a01a3a', GOLD)] },
+  ] },
+  // 魔术士 → 魔术师 → 魔法师 → 法师 → 大法师
+  wushuang: { native: 1, t: [
+    { body: 'mageRobe', trim: '#d8c8e8', head: HG.circlet(GOLD, '#e02a5a'), earring: false },
+    {},
+    { back: GEAR.collar('#30206a', '#8a2a5a', GOLD) },
+    { over: [GEAR.mantle('#30206a', GOLD), GEAR.stars('#fff4b8', [[6, 64], [14, 60.5], [50, 61.5], [57, 66]])], back: GEAR.collar('#30206a', '#8a2a5a', GOLD) },
+    { over: [GEAR.mantle('#30206a', GOLD), GEAR.stars('#fff4b8', [[6, 64], [14, 60.5], [50, 61.5], [57, 66], [10, 68.5]])], head: [HG.phoenix, 'tiara'], back: [GEAR.aura('#e080ff'), GEAR.collar('#30206a', '#c02a6a', GOLD)] },
+  ] },
+  lian: { native: 1, t: [
+    { cloth: '#56689a', trim: '#8496c4' },
+    {},
+    { head: HG.mageHat('#2a4aa0', '#eae6f0') },
+    { over: [GEAR.mantle('#2a4aa0', rp('#eae6f0')), GEAR.stars('#fff4b8', [[6, 64], [14, 60.5], [50, 61.5], [57, 66]])], head: HG.mageHat('#2a4aa0', GOLD, '#f4e070') },
+    { cloth: '#22307a', over: [GEAR.mantle('#1a2a6a', GOLD), GEAR.stars('#fff4b8', [[6, 64], [14, 60.5], [50, 61.5], [57, 66], [10, 68.5]])], head: HG.mageHat('#1a2a6a', GOLD, '#f4e070'), back: [GEAR.aura('#80c0ff'), GEAR.collar('#1a2a6a', '#3a5ac0', GOLD)] },
+  ] },
+  // 鹰族士兵 → 鹰战士 → 飞鹰战士
+  dvra: { native: 1, t: [
+    { featherN: 3, featherBand: rp('#7a5030'), featherGems: false, cloth: '#7a6444', earring: false, back: c => wings(c, '#7a5030', 0.72, 4) },
+    {},
+    { featherN: 7, featherBand: GOLD, over: [GEAR.breast(GOLD, '#30b0b0'), GEAR.pauldrons(GOLD, null, false)], back: c => wings(c, '#9a6a3a', 1.18, 7) },
+  ] },
+};
+function tierSpec(id, tier) {
+  const base = HERO_SPECS[id];
+  const L = TIER_LOOK[id];
+  if (!base || !L || tier == null) return base;
+  const t = clamp(tier | 0, 0, L.t.length - 1);
+  if (t === L.native) return base;
+  return Object.assign({}, base, L.t[t]);
+}
+// 特殊角色的阶数（坎培特 / 拉拉 当前设定 = 第 1 阶）
+function heroTier(id, tier) {
+  const n = { kampeite: 3, lala: 4 }[id];
+  return tier == null || !n ? null : clamp(tier | 0, 0, n - 1);
+}
+
+// =====================================================================
 // 对外接口
 // =====================================================================
 const CACHE = {};
@@ -1986,7 +2388,7 @@ function heroSpec(id) {
   }
   return null;
 }
-function build(id, variant) {
+function build(id, variant, tier) {
   if (typeof id !== 'string') return null;
   if (id.startsWith('enemy:')) {
     let k = id.slice(6);
@@ -2000,14 +2402,16 @@ function build(id, variant) {
   }
   const s = heroSpec(id);
   if (!s) return null;
-  if (s.special) return MONSTERS[s.special](variant, true);
-  return drawHuman(s);
+  if (s.special) return MONSTERS[s.special](variant, true, heroTier(id, tier));
+  return drawHuman(tierSpec(id, tier) || s);
 }
-function getPortrait(id, variant) {
-  const key = id + '|' + (variant || '');
+// tier：职业阶（0 起）；未指定 = 角色当前默认外观。仅对我方英雄有效
+function getPortrait(id, variant, tier) {
+  if (typeof id === 'string' && id.startsWith('enemy:')) tier = null;
+  const key = id + '|' + (variant || '') + (tier == null ? '' : '|' + tier);
   if (CACHE[key]) return CACHE[key];
   let c = null;
-  try { c = build(id, variant); } catch (e) { TF = null; if (G.console) console.warn('portrait', id, e); c = null; }
+  try { c = build(id, variant, tier); } catch (e) { TF = null; if (G.console) console.warn('portrait', id, e); c = null; }
   TF = null;
   if (!c) c = CACHE['?'] || (CACHE['?'] = silhouette());
   else c.className = 'pix portrait';
