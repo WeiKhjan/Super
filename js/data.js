@@ -116,7 +116,7 @@ const SPELLS = {
   chaosSword:  { name: '混沌剑法', school: '剑', mp: 22, power: 28, range: [1, 2], area: 1, kind: 'phys', sure: true, fx: 'dark', desc: '比爆烈剑法更强大的剑法' },
   limitless:   { name: '无极剑法', school: '剑', mp: 26, power: 38, range: [1, 2], kind: 'phys', sure: true, fx: 'slash', desc: '威力极大的剑法' },
   qiankun:     { name: '乾坤剑法', school: '剑', mp: 34, power: 50, range: [1, 3], area: 1, kind: 'phys', sure: true, fx: 'holy', desc: '剑法之极致' },
-  // 双人剑式（需要相邻、尚未行动的剑系伙伴，伙伴也会结束行动）
+  // 双人剑式（需要相邻、尚未行动的剑术系伙伴，伙伴也会结束行动）
   flyingSword: { name: '御剑术',   school: '双', mp: 8,  power: 14, range: [1, 3], kind: 'pair', sure: true, fx: 'slash', desc: '与相邻伙伴合力御剑' },
   twinSword:   { name: '紫青双剑', school: '双', mp: 12, power: 22, range: [1, 3], kind: 'pair', sure: true, fx: 'slash', desc: '两道剑光交错' },
   titanSword:  { name: '巨神剑法', school: '双', mp: 16, power: 30, range: [1, 4], kind: 'pair', sure: true, fx: 'holy', desc: '合击巨神之剑' },
@@ -124,6 +124,47 @@ const SPELLS = {
   twinPhoenix: { name: '双凤剑法', school: '双', mp: 24, power: 44, range: [1, 4], kind: 'pair', sure: true, fx: 'fire', desc: '双凤齐飞' },
   fourSymbol:  { name: '四象剑法', school: '双', mp: 30, power: 50, range: [1, 3], area: 1, kind: 'pair', sure: true, fx: 'holy', desc: '四象合一' },
   eightDragon: { name: '八龙剑法', school: '双', mp: 40, power: 64, range: [1, 4], area: 1, kind: 'pair', sure: true, fx: 'holy', desc: '八龙齐出，最强合击' },
+  // 枪术（骑兵系）
+  thrust:      { name: '突刺',     school: '枪', mp: 4,  power: 6,  range: [1, 2], kind: 'phys', sure: true, style: 'thrust', fx: 'slash', desc: '长枪直刺，射程 1-2，必中' },
+  whirlLance:  { name: '旋风枪',   school: '枪', mp: 8,  power: 10, range: [0, 0], area: 1, around: true, kind: 'phys', sure: true, style: 'spin', fx: 'wind', desc: '舞枪横扫，攻击身边所有敌人' },
+  oath:        { name: '骑士之誓', school: '枪', mp: 6,  range: [0, 1], kind: 'buff', stat: 'def', amount: 6, turns: 3, fx: 'buff', desc: '以骑士之名守护，自己或相邻同伴防御 +6' },
+  galeCharge:  { name: '疾风突击', school: '枪', mp: 11, power: 17, range: [1, 3], line: true, kind: 'phys', sure: true, style: 'charge', fx: 'slash', desc: '策马冲锋贯穿一列，路径上不论敌我' },
+  pegasusLance:{ name: '天马流星枪', school: '枪', mp: 16, power: 24, range: [1, 2], area: 1, kind: 'phys', sure: true, style: 'rain', fx: 'holy', desc: '自空中连续刺下，波及周围' },
+  wyvernLance: { name: '飞龙穿云枪', school: '枪', mp: 24, power: 36, range: [1, 4], line: true, kind: 'phys', sure: true, style: 'charge', fx: 'fire', desc: '驾飞龙俯冲，贯穿一列' },
+  dragonLance: { name: '龙骑神枪', school: '枪', mp: 30, power: 46, range: [1, 3], area: 1, kind: 'phys', sure: true, style: 'thrust', fx: 'fire', desc: '枪术之极致' },
+  // 斧技（战士系）
+  heavyBlow:   { name: '强力一击', school: '斧', mp: 4,  power: 8,  range: [1, 1], kind: 'phys', style: 'axe', fx: 'rock', desc: '全力挥斧，威力大但可能落空' },
+  berserk:     { name: '狂战士',   school: '斧', mp: 6,  range: [0, 0], kind: 'buff', stat: 'atk', amount: 7, turns: 3, fx: 'fire', desc: '燃起斗志，自身攻击 +7' },
+  whirlAxe:    { name: '旋风斧',   school: '斧', mp: 8,  power: 12, range: [0, 0], area: 1, around: true, kind: 'phys', sure: true, style: 'spin', fx: 'rock', desc: '回旋巨斧，攻击身边所有敌人' },
+  quakeAxe:    { name: '震地击',   school: '斧', mp: 12, power: 16, range: [1, 1], area: 1, kind: 'phys', sure: true, groundOnly: true, style: 'axe', fx: 'rock', desc: '斧劈大地，震伤周围地面部队' },
+  overlord:    { name: '霸王斩',   school: '斧', mp: 16, power: 30, range: [1, 1], kind: 'phys', sure: true, style: 'axe', fx: 'fire', desc: '霸者一击' },
+  cataclysm:   { name: '天崩地裂', school: '斧', mp: 26, power: 38, range: [0, 0], area: 2, around: true, kind: 'phys', sure: true, groundOnly: true, style: 'axe', fx: 'rock', desc: '震碎大地，伤及周围两格的地面敌人' },
+  // 刀术（武士系）
+  iai:         { name: '居合斩',   school: '刀', mp: 4,  power: 6,  range: [1, 1], kind: 'phys', sure: true, crit: 30, style: 'blade', fx: 'slash', desc: '拔刀一闪，必中且易暴击' },
+  swallow:     { name: '燕返',     school: '刀', mp: 7,  power: 12, range: [1, 1], kind: 'phys', sure: true, status: 'noCounter', turns: 2, style: 'blade', fx: 'slash', desc: '回旋双斩，令敌人无法反击' },
+  flashCut:    { name: '一闪',     school: '刀', mp: 10, power: 16, range: [1, 3], line: true, kind: 'phys', sure: true, style: 'dash', fx: 'slash', desc: '疾驰穿过敌阵，路径上不论敌我' },
+  bushido:     { name: '武士道',   school: '刀', mp: 6,  range: [0, 0], kind: 'buff', stat: 'skill', amount: 30, turns: 3, fx: 'buff', desc: '心如止水，自身命中与暴击大增' },
+  hundredCut:  { name: '百鬼斩',   school: '刀', mp: 16, power: 24, range: [0, 0], area: 1, around: true, kind: 'phys', sure: true, style: 'spin', fx: 'dark', desc: '刀光如百鬼夜行，斩向身边所有敌人' },
+  musou:       { name: '无双乱舞', school: '刀', mp: 26, power: 40, range: [1, 2], area: 1, kind: 'phys', sure: true, crit: 15, style: 'blade', fx: 'fire', desc: '刀术之极致' },
+  // 箭术（弓箭系）
+  aimShot:     { name: '瞄准射击', school: '弓', mp: 4,  power: 5,  range: [2, 4], kind: 'phys', sure: true, crit: 15, style: 'arrow', fx: 'slash', desc: '屏息瞄准，射程 2-4，必中' },
+  doubleShot:  { name: '连射',     school: '弓', mp: 6,  power: 12, range: [2, 3], kind: 'phys', sure: true, style: 'arrow2', fx: 'slash', desc: '连发两箭' },
+  pierceArrow: { name: '穿云箭',   school: '弓', mp: 9,  power: 15, range: [1, 5], line: true, kind: 'phys', sure: true, style: 'pierce', fx: 'wind', desc: '贯穿一列，路径上不论敌我' },
+  arrowRain:   { name: '箭雨',     school: '弓', mp: 12, power: 14, range: [2, 5], area: 1, kind: 'phys', sure: true, style: 'volley', fx: 'slash', desc: '万箭齐发，覆盖一片区域' },
+  hawkEye:     { name: '鹰眼',     school: '弓', mp: 6,  range: [0, 0], kind: 'buff', stat: 'skill', amount: 30, turns: 3, fx: 'buff', desc: '洞察弱点，自身命中与暴击大增' },
+  starArrows:  { name: '流星箭雨', school: '弓', mp: 24, power: 30, range: [2, 5], area: 2, kind: 'phys', sure: true, style: 'volley', fx: 'holy', desc: '箭术之极致，箭如流星坠落' },
+  // 鹰族
+  dive:        { name: '俯冲',     school: '翼', mp: 4,  power: 7,  range: [1, 1], kind: 'phys', sure: true, style: 'dive', fx: 'wind', desc: '自高空俯冲攻击，必中' },
+  featherStorm:{ name: '羽刃风暴', school: '翼', mp: 12, power: 15, range: [1, 3], area: 1, kind: 'phys', sure: true, style: 'feathers', fx: 'wind', desc: '振翅射出锋利羽刃' },
+  skyStrike:   { name: '天鹰冲击', school: '翼', mp: 22, power: 34, range: [1, 4], line: true, kind: 'phys', sure: true, style: 'charge', fx: 'bolt', desc: '化作雷光贯穿一列' },
+  // 狼族
+  bite:        { name: '撕咬',     school: '牙', mp: 4,  power: 7,  range: [1, 1], kind: 'phys', sure: true, crit: 10, style: 'claw', fx: 'slash', desc: '扑上撕咬，必中' },
+  howl:        { name: '狼嚎',     school: '牙', mp: 8,  range: [0, 0], area: 1, kind: 'buff', stat: 'atk', amount: 5, turns: 3, fx: 'buff', desc: '仰天长嚎，自己与身边同伴攻击 +5' },
+  rendClaw:    { name: '裂爪',     school: '牙', mp: 8,  power: 12, range: [1, 1], kind: 'phys', sure: true, status: 'noCounter', turns: 2, style: 'claw', fx: 'slash', desc: '撕裂爪击，令敌人无法反击' },
+  frenzy:      { name: '疾风连爪', school: '牙', mp: 14, power: 18, range: [0, 0], area: 1, around: true, kind: 'phys', sure: true, style: 'spin', fx: 'slash', desc: '旋身连爪，攻击身边所有敌人' },
+  moonFang:    { name: '月下狼牙', school: '牙', mp: 22, power: 34, range: [1, 1], kind: 'phys', sure: true, crit: 20, style: 'claw', fx: 'holy', desc: '借月光之力的必杀一咬' },
+  // 龙族
+  dragonFlame: { name: '龙焰冲击', school: '技', mp: 14, power: 26, range: [1, 4], line: true, kind: 'magic', fx: 'beam', desc: '喷出直线烈焰，路径上不论敌我' },
   // 怪物 / 敌方专用
   breathFire:  { name: '喷火',     school: '技', mp: 0,  power: 10, range: [1, 2], kind: 'magic', fx: 'fire', desc: '喷出火焰' },
   breathIce:   { name: '喷冰气',   school: '技', mp: 0,  power: 10, range: [1, 2], kind: 'magic', fx: 'ice', desc: '喷出冰气' },
@@ -135,7 +176,7 @@ const SPELLS = {
   sumPig:      { name: '召唤豬頭龍', school: '召', mp: 10, range: [1, 1], kind: 'summon', unit: 'pigdragon', turns: 99, fx: 'summon', desc: '' },
   sumSkeleton: { name: '召唤魔兵', school: '召', mp: 12, range: [1, 1], kind: 'summon', unit: 'beast', turns: 99, fx: 'summon', desc: '' },
 };
-const SCHOOL_NAME = { 地: '地系', 火: '火系', 风: '风系', 水: '水系', 暗: '黑暗系', 圣: '神圣系', 召: '召唤系', 剑: '单人剑式', 双: '双人剑式', 技: '特技' };
+const SCHOOL_NAME = { 地: '地系', 火: '火系', 风: '风系', 水: '水系', 暗: '黑暗系', 圣: '神圣系', 召: '召唤系', 剑: '单人剑式', 双: '双人剑式', 枪: '枪术', 斧: '斧技', 刀: '刀术', 弓: '箭术', 翼: '鹰族战技', 牙: '狼族战技', 技: '特技' };
 
 // ---------- 道具 ----------
 // type: weapon(kind) / armor / acc 饰品 / use 消耗 / key 任务道具
@@ -235,22 +276,22 @@ const CLASSES = {
     tiers: [TIER('骑枪兵', 1, 6, 'horse'), TIER('旋风骑士', 6, 6, 'horse'), TIER('疾风骑士', 12, 7, 'horse'), TIER('飞马骑士', 19, 7, 'fly'), TIER('飞龙骑士', 26, 7, 'fly')],
     base: { hp: 25, mp: 3, atk: 9, def: 6, mag: 1, spd: 6 }, growth: { hp: 3.2, mp: 0.5, atk: 1.6, def: 1.3, mag: 0.2, spd: 1.0 },
     promo: { hp: 6, mp: 1, atk: 2, def: 3, spd: 1 },
-    skills: [[4, 'voidSword'], [10, 'flyingSword'], [13, 'rainbow'], [20, 'titanSword'], [24, 'earthSplit']] },
+    skills: [[3, 'thrust'], [7, 'oath'], [9, 'whirlLance'], [13, 'galeCharge'], [19, 'pegasusLance'], [26, 'wyvernLance'], [31, 'dragonLance']] },
   fighter: { line: '战士系', type: '战士', weapon: ['axe'], sprite: 'fighter',
     tiers: [TIER('战士', 1, 5), TIER('格斗者', 6, 5), TIER('圣战士', 12, 5), TIER('光明战士', 19, 6), TIER('终极战士', 26, 6)],
     base: { hp: 28, mp: 2, atk: 10, def: 5, mag: 0, spd: 5 }, growth: { hp: 3.6, mp: 0.4, atk: 1.9, def: 1.0, mag: 0.1, spd: 0.9 },
     promo: { hp: 7, mp: 1, atk: 3, def: 1, spd: 1 },
-    skills: [[8, 'soulBreak'], [16, 'earthSplit'], [24, 'burstSword']] },
+    skills: [[3, 'heavyBlow'], [6, 'berserk'], [10, 'whirlAxe'], [15, 'quakeAxe'], [21, 'overlord'], [28, 'cataclysm']] },
   samurai: { line: '武士系', type: '武士', weapon: ['blade', 'sword'], sprite: 'samurai',
     tiers: [TIER('次级武士', 1, 5), TIER('中级武士', 6, 5), TIER('高级武士', 12, 5), TIER('将军', 19, 6), TIER('大将军', 26, 6)],
     base: { hp: 25, mp: 3, atk: 9, def: 7, mag: 1, spd: 6 }, growth: { hp: 3.2, mp: 0.5, atk: 1.6, def: 1.4, mag: 0.2, spd: 1.0 },
     promo: { hp: 6, mp: 1, atk: 2, def: 3, spd: 1 },
-    skills: [[5, 'voidSword'], [12, 'soulBreak'], [20, 'earthSplit'], [27, 'chaosSword']] },
+    skills: [[3, 'iai'], [7, 'swallow'], [11, 'flashCut'], [14, 'bushido'], [20, 'hundredCut'], [27, 'musou']] },
   archer: { line: '弓箭系', type: '弓箭手', weapon: ['bow'], sprite: 'archer',
     tiers: [TIER('猎人', 1, 5, 'foot', [2, 3]), TIER('弓箭手', 6, 5, 'foot', [2, 3]), TIER('神箭手', 12, 5, 'foot', [2, 4]), TIER('弩手', 19, 5, 'foot', [1, 4]), TIER('连弩手', 26, 6, 'foot', [1, 4])],
     base: { hp: 20, mp: 3, atk: 8, def: 3, mag: 2, spd: 8 }, growth: { hp: 2.5, mp: 0.5, atk: 1.6, def: 0.8, mag: 0.3, spd: 1.4 },
     promo: { hp: 4, mp: 1, atk: 3, def: 1, spd: 2 },
-    skills: [] },
+    skills: [[3, 'aimShot'], [7, 'doubleShot'], [11, 'pierceArrow'], [15, 'arrowRain'], [19, 'hawkEye'], [27, 'starArrows']] },
   priest: { line: '牧师系', type: '牧师', weapon: ['staff'], sprite: 'priest',
     tiers: [TIER('修士', 1, 4), TIER('牧师', 6, 4), TIER('祭司', 12, 5), TIER('主教', 19, 5), TIER('大神官', 26, 5)],
     base: { hp: 18, mp: 16, atk: 3, def: 3, mag: 7, spd: 6 }, growth: { hp: 2.2, mp: 2.2, atk: 0.4, def: 0.7, mag: 1.5, spd: 1.0 },
@@ -280,23 +321,23 @@ const CLASSES = {
     tiers: [TIER('小龙', 1, 5, 'fly', [1, 2]), TIER('飞龙', 8, 6, 'fly', [1, 2]), TIER('火龙', 16, 6, 'fly', [1, 2]), TIER('巨火龙', 24, 7, 'fly', [1, 2])],
     base: { hp: 24, mp: 6, atk: 9, def: 6, mag: 6, spd: 6 }, growth: { hp: 3.4, mp: 0.8, atk: 1.6, def: 1.2, mag: 1.0, spd: 1.0 },
     promo: { hp: 8, mp: 2, atk: 3, def: 2, mag: 2, spd: 1 },
-    skills: [[1, 'breathFire'], [16, 'firestorm']] },
+    skills: [[1, 'breathFire'], [12, 'dragonFlame'], [16, 'firestorm']] },
   hawk: { line: '鹰族', type: '鹰族', weapon: ['claw', 'lance'], sprite: 'hawkman',
     tiers: [TIER('鹰族士兵', 1, 6, 'fly'), TIER('鹰战士', 10, 7, 'fly'), TIER('飞鹰战士', 20, 7, 'fly')],
     base: { hp: 22, mp: 3, atk: 9, def: 4, mag: 2, spd: 9 }, growth: { hp: 2.7, mp: 0.5, atk: 1.6, def: 0.9, mag: 0.3, spd: 1.4 },
     promo: { hp: 6, mp: 2, atk: 3, def: 2, spd: 2 },
-    skills: [[12, 'tornado'], [20, 'lightning']] },
+    skills: [[1, 'dive'], [12, 'featherStorm'], [16, 'tornado'], [24, 'skyStrike']] },
   wolf: { line: '狼族', type: '狼族', weapon: ['claw'], sprite: 'wolfman',
     tiers: [TIER('狼族士兵', 1, 6), TIER('狼战士', 10, 7), TIER('狼嚎战士', 20, 7)],
     base: { hp: 26, mp: 2, atk: 10, def: 5, mag: 0, spd: 9 }, growth: { hp: 3.2, mp: 0.4, atk: 1.8, def: 1.0, mag: 0.1, spd: 1.3 },
     promo: { hp: 6, mp: 1, atk: 3, def: 2, spd: 2 },
-    skills: [[10, 'soulBreak']] },
+    skills: [[1, 'bite'], [10, 'howl'], [12, 'rendClaw'], [18, 'frenzy'], [25, 'moonFang']] },
 
   // ===== 敌方 / NPC / 召唤物 =====
   soldier:    mk('士兵', '士兵', 'soldier', ['sword'], 'foot', [1, 1], 5, { hp: 20, mp: 0, atk: 7, def: 5, mag: 0, spd: 5 }, { hp: 2.8, mp: 0, atk: 1.5, def: 1.1, mag: 0, spd: 0.9 }),
   captain:    mk('队长', '士兵', 'captain', ['sword'], 'foot', [1, 1], 5, { hp: 26, mp: 6, atk: 9, def: 6, mag: 1, spd: 7 }, { hp: 3.0, mp: 0.5, atk: 1.7, def: 1.2, mag: 0.2, spd: 1.1 }, [[4, 'voidSword']]),
   crossbow:   mk('弩手', '弓箭手', 'archer', ['bow'], 'foot', [1, 4], 5, { hp: 20, mp: 0, atk: 9, def: 4, mag: 0, spd: 7 }, { hp: 2.5, mp: 0, atk: 1.6, def: 0.9, mag: 0, spd: 1.1 }),
-  darkKnight: mk('黑骑士', '骑兵', 'darkKnight', ['lance'], 'horse', [1, 1], 6, { hp: 27, mp: 6, atk: 10, def: 8, mag: 2, spd: 6 }, { hp: 3.2, mp: 0.4, atk: 1.7, def: 1.3, mag: 0.3, spd: 1.0 }, [[1, 'voidSword']]),
+  darkKnight: mk('黑骑士', '骑兵', 'darkKnight', ['lance'], 'horse', [1, 1], 6, { hp: 27, mp: 6, atk: 10, def: 8, mag: 2, spd: 6 }, { hp: 3.2, mp: 0.4, atk: 1.7, def: 1.3, mag: 0.3, spd: 1.0 }, [[1, 'thrust']]),
   bandit:     mk('沙盗', '士兵', 'bandit', ['axe'], 'foot', [1, 1], 5, { hp: 22, mp: 0, atk: 9, def: 3, mag: 0, spd: 6 }, { hp: 3.0, mp: 0, atk: 1.7, def: 0.8, mag: 0, spd: 1.0 }),
   banditRider:mk('沙盗骑兵', '骑兵', 'banditRider', ['axe'], 'horse', [1, 1], 7, { hp: 24, mp: 0, atk: 9, def: 4, mag: 0, spd: 7 }, { hp: 3.0, mp: 0, atk: 1.7, def: 0.9, mag: 0, spd: 1.1 }),
   villager:   mk('村民', '士兵', 'villager', null, 'foot', [1, 1], 4, { hp: 34, mp: 0, atk: 2, def: 8, mag: 4, spd: 4 }, { hp: 3.6, mp: 0, atk: 0.3, def: 1.3, mag: 0.8, spd: 0.5 }),
@@ -399,5 +440,5 @@ const HEROES = {
   zhangqing:{ name: '张青', cls: 'master', lv: 24, hair: '#e8e8e8', weapon: 'platinumSword', armor: 'knightArmor',
               stats: { hp: 96, mp: 34, atk: 48, def: 30, mag: 10, spd: 34 }, bio: '隐居的大剑师，雪儿之父，杨铁父亲的挚友。' },
 };
-// 能与孟祈等人施展双人剑式的职业
-const PAIR_CLASSES = ['writer', 'swordsman', 'master', 'spellblade', 'samurai', 'knight'];
+// 能与孟祈等人施展双人剑式的职业（剑术系；骑兵、武士等有各自的专属战技）
+const PAIR_CLASSES = ['writer', 'swordsman', 'master', 'spellblade'];

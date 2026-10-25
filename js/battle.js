@@ -63,8 +63,11 @@ function skillsOf(u) {
   if (h && h.noSkills) list = list.filter(s => !h.noSkills.includes(s[1]));
   const seen = new Set(), out = [];
   // 敌方杂兵只会使用与等级相称的招式，大招留给首领
-  const cap = !u.id && !u.boss && (u.team === 'enemy' || u.team === 'rogue') ? 10 + u.lv / 5 : 99;
-  for (const [lv, id] of list) if (lv <= u.lv && !seen.has(id) && SPELLS[id].mp <= cap) { seen.add(id); out.push(id); }
+  const grunt = !u.id && !u.boss && (u.team === 'enemy' || u.team === 'rogue');
+  const cap = grunt ? 10 + u.lv / 5 : 99;
+  // 杂兵的职业战技只用单体的基本招式（贯穿、范围技留给我方与首领）
+  const gruntOk = (sp, lv) => !grunt || !['枪', '斧', '刀', '弓', '翼', '牙'].includes(sp.school) || (!sp.line && !sp.area && (sp.power || 0) <= 6 && u.lv >= lv + 5);
+  for (const [lv, id] of list) if (lv <= u.lv && !seen.has(id) && SPELLS[id].mp <= cap && gruntOk(SPELLS[id], lv)) { seen.add(id); out.push(id); }
   return out;
 }
 function canUseWeapon(u, itemId) {
@@ -276,7 +279,9 @@ function pairPartner(u) {
 function skillCalc(a, d, sp, partner) {
   if (sp.kind === 'magic') return magCalc(a, d, sp);
   if (sp.kind === 'pair') { const c = physCalc(a, d, sp.power + Math.round(atkOf(partner || a) * 0.6), true); return c; }
-  return physCalc(a, d, sp.power, sp.sure);
+  const c = physCalc(a, d, sp.power, sp.sure);
+  if (sp.crit) c.crit = clamp(c.crit + sp.crit, 0, 75);
+  return c;
 }
 function healAmount(a, sp) { return sp.power + Math.round(magOf(a) * 0.8); }
 function statusChance(a, d, sp) {
@@ -611,11 +616,19 @@ function modal(title, bodyHtml, buttons, opts) {
   });
 }
 // 立绘：优先使用 portraits.js 的手绘风半身像（64×72），没有时退回放大的单位精灵
+// 英雄当前的职阶（战斗中以场上单位为准，否则看存档）——立绘随转职换装
+function heroTier(id) {
+  const u = B && B.units && B.units.find(o => o.id === id);
+  if (u) return u.tier;
+  const d = typeof S !== 'undefined' && S && S.roster && S.roster[id];
+  return d ? d.tier : undefined;
+}
 function portraitCanvas(who, size, variant) {
   if (!who) return null;
   let src = null;
   if (typeof getPortrait === 'function') {
-    try { src = getPortrait(who.startsWith('enemy:') ? 'enemy:' + (KIND_ALIAS[who.slice(6)] ? who.slice(6) : who.slice(6)) : who, variant); } catch (e) { src = null; }
+    const enemy = who.startsWith('enemy:');
+    try { src = getPortrait(who, variant, enemy ? undefined : heroTier(who)); } catch (e) { src = null; }
   }
   if (!src) {
     if (who.startsWith('enemy:')) { const k = who.slice(6), cls = KIND_ALIAS[k] || k; if (CLASSES[cls]) src = getSprite(CLASSES[cls].sprite, 0, 'enemy'); }
@@ -912,6 +925,8 @@ function canCastNow(u, spId) {
 }
 function spellTiles(u, spId) {
   const sp = SPELLS[spId], out = [];
+  // 以自身为中心的范围技（旋风枪等）：只要周围有敌人即可施放
+  if (sp.around) return spellAffected(u, spId, u.x, u.y).length ? [{ x: u.x, y: u.y }] : [];
   for (const t of tilesInRange(u.x, u.y, sp.range[0], sp.range[1])) {
     const c = unitAt(t.x, t.y);
     if (sp.kind === 'summon') {
@@ -1007,7 +1022,7 @@ async function castSpell(u, spId, tx, ty) {
         const c = skillCalc(u, t, sp, partner);
         if (Math.random() * 100 >= c.hit) { floatText(t.x, t.y, 'MISS', '#aaccff'); continue; }
         const crit = Math.random() * 100 < c.crit;
-        const edge = sp.area && (t.x !== tx || t.y !== ty) ? 0.7 : 1; // 范围法术外圈伤害 70%
+        const edge = sp.area && !sp.around && (t.x !== tx || t.y !== ty) ? 0.7 : 1; // 范围法术外圈伤害 70%
         const dmg = Math.max(1, Math.round(c.dmg * edge * (0.9 + Math.random() * 0.2) * (crit ? 1.5 : 1)));
         await applyDamage(u, t, dmg, crit);
         if (sp.status && t.hp > 0) { t.status[sp.status] = sp.turns + 1; floatText(t.x, t.y - 0.3, STATUS_NAME[sp.status], STATUS_COLOR[sp.status]); }
@@ -1182,14 +1197,18 @@ async function onAction(act) {
       const html = Object.keys(groups).map(sc => `<div class="pick-group">${SCHOOL_NAME[sc] || sc}</div>` + groups[sc].map(id => {
         const sp = SPELLS[id];
         const ok = canCastNow(u, id) && spellTiles(u, id).length > 0;
-        const why = !ok && sp.kind === 'pair' && !pairPartner(u) ? '（需相邻且未行动的剑系伙伴）' : '';
+        const why = !ok && sp.kind === 'pair' && !pairPartner(u) ? '（需相邻且未行动的剑术系伙伴：作家、剑士、魔剑使、大剑师）' : '';
         return `<button class="pick" data-pick="${id}" ${ok ? '' : 'disabled'}><b>${sp.name}</b><span>MP ${sp.mp}</span><small>${sp.desc}${why}</small></button>`;
       }).join('')).join('');
-      const id = await modal(hasStatus(u, 'silence') ? '法术（被禁锢）' : '法术 / 剑法', `<div class="pick-list">${html}</div>`, [{ label: '返回', value: null }], { dismiss: null });
+      const id = await modal(hasStatus(u, 'silence') ? '法术（被禁锢）' : '法术 / 战技', `<div class="pick-list">${html}</div>`, [{ label: '返回', value: null }], { dismiss: null });
       if (!id) return;
       const sp = SPELLS[id];
       const set = new Set(spellTiles(u, id).map(t => key(t.x, t.y)));
       setMode('spell', { sel: u, focus: u, orig: B.orig, spell: id, [friendlySpell(sp) || sp.kind === 'summon' ? 'hlHeal' : 'hlAttack']: set });
+      if (sp.around) { // 以自身为中心：直接预览范围，再点一次确认
+        Object.assign(B, { pending: { x: u.x, y: u.y }, cursor: { x: u.x, y: u.y }, hlArea: new Set(areaTiles(u.x, u.y, sp.area).map(t => key(t.x, t.y))) });
+        refreshPanel();
+      }
       return;
     }
     case 'item': {
@@ -1256,7 +1275,7 @@ function dangerMap(u, foes) {
     const th = threatTiles(f);
     u.x = ox; u.y = oy;
     let dmg = Math.max(1, atkOf(f) - Math.round(defOf(u) * 0.5));
-    for (const id of skillsOf(f)) { const sp = SPELLS[id]; if (sp.kind === 'magic' && f.mp >= sp.mp) dmg = Math.max(dmg, magCalc(f, u, sp).dmg); }
+    for (const id of skillsOf(f)) { const sp = SPELLS[id]; if ((sp.kind === 'magic' || sp.kind === 'phys') && f.mp >= sp.mp) dmg = Math.max(dmg, skillCalc(f, u, sp).dmg); }
     for (const k of th.set) D.set(k, (D.get(k) || 0) + dmg);
   }
   return D;
@@ -1335,7 +1354,7 @@ async function aiUnit(u) {
       if (['heal', 'summon', 'cure', 'buff'].includes(sp.kind)) continue;
       for (const t of tilesInRange(st.x, st.y, sp.range[0], sp.range[1])) {
         const c0 = unitAt(t.x, t.y);
-        if (!c0 || !hostile(u, c0)) continue;
+        if (!sp.around && (!c0 || !hostile(u, c0))) continue;
         let s = 0;
         for (const f of spellAffected(u, id, t.x, t.y)) {
           const enemy = hostile(u, f);
@@ -1344,7 +1363,7 @@ async function aiUnit(u) {
           else if (sp.kind === 'death') { if (enemy) s += f.hp * deathChance(u, f, sp) / 100 * 0.6; }
           else {
             const c = skillCalc(u, f, sp);
-            const dd = c.dmg * (sp.area && (f.x !== t.x || f.y !== t.y) ? 0.7 : 1);
+            const dd = c.dmg * (sp.area && !sp.around && (f.x !== t.x || f.y !== t.y) ? 0.7 : 1);
             const v = dd * c.hit / 100 + (dd >= f.hp ? 40 : 0) + (f.lord ? 6 : 0);
             s += enemy ? v : -v * 1.5; // 直线法术会误伤友军
           }
@@ -1432,7 +1451,7 @@ function forecastHtml() {
         case 'debuff': return `${esc(o.name)} ${BUFF_NAME[sp.stat]}下降 ${sp.turns} 回合`;
         case 'status': return `${esc(o.name)} ${STATUS_NAME[sp.status]} 成功率 <em>${statusChance(u, o, sp)}%</em>`;
         case 'death': return `${esc(o.name)} 即死率 <em>${deathChance(u, o, sp)}%</em>`;
-        default: { const c = skillCalc(u, o, sp, partner); const dd = Math.round(c.dmg * (sp.area && (o.x !== p.x || o.y !== p.y) ? 0.7 : 1)); return `${ally ? '<span class="warn">误伤</span> ' : ''}${esc(o.name)} 伤害 <em>${dd}</em>${c.hit < 100 ? ` (${c.hit}%)` : ''}`; }
+        default: { const c = skillCalc(u, o, sp, partner); const dd = Math.round(c.dmg * (sp.area && !sp.around && (o.x !== p.x || o.y !== p.y) ? 0.7 : 1)); return `${ally ? '<span class="warn">误伤</span> ' : ''}${esc(o.name)} 伤害 <em>${dd}</em>${c.hit < 100 ? ` (${c.hit}%)` : ''}`; }
       }
     }).join('<br>');
     return `<div class="fc"><div class="fc-side"><b>${sp.name}</b> <span class="dim">MP ${sp.mp}${partner ? ` · 与${esc(partner.name)}合击` : ''}</span><div class="fc-rows">${rows || '<span class="dim">范围内没有目标</span>'}</div></div></div>`;

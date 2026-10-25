@@ -116,8 +116,11 @@ function drawSpellFx(now) {
     const L = TS * s.len, sweep = Math.min(1, p * 2.5);
     g.save(); g.translate(s.x, s.y); g.rotate(s.angle);
     for (const [wd, col, al] of [[0.28, s.color, 0.4], [0.12, s.color, 0.9], [0.04, '#ffffff', 1]]) {
-      g.globalAlpha = (1 - p) * al; g.strokeStyle = col; g.lineWidth = TS * wd; g.lineCap = 'round';
-      g.beginPath(); g.arc(0, L * 0.6, L, -Math.PI / 2 - 0.9, -Math.PI / 2 - 0.9 + 1.8 * sweep); g.stroke();
+      g.globalAlpha = (1 - p) * al; g.strokeStyle = col; g.lineWidth = TS * wd * (s.thin || 1); g.lineCap = 'round';
+      g.beginPath();
+      if (s.straight) { g.moveTo(-L, 0); g.lineTo(-L + 2 * L * sweep, 0); } // 直线斩痕（刀光、爪痕）
+      else g.arc(0, L * 0.6, L, -Math.PI / 2 - 0.9, -Math.PI / 2 - 0.9 + 1.8 * sweep);
+      g.stroke();
     }
     g.restore();
   }
@@ -142,6 +145,12 @@ function drawSpellFx(now) {
     else if (q.shape === 'shard') {
       g.save(); g.translate(q.x, q.y); g.rotate(Math.atan2(q.vy, q.vx));
       g.beginPath(); g.moveTo(s * 2, 0); g.lineTo(0, s * 0.6); g.lineTo(-s * 1.2, 0); g.lineTo(0, -s * 0.6); g.fill(); g.restore();
+    } else if (q.shape === 'arrow') {
+      g.save(); g.translate(q.x, q.y); g.rotate(Math.atan2(q.vy, q.vx)); g.globalAlpha = 1;
+      g.fillStyle = q.col; g.fillRect(-s * 7, -s * 0.35, s * 7, s * 0.7);
+      g.beginPath(); g.moveTo(s * 1.8, 0); g.lineTo(-s * 0.4, s * 1.1); g.lineTo(-s * 0.4, -s * 1.1); g.fill();
+      g.fillStyle = '#ffffff'; g.fillRect(-s * 7, -s * 1, s * 1.4, s * 2);
+      g.restore();
     } else if (q.shape === 'star') {
       g.fillRect(q.x - s, q.y - s * 0.2, s * 2, s * 0.4); g.fillRect(q.x - s * 0.2, q.y - s, s * 0.4, s * 2);
     } else if (q.shape === 'rock') {
@@ -232,6 +241,183 @@ IMPACT.beam = IMPACT.fire;
 IMPACT.slash = (x, y) => emit(16, x, y, { speed: [1, 3], life: [0.2, 0.45], size: [0.03, 0.07], cols: ELEM.slash.cols, drag: 0.7, shape: 'star' });
 IMPACT.summon = IMPACT.holy;
 
+// ---------- 各职业战技的演出 ----------
+// 直线飞行的投射物（箭、羽刃）：dur 秒内从 (x0,y0) 飞到 (x1,y1)
+function shoot(x0, y0, x1, y1, dur, o) {
+  o = o || {};
+  PFX.parts.push({ x: x0, y: y0, vx: (x1 - x0) / dur, vy: (y1 - y0) / dur, life: 0, max: dur, size: (o.size || 0.06) * TS, col: o.col || '#f4e8c8',
+    g: 0, drag: 1, shape: o.shape || 'arrow', glow: true, spin: 0, delay: o.delay || 0 });
+}
+const hitSpark = (x, y, cols) => emit(12, x, y, { speed: [1, 2.6], life: [0.18, 0.4], size: [0.03, 0.06], cols: cols || ELEM.slash.cols, drag: 0.7, shape: 'star' });
+const STYLE = {
+  // 长枪突刺：一道笔直的枪芒
+  async thrust({ cx, cy, ang, cells }) {
+    sfx('slash');
+    emit(10, cx, cy, { angle: ang + Math.PI, spread: 0.4, speed: [1, 2], life: [0.2, 0.3], size: [0.03, 0.05], cols: ['#ffffff', '#c8dcff'], shape: 'star' });
+    await wait(120);
+    for (const c of cells) {
+      const tx = tc(c.x), ty = tc(c.y), a = Math.atan2(ty - cy, tx - cx);
+      PFX.beams.push({ x0: cx, y0: cy, x1: tx + Math.cos(a) * TS * 0.45, y1: ty + Math.sin(a) * TS * 0.45, w: 0.2, color: '#c8dcff', t0: now0(), dur: T(300) });
+    }
+    await wait(90);
+    cells.forEach(c => { hitSpark(tc(c.x), tc(c.y)); PFX.rings.push({ x: tc(c.x), y: tc(c.y), r0: 0.1, r1: 0.6, color: '#e8f0ff', t0: now0(), dur: T(260) }); });
+    sfx('hit');
+    await wait(200);
+  },
+  // 冲锋贯穿：疾风般穿过一整列
+  async charge({ u, sp, cx, cy, cells, E }) {
+    sfx('wind');
+    const end = cells[cells.length - 1] || u;
+    const ex = tc(end.x), ey = tc(end.y), a = Math.atan2(ey - cy, ex - cx);
+    PFX.beams.push({ x0: cx, y0: cy, x1: ex + Math.cos(a) * TS * 0.5, y1: ey + Math.sin(a) * TS * 0.5, w: 0.55, color: sp.fx === 'slash' ? '#a8f0d0' : E.glow, t0: now0(), dur: T(520) });
+    emit(26, cx, cy, { angle: a, spread: 0.12, speed: [5, 8], life: [0.2, 0.35], size: [0.03, 0.05], cols: ['#ffffff', '#d8fff0'], shape: 'shard', jitter: 0.3 });
+    await wait(150);
+    cells.forEach((c, k) => setTimeout(() => {
+      PFX.slashes.push({ x: tc(c.x), y: tc(c.y), angle: a + Math.PI / 2, len: 0.55, color: '#e8f0ff', t0: now0(), dur: T(260), straight: true });
+      hitSpark(tc(c.x), tc(c.y));
+    }, T(k * 60)));
+    sfx('slash');
+    await wait(260 + cells.length * 60);
+  },
+  // 回旋横扫：以自身为中心的冲击环
+  async spin({ sp, cx, cy, cells, E }) {
+    sfx('wind');
+    const r = (sp.area || 1) + 0.4, col = sp.fx === 'rock' ? '#e0c090' : sp.fx === 'dark' ? '#c070ff' : '#e8f0ff';
+    for (let k = 0; k < 2; k++) PFX.rings.push({ x: cx, y: cy, r0: 0.3, r1: r, color: col, t0: now0() + T(k * 120), dur: T(420) });
+    emit(36, cx, cy, { speed: [0, 0], life: [0.4, 0.6], size: [0.03, 0.06], cols: sp.fx === 'rock' ? ELEM.rock.cols : E.cols, swirl: -9, cx, cy, jitter: 0.9, shape: 'star' });
+    await wait(160);
+    cells.forEach((c, k) => {
+      const a = Math.atan2(tc(c.y) - cy, tc(c.x) - cx);
+      PFX.slashes.push({ x: tc(c.x), y: tc(c.y), angle: a + Math.PI / 2, len: 0.6, color: col, t0: now0() + T(k * 25), dur: T(300) });
+      if (sp.fx === 'rock') emit(10, tc(c.x), tc(c.y), { speed: [0.6, 1.8], life: [0.3, 0.6], size: [0.04, 0.08], cols: ELEM.rock.cols, gravity: 3, shape: 'rock' });
+      else hitSpark(tc(c.x), tc(c.y));
+    });
+    sfx('slash');
+    if (sp.fx === 'rock') shakeStage();
+    await wait(320);
+  },
+  // 巨斧劈落：重击 + 碎石与震波
+  async axe({ sp, cells }) {
+    const main = cells[0];
+    if (!main) return;
+    const mx = tc(main.x), my = tc(main.y);
+    PFX.slashes.push({ x: mx, y: my, angle: Math.PI / 2 - 0.15, len: 0.85, color: '#ffd8a0', t0: now0(), dur: T(260), straight: true, thin: 1.6 });
+    sfx('crit');
+    await wait(140);
+    for (const c of cells) {
+      const x = tc(c.x), y = tc(c.y);
+      emit(16, x, y + TS * 0.25, { angle: -Math.PI / 2, spread: 1.1, speed: [1, 3], life: [0.3, 0.7], size: [0.04, 0.09], cols: ELEM.rock.cols, gravity: 6, drag: 0.95, shape: 'rock' });
+      PFX.rings.push({ x, y: y + TS * 0.3, r0: 0.1, r1: 0.9, color: '#e0c090', t0: now0(), dur: T(380), flat: true });
+    }
+    if (cells.length > 1 || sp.power >= 28) shakeStage();
+    sfx('rock');
+    await wait(300);
+  },
+  // 居合一闪：停顿后一道横向刀光
+  async blade({ sp, cells }) {
+    await wait(140);
+    sfx('slash');
+    const n = sp.status ? 2 : 1; // 燕返：回旋两刀
+    cells.forEach((c, i) => {
+      for (let k = 0; k < n; k++) PFX.slashes.push({ x: tc(c.x), y: tc(c.y) + (k ? -TS * 0.12 : 0), angle: k ? Math.PI - 0.35 : -0.12, len: 0.75, color: k ? '#ffb0c0' : '#ffffff', t0: now0() + T(i * 40 + k * 150), dur: T(240), straight: true });
+      hitSpark(tc(c.x), tc(c.y), ['#ffffff', '#ffe0e8', '#ffb0c0']);
+    });
+    flash('#ffffff', 0.25, 160);
+    await wait(260 + (n - 1) * 150);
+  },
+  // 一闪：疾驰穿过一列
+  async dash({ u, cx, cy, cells }) {
+    const end = cells[cells.length - 1] || u, ex = tc(end.x), ey = tc(end.y), a = Math.atan2(ey - cy, ex - cx);
+    sfx('wind');
+    PFX.beams.push({ x0: cx, y0: cy, x1: ex + Math.cos(a) * TS * 0.6, y1: ey + Math.sin(a) * TS * 0.6, w: 0.12, color: '#ffffff', t0: now0(), dur: T(380) });
+    await wait(200);
+    sfx('slash');
+    cells.forEach(c => { PFX.slashes.push({ x: tc(c.x), y: tc(c.y), angle: a + 0.9, len: 0.7, color: '#ffe0e8', t0: now0(), dur: T(260), straight: true }); hitSpark(tc(c.x), tc(c.y)); });
+    flash('#ffffff', 0.2, 140);
+    await wait(260);
+  },
+  // 射箭
+  async arrow({ cx, cy, x, y }) {
+    sfx('arrow');
+    shoot(cx, cy - TS * 0.1, x, y, T(220) / 1000 || 0.01);
+    await wait(220);
+    hitSpark(x, y, ['#ffffff', '#fff0c0']); sfx('hit');
+    await wait(160);
+  },
+  async arrow2({ cx, cy, x, y }) {
+    for (let k = 0; k < 2; k++) {
+      sfx('arrow');
+      shoot(cx, cy - TS * (0.2 - k * 0.2), x, y + TS * (k ? 0.1 : -0.1), T(200) / 1000 || 0.01);
+      await wait(130);
+    }
+    await wait(80);
+    hitSpark(x, y, ['#ffffff', '#fff0c0']); sfx('hit');
+    await wait(160);
+  },
+  async pierce({ u, cx, cy, cells }) {
+    const end = cells[cells.length - 1] || u, ex = tc(end.x), ey = tc(end.y), a = Math.atan2(ey - cy, ex - cx);
+    sfx('arrow');
+    const fx = ex + Math.cos(a) * TS * 1.5, fy = ey + Math.sin(a) * TS * 1.5;
+    shoot(cx, cy, fx, fy, T(300) / 1000 || 0.01, { size: 0.06, col: '#d8fff0' });
+    PFX.beams.push({ x0: cx, y0: cy, x1: fx, y1: fy, w: 0.16, color: '#8ae8c0', t0: now0(), dur: T(420) });
+    cells.forEach((c, k) => setTimeout(() => hitSpark(tc(c.x), tc(c.y), ELEM.wind.cols), T(60 + k * 45)));
+    await wait(380);
+  },
+  // 箭雨：先向天空齐射，再如雨落下
+  async volley({ sp, cx, cy, cells }) {
+    sfx('arrow');
+    for (let k = 0; k < 8; k++) shoot(cx + rand(-0.2, 0.2) * TS, cy, cx + rand(-0.6, 0.6) * TS, cy - TS * 4, 0.25, { delay: k * 0.03 });
+    await wait(300);
+    const col = sp.fx === 'holy' ? '#fff2a0' : '#f4e8c8';
+    for (const c of cells) for (let k = 0; k < 3; k++) {
+      const x = tc(c.x) + rand(-0.35, 0.35) * TS, y = tc(c.y) + rand(-0.3, 0.3) * TS;
+      shoot(x + TS * 0.8, y - TS * 3.5, x, y, 0.22, { delay: rand(0, 0.25), col });
+    }
+    await wait(330);
+    cells.forEach(c => hitSpark(tc(c.x), tc(c.y), sp.fx === 'holy' ? ELEM.holy.cols : null));
+    sfx('hit');
+    await wait(220);
+  },
+  // 鹰族俯冲
+  async dive({ x, y }) {
+    sfx('wind');
+    PFX.beams.push({ x0: x + TS * 1.2, y0: y - TS * 3.5, x1: x, y1: y, w: 0.3, color: '#d8fff0', t0: now0(), dur: T(360) });
+    await wait(180);
+    IMPACT.wind(x, y, false); hitSpark(x, y); sfx('hit');
+    await wait(260);
+  },
+  async feathers({ cx, cy, cells }) {
+    sfx('wind');
+    for (const c of cells) for (let k = 0; k < 4; k++) shoot(cx + rand(-0.3, 0.3) * TS, cy + rand(-0.3, 0.3) * TS, tc(c.x) + rand(-0.2, 0.2) * TS, tc(c.y) + rand(-0.2, 0.2) * TS, 0.28, { shape: 'shard', size: 0.06, col: pick(['#ffffff', '#d8c098', '#a8f0d0']), delay: rand(0, 0.12) });
+    await wait(380);
+    cells.forEach(c => IMPACT.wind(tc(c.x), tc(c.y), false));
+    await wait(200);
+  },
+  // 狼族爪击 / 撕咬：三道平行爪痕
+  async claw({ sp, cells }) {
+    sfx('slash');
+    const col = sp.fx === 'holy' ? '#fff2a0' : '#ffd0d0';
+    for (const c of cells) {
+      const x = tc(c.x), y = tc(c.y);
+      for (let k = -1; k <= 1; k++) PFX.slashes.push({ x: x + k * TS * 0.18, y: y - k * TS * 0.05, angle: 1.0, len: 0.5, color: col, t0: now0() + T((k + 1) * 30), dur: T(260), straight: true, thin: 0.7 });
+      emit(10, x, y, { speed: [0.8, 2], life: [0.2, 0.4], size: [0.03, 0.06], cols: ['#ff6a6a', '#ffffff', col], drag: 0.7, shape: 'star' });
+    }
+    if (sp.fx === 'holy') flash('#fff8d0', 0.3, 200);
+    await wait(320);
+  },
+};
+STYLE.rain = async ctx => { // 天马流星枪：自空中连续刺下
+  sfx('slash');
+  for (const c of ctx.cells) for (let k = 0; k < 2; k++) {
+    const x = tc(c.x), y = tc(c.y);
+    PFX.beams.push({ x0: x + TS * 0.6, y0: y - TS * 2.8, x1: x, y1: y, w: 0.22, color: '#fff2b0', t0: now0() + T(k * 120 + rand(0, 80)), dur: T(280) });
+  }
+  await wait(260);
+  ctx.cells.forEach(c => { hitSpark(tc(c.x), tc(c.y), ELEM.holy.cols); PFX.rings.push({ x: tc(c.x), y: tc(c.y), r0: 0.1, r1: 0.7, color: '#fff2a0', t0: now0(), dur: T(300) }); });
+  sfx('hit');
+  await wait(240);
+};
+
 // ---------- 施法流程 ----------
 // 返回时，命中特效已经打在目标上（之后才结算伤害），余韵继续在背景播放
 async function castAnim(u, sp, spId, tx, ty) {
@@ -257,7 +443,14 @@ async function castAnim(u, sp, spId, tx, ty) {
   const element = { fire: 'fire', ice: 'ice', bolt: 'bolt', wind: 'wind', rock: 'rock', dark: 'dark', holy: 'holy', acid: 'status', heal: 'heal', buff: 'buff', beam: 'fire' }[sp.fx];
 
   // 2) 施放
-  if (sp.line) {
+  if (sp.style && STYLE[sp.style]) {
+    const ang = Math.atan2(y - cy, x - cx);
+    const hitCells = sp.around ? cells.filter(c => c.x !== u.x || c.y !== u.y) : cells;
+    await STYLE[sp.style]({ u, sp, cx, cy, x, y, ang, cells: hitCells, big, E });
+    if (sp.fx && IMPACT[sp.fx] && ['fire', 'holy', 'dark', 'bolt'].includes(sp.fx)) hitCells.forEach((c, k) => setTimeout(() => IMPACT[sp.fx](tc(c.x), tc(c.y), false), T(k * 40)));
+    if (big) { flash(E.glow, 0.35, 300); shakeStage(); }
+    await wait(200);
+  } else if (sp.line) {
     const end = cells[cells.length - 1] || { x: tx, y: ty };
     sfx(element || 'magic');
     PFX.beams.push({ x0: cx, y0: cy, x1: tc(end.x), y1: tc(end.y), w: big ? 0.6 : 0.45, color: E.glow, t0: now0(), dur: T(700) });
