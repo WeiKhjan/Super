@@ -431,6 +431,7 @@ function render(now) {
     ctx.stroke();
   }
   drawFx(now);
+  if (typeof drawSpellFx === 'function') drawSpellFx(now);
   for (let i = FLOATS.length - 1; i >= 0; i--) {
     const f = FLOATS[i], p = (now - f.t0) / 900;
     if (p >= 1) { FLOATS.splice(i, 1); continue; }
@@ -944,12 +945,13 @@ async function castSpell(u, spId, tx, ty) {
   B.cursor = null;
   u.mp -= sp.mp;
   floatText(u.x, u.y, sp.name, '#ffe08a');
-  sfx(friendlySpell(sp) ? (sp.kind === 'heal' ? 'heal' : 'buff') : sp.kind === 'summon' ? 'summon' : 'magic');
+  const anim = typeof castAnim === 'function' && !AUTO;
+  if (!anim) sfx(friendlySpell(sp) ? (sp.kind === 'heal' ? 'heal' : 'buff') : sp.kind === 'summon' ? 'summon' : 'magic');
   let partner = null;
   if (sp.kind === 'pair') { partner = pairPartner(u); if (partner) { partner.acted = true; floatText(partner.x, partner.y, '合击！', '#ffe08a'); } }
-  await wait(280);
+  await wait(anim ? 120 : 280);
   if (sp.kind === 'summon') {
-    await addFx('summon', tx, ty, 500, { color: '#9ae0ff' });
+    if (anim) await castAnim(u, sp, spId, tx, ty); else await addFx('summon', tx, ty, 500, { color: '#9ae0ff' });
     const s = makeMonster(sp.unit, Math.max(1, u.lv), { team: u.team, summonLeft: sp.turns, summoner: u.uid, acted: true });
     s.x = tx; s.y = ty;
     B.units.push(s);
@@ -958,7 +960,7 @@ async function castSpell(u, spId, tx, ty) {
     return;
   }
   const targets = spellAffected(u, spId, tx, ty);
-  await spellFx(u, sp, tx, ty);
+  if (anim) await castAnim(u, sp, spId, tx, ty); else await spellFx(u, sp, tx, ty);
   let exp = 0;
   for (const t of targets) {
     switch (sp.kind) {
