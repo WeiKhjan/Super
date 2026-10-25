@@ -5,7 +5,7 @@ const PAL_BASE = {
   k: '#1a1020', s: '#f2c79a', S: '#c99a6e', m: '#d6dcea', n: '#7a8296', w: '#8a5a2c', W: '#ffffff',
   g: '#f4c542', G: '#5aa04a', H: '#2f6a2a', r: '#d83a3a', P: '#f29ab0', b: '#ece4c8', B: '#a89c7c',
   f: '#7a4a2a', F: '#4a2a14', y: '#9a9aa8', Y: '#5a5a6a', d: '#3a2050', D: '#6a3a8a', o: '#ff8a2a',
-  c: '#7ad8ff', C: '#2a8ad8', e: '#ff3030',
+  c: '#7ad8ff', C: '#2a8ad8', e: '#ff3030', O: '#b0702a', K: '#1a1020',
 };
 const TEAM_PAL = {
   player: { p: '#3a7bd5', q: '#1f4a8a' },
@@ -33,7 +33,7 @@ const BODY = [
   '................',
 ];
 
-function grid(rows) { return rows.map(r => r.padEnd(16, '.').slice(0, 16).split('')); }
+function grid(rows) { const r = rows.slice(0, 16); while (r.length < 16) r.push(''); return r.map(x => x.padEnd(16, '.').slice(0, 16).split('')); }
 function put(g, x, y, c) { if (y >= 0 && y < 16 && x >= 0 && x < 16) g[y][x] = c; }
 function vline(g, x, y0, y1, c) { for (let y = y0; y <= y1; y++) put(g, x, y, c); }
 function hline(g, x0, x1, y, c) { for (let x = x0; x <= x1; x++) put(g, x, y, c); }
@@ -243,13 +243,18 @@ const SPRITE_DEFS = {
 };
 
 const SPRITE_CACHE = {};
+// 变体配色（龙的颜色、神巫元素、精灵属性）：替换 G/H 等通道
+const VARIANT_PAL = {
+  red: { G: '#d8433a', H: '#8a1f1f' }, blue: { G: '#4a8ad8', H: '#1f4a8a' }, black: { G: '#3a3048', H: '#1a1020' }, green: { G: '#5aa04a', H: '#2f6a2a' },
+  earth: { f: '#8a6a3a', F: '#5a3a1a' }, wood: { f: '#3a7a3a', F: '#1f4a1f' }, water: { f: '#3a6ab8', F: '#1f3a7a' }, fire: { f: '#c8401a', F: '#7a1f0a' }, metal: { f: '#c8c8d0', F: '#7a7a8a' },
+};
 // 返回离屏画布 (16x16 像素)
-function getSprite(key, tier, team, hair) {
-  const id = `${key}|${tier}|${team}|${hair || ''}`;
+function getSprite(key, tier, team, hair, variant) {
+  const id = `${key}|${tier}|${team}|${hair || ''}|${variant || ''}`;
   if (SPRITE_CACHE[id]) return SPRITE_CACHE[id];
   const def = SPRITE_DEFS[key] || SPRITE_DEFS.swordsman;
   const g = def(tier || 0);
-  const pal = Object.assign({}, PAL_BASE, TEAM_PAL[team] || TEAM_PAL.enemy, { h: hair || '#3a2a1a' });
+  const pal = Object.assign({}, PAL_BASE, TEAM_PAL[team] || TEAM_PAL.enemy, { h: hair || '#3a2a1a' }, VARIANT_PAL[variant] || {});
   const c = document.createElement('canvas'); c.width = 16; c.height = 16;
   const x = c.getContext('2d');
   for (let yy = 0; yy < 16; yy++) for (let xx = 0; xx < 16; xx++) {
@@ -346,6 +351,16 @@ function getTile(t, x, y, frame) {
       g.fillStyle = '#7a3aa0'; if (variant === 2) { g.fillRect(3, 6, 4, 1); g.fillRect(6, 7, 1, 3); }
       break;
     }
+    case 'H': {
+      grass(); g.fillStyle = '#4f8a34'; g.beginPath(); g.ellipse(8, 11, 8, 5, 0, Math.PI, 0); g.fill();
+      g.fillStyle = '#78bd52'; g.beginPath(); g.ellipse(7, 11, 5, 3, 0, Math.PI, 0); g.fill(); break;
+    }
+    case 'N': fill('#e8eef8'); speckle(['#ffffff', '#cfd8e8', '#dfe6f2'], 26); break;
+    case 'P': { fill('#4a6a3a'); speckle(['#3a5a5a', '#5a7a4a'], 24); g.fillStyle = '#3a6a8a'; g.fillRect(2, 4, 5, 2); g.fillRect(9, 10, 5, 2); g.fillStyle = '#7aa04a'; g.fillRect(12, 3, 1, 3); g.fillRect(4, 11, 1, 3); break; }
+    case 'T': { fill('#5a9ad8'); speckle(['#6aaae0', '#4a8ac8', '#c0a070'], 18); g.fillStyle = '#c8e4ff'; g.fillRect(((frame * 5) % 12), 6, 3, 1); g.fillRect(((frame * 5 + 6) % 12), 12, 3, 1); break; }
+    case 'O': fill('#5a4a42'); speckle(['#4a3a32', '#6a5a52', '#3a2a22'], 30); break;
+    case 'Y': { fill('#8a8a94'); g.fillStyle = '#1a1020'; g.fillRect(4, 1, 8, 15); g.fillStyle = '#c8c8d0'; g.fillRect(5, 1, 6, 14); g.fillStyle = '#9a9aa4'; g.fillRect(9, 1, 2, 14); g.fillStyle = '#e8e8f0'; g.fillRect(3, 1, 10, 2); break; }
+    case 'A': { fill('#8a8a94'); g.fillStyle = '#c8b070'; g.fillRect(1, 1, 14, 14); g.fillStyle = '#f4e08a'; g.fillRect(3, 3, 10, 10); g.fillStyle = '#fff6c8'; g.fillRect(7, 4, 2, 8); g.fillRect(5, 6, 6, 2); break; }
     default: grass();
   }
   TILE_CACHE[id] = c;
@@ -358,3 +373,170 @@ function drawChest(ctx, x, y, s, opened) {
   ctx.fillStyle = opened ? '#6a4a2a' : '#b0702a'; ctx.fillRect(x + 4 * p, y + 7 * p, 8 * p, 6 * p);
   ctx.fillStyle = opened ? '#3a2a1a' : '#f4c542'; ctx.fillRect(x + 4 * p, y + 9 * p, 8 * p, 1 * p); ctx.fillRect(x + 7 * p, y + 9 * p, 2 * p, 2 * p);
 }
+
+// ---------- v2：更多职业与怪物 ----------
+function recolor(g, map) { for (const row of g) for (let x = 0; x < 16; x++) if (map[row[x]]) row[x] = map[row[x]]; return g; }
+Object.assign(SPRITE_DEFS, {
+  writer(t) {
+    const g = grid(BODY); sword(g);
+    hline(g, 5, 10, 8, 'r'); put(g, 4, 9, 'r'); // 围巾
+    for (let y = 9; y <= 11; y++) { put(g, 5, y, 'f'); put(g, 10, y, 'f'); } // 外套
+    if (t >= 2) { vline(g, 3, 9, 13, 'q'); vline(g, 12, 9, 12, 'q'); }
+    if (t >= 4) { put(g, 7, 1, 'g'); put(g, 8, 1, 'g'); hline(g, 6, 9, 2, 'h'); }
+    if (t >= 6) { put(g, 6, 0, 'g'); put(g, 9, 0, 'g'); put(g, 7, 0, 'g'); put(g, 8, 0, 'g'); }
+    return g;
+  },
+  fighter(t) {
+    const g = grid(BODY); hline(g, 4, 11, 3, 'r'); put(g, 12, 3, 'r'); put(g, 12, 4, 'r');
+    put(g, 3, 8, 'm'); put(g, 12, 8, 'm'); put(g, 3, 9, 'm'); put(g, 12, 9, 'm'); // 护肩
+    vline(g, 13, 4, 12, 'w'); overlay(g, ['', '', '', '', '', '...........kkk..', '..........kmmmk.', '..........kmmmk.', '...........kkk..']);
+    if (t >= 2) helmet(g, t >= 3 ? 'g' : 'm');
+    return g;
+  },
+  samurai(t) {
+    const g = grid(BODY); helmet(g, 'q'); put(g, 4, 1, 'g'); put(g, 11, 1, 'g'); put(g, 4, 0, 'g'); put(g, 11, 0, 'g');
+    vline(g, 13, 1, 10, 'm'); put(g, 14, 2, 'n'); hline(g, 12, 14, 10, 'k'); vline(g, 13, 11, 12, 'r');
+    hline(g, 4, 11, 12, 'q');
+    if (t >= 3) { put(g, 7, 0, 'g'); put(g, 8, 0, 'g'); }
+    return g;
+  },
+  sorcerer(t) {
+    const g = grid(BODY);
+    overlay(g, ['.......kk.......', '......kqqk......', '.....kqqqqk.....', '....kqqqqqqk....', '....kqsssqk.....']);
+    robe(g, 'q', 'd');
+    vline(g, 13, 4, 13, 'w'); overlay(g, ['', '', '...........kbbk.', '...........bkkb.', '...........kbbk.']);
+    if (t >= 1) { put(g, 7, 9, 'D'); put(g, 8, 9, 'D'); }
+    return g;
+  },
+  soldier() {
+    const g = grid(BODY); helmet(g, 'n'); sword(g); hline(g, 5, 10, 11, 'w');
+    return g;
+  },
+  captain() {
+    const g = grid(BODY); helmet(g, 'm'); put(g, 7, 0, 'r'); put(g, 8, 0, 'r'); put(g, 8, 1, 'r'); sword(g);
+    put(g, 7, 11, 'g'); put(g, 8, 11, 'g'); vline(g, 3, 9, 13, 'q');
+    return g;
+  },
+  banditRider() { const g = SPRITE_DEFS.bandit(); hline(g, 2, 13, 14, 'f'); put(g, 1, 13, 'f'); put(g, 1, 12, 'F'); put(g, 0, 12, 'F'); return g; },
+  villager() { return recolor(grid(BODY), { p: 'f', q: 'F', g: 'w' }); },
+  king() { return SPRITE_DEFS.emperor(); },
+  slime() {
+    return grid(['', '', '', '', '', '', '......kkkk......', '....kkGGGGkk....', '...kGGWGGGGGk...', '..kGGWWGGGGGGk..', '..kGGGkGGkGGGk..', '..kGGGGGGGGGGk..',
+      '..kHGGGGGGGGHk..', '...kHHHHHHHHk...', '....kkkkkkkk....']);
+  },
+  watersnake() {
+    return recolor(grid(['', '', '..........kkk...', '.........kGGGk..', '.........kGkGk..', '.........kGGGrr.', '..........kGGk..', '.....kkkkkGGk...',
+      '....kGGGGGGk....', '...kGGkkkkk.....', '...kGGk.kkkk....', '....kGGkGGGGk...', '.....kGGGGGGGk..', '......kkkkkkk...']), {});
+  },
+  crocodile() {
+    return grid(['', '', '', '', '', '...kk.kk........', '..kGGkGGkkkkk...', '.kGWkGGGGGGGGkk.', 'kGGGGGGGGGGGGGGk', 'kWWWWGGGHGHGHGGk',
+      '.kkkkGGGGGGGGGk.', '....kGk.kGk.kGk.', '....kk..kk..kk..']);
+  },
+  hydra() {
+    return grid(['.kk....kk....kk.', 'kGrk..kGrk..kGrk', 'kGGk..kGGk..kGGk', '.kGk...kGk..kGk.', '.kGGk..kGk.kGGk.', '..kGGk.kGk.kGk..', '...kGGkGGkkGk...',
+      '...kGGGGGGGGk...', '..kGGGGGGGGGGk..', '.kGGHGGHGGHGGGk.', '.kGGGGGGGGGGGGk.', '..kHHHHHHHHHHk..', '..CCccCCccCCccC.', '.cCCccCCccCCccCC']);
+  },
+  gargoyle() {
+    return grid(['', '.k.....kk.....k.', 'kYk...kYYk...kYk', 'kYYk.kYeYeK.kYYk', '.kYYkYYYYYYkYYk.', '..kYYkYYYYkYYk..', '...kkYYYYYYkk...', '....kYYkkYYk....',
+      '....kYYYYYYk....', '.....kYkkYk.....', '....kYk..kYk....', '....kk....kk....']);
+  },
+  medusa() {
+    const g = grid(BODY);
+    overlay(g, ['.G.G.kkkk.G.G...', '..GkGGGGGGkG....', '.GkGGGGGGGGkG...', '..kGGGGGGGGk....', '....kGsssGk.....', '....kseseesk....']);
+    robe(g, 'G', 'H'); return g;
+  },
+  scorpion() {
+    return grid(['', '..........kk....', '.........kOOk...', '..........kOk...', '..........kOk...', '..kk.....kOk....', '.kOOk..kkOk.....', '.kOkkkkOOOk.kk..',
+      '..kOOOOOOOOkOOk.', '.kOOkOOkOOOOOk..', 'kOk.kOOOOOOk....', '.k..kOkkOkOk....', '....kk..k.kk....']);
+  },
+  spider() {
+    return grid(['', '', '', 'k..k......k..k..', '.k..k....k..k...', '..k..kkkk..k....', '...kkddddkk.....', 'kkkkdeddedkkkkk.', '...kddddddk.....',
+      '..kkdDDDDdkk....', '.k.kdDddDdk.k...', 'k..k.kddk.k..k..', '...k..kk..k.....']);
+  },
+  giant() {
+    return grid(['......kkkk......', '.....kffffk.....', '....kSSSSSSk....', '....kSkSSkSk....', '....kSSSSSSk..kk', '.....kSrrSk..kyyk', '...kkkSSSSkkkyyyk',
+      '..kffffffffffkyk', '..kSffffffffSk..', '..kSkffffffkSk..', '...kkffffffkk...', '....kffkkffk....', '....kSSk.kSSk...', '....kkkk.kkkk...']);
+  },
+  yeti() {
+    return grid(['......kkkk......', '....kkWWWWkk....', '...kWWWWWWWWk...', '...kWCkWWkCWk...', '...kWWWWWWWWk...', '....kWkkkkWk....', '..kkWWWWWWWWkk..',
+      '.kWWWWWWWWWWWWk.', '.kWWkWWWWWWkWWk.', '.kWk.kWWWWk.kWk.', '..k..kWWWWk..k..', '.....kWkkWk.....', '....kWWkkWWk....', '....kkkk.kkkk...']);
+  },
+  sphinx() {
+    return grid(['', '.....kkkkk......', '....kgggggk.....', '...kgsssssgk....', '...kgskssksk....', '...kgsssssgk....', '....kgsrsgk.kk..', '....kgkkkgkkook.',
+      '..kkoooooooooook', '.koooooooooooook', '.kokooooooookok.', '.kok.kook.kok...', '.kk..kkk..kk....']);
+  },
+  seaMonster() {
+    return grid(['', '', '', '.....kkkkk......', '....kCCCCCk..kk.', '...kCWkCCCCk.kCk', '..kCCCCCCCCCkCCk', '..kCrrrCCCCCCCk.', '..kCCCCCCCCCCk..',
+      '...kCCCCCCCCk...', '....kkCCCCkk....', '..cccckkkkcccc..', '.cCcCccCCccCcCc.']);
+  },
+  kraken() {
+    return grid(['.....kkkkkk.....', '....kPPPPPPk....', '...kPPPPPPPPk...', '...kPWkPPkWPk...', '...kPPPPPPPPk...', '....kPPPPPPk....', '.k.kPkPkkPkPk.k.',
+      'kPkPkPkPPkPkPkPk', 'kPkPk.kPPk.kPkPk', '.kPk..kPPk..kPk.', '.kPk...kk...kPk.', '..kk.cccccc.kk..', '.cCCccCCCCccCCc.']);
+  },
+  beast() { return SPRITE_DEFS.wolf(); },
+  hawkman(t) {
+    const g = grid(BODY);
+    overlay(g, ['', '......kkkk......', '.....kffffk.....', '....kffffffk....', '....kfWffWfk....', '....kffoofk.....']);
+    overlay(g, ['', '', '', '', '', '', 'kk............kk', 'kfk..........kfk', 'kffk........kffk', '.kffk......kffk.', '..kfk......kfk..', '...k........k...']);
+    if (t >= 1) { put(g, 7, 0, 'g'); put(g, 8, 0, 'g'); }
+    return g;
+  },
+  wolfman(t) {
+    const g = grid(BODY);
+    overlay(g, ['....k......k....', '...kyk....kyk...', '...kyykkkkyyk...', '...kyyyyyyyyk...', '...kyWyyyyWyk...', '....kyyyyyyk....', '.....kyykkk.....', '......kyyk......']);
+    put(g, 3, 10, 'y'); put(g, 12, 10, 'y');
+    if (t >= 1) hline(g, 5, 10, 11, 'g');
+    return g;
+  },
+  dragon(t) {
+    const big = t >= 2;
+    return grid([
+      big ? 'kk..........kk..' : '................',
+      'kGk...kkk...kGk.',
+      'kGGk.kGGGk.kGGk.',
+      '.kGGkGeGGGkGGk..',
+      '..kGGGGGGGGGk...',
+      '...kGGGrrGGk....',
+      '..kGkGGGGGkGk...',
+      '.kGk.kGGGGGkGk..',
+      '.kk.kGHHHHGk.k..',
+      '....kGHHHHGGk...',
+      '...kGGHHHHGGGk..',
+      '...kGkGGGGkGGGk.',
+      '...kk.kGGk..kGGk',
+      '......kk.....kk.',
+    ]);
+  },
+  darkLord() {
+    const g = SPRITE_DEFS.demon();
+    put(g, 1, 1, 'g'); put(g, 2, 1, 'g'); put(g, 13, 1, 'g'); put(g, 14, 1, 'g'); put(g, 6, 3, 'g'); put(g, 9, 3, 'g');
+    return g;
+  },
+  robot() {
+    return grid(['', '.....kkkkkk.....', '....kmmmmmmk....', '....kmkkkkmk....', '....kmceeckk....', '....kmmmmmmk....', '...kkkmmmmkkk...', '..knmnmmmmnmnk..',
+      '..knmkmggmkmnk..', '..kkkkmmmmkkkk..', '....kmmkkmmk....', '....knnk.knnk...', '....kkkk.kkkk...']);
+  },
+  console() {
+    return grid(['', '', '..kkkkkkkkkkkk..', '..kYYYYYYYYYYk..', '..kYkkkkkkkkYk..', '..kYkcccGcckYk..', '..kYkcGcccckYk..', '..kYkcccccGkYk..', '..kYkkkkkkkkYk..',
+      '..kYYYYYYYYYYk..', '.kkkkkkkkkkkkkk.', '.knrngnrngnrnnk.', '.kYYYYYYYYYYYYk.', '.kkkkkkkkkkkkkk.']);
+  },
+  wind() {
+    return grid(['', '..kkkkkkkkkkk...', '.kWcWcWcWcWcWk..', '..kcWcWcWcWck...', '...kWcWcWcWk....', '....kcWcWck.....', '.....kWcWk......', '......kcWk......',
+      '.....kWck.......', '......kWk.......', '.......kWk......', '......kk........']);
+  },
+  spiritEarth() { return recolor(SPRITE_DEFS.spirit(), { c: 'o', C: 'f' }); },
+  spiritFire() { return recolor(SPRITE_DEFS.spirit(), { c: 'o', C: 'r' }); },
+  spiritWind() { return recolor(SPRITE_DEFS.spirit(), { c: 'G', C: 'H' }); },
+  spiritWater() { return SPRITE_DEFS.spirit(); },
+  angel() {
+    const g = grid(BODY);
+    overlay(g, ['....gggggg......', '', '', '', '', '', 'WW............WW', 'WWW..........WWW', '.WWW........WWW.', '..WW........WW..']);
+    for (let y = 8; y <= 13; y++) for (let x = 5; x <= 10; x++) if (g[y][x] === 'p' || g[y][x] === 'q') g[y][x] = 'W';
+    hline(g, 5, 10, 2, 'g');
+    return g;
+  },
+  turtle() {
+    return grid(['', '', '', '', '.....kkkkkk.....', '...kkGHGHGHkk...', '..kGHGHGHGHGHk..', '.kHGHGHGHGHGHGk.', 'kkGHGHGHGHGHGHkk', 'kssGGGGGGGGGGkss',
+      '.kkkssk..kssk.k.', '...kkk....kkk...']);
+  },
+});

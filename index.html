@@ -25,13 +25,14 @@
       <div class="logo">
         <div class="logo-sub">HEROES OF TIME &amp; SPACE</div>
         <h1>超时空<br>英雄传说</h1>
-        <div class="logo-tag">移动重制版</div>
+        <div class="logo-tag">移动重制版 · 全 35 关</div>
       </div>
       <div id="title-heroes"></div>
       <div class="title-menu">
         <button class="btn big primary" id="btn-continue" hidden>继续旅程</button>
         <button class="btn big" id="btn-new">新的旅程</button>
         <button class="btn big" id="btn-help">游戏说明</button>
+        <button class="btn" id="btn-diff">难度：标准</button>
       </div>
       <div class="title-foot">粉丝重制 · 致敬 宇峻科技 1996<br><span class="dim">最佳体验：手机竖屏</span></div>
     </div>
@@ -65,6 +66,7 @@
     <div id="camp-body"></div>
     <footer class="camp-foot">
       <button class="btn" id="camp-title">存档并返回标题</button>
+      <button class="btn" id="camp-auto">自动装备</button>
       <button class="btn primary big" id="camp-go">出击 ▶</button>
     </footer>
   </section>
@@ -83,6 +85,7 @@
         <div id="dlg-text"></div>
       </div>
       <div class="dlg-next">▼</div>
+      <button id="dlg-skip" class="dlg-skip">跳过 ▶▶</button>
     </div>
   </div>
   <div id="chapter-card" hidden></div>
@@ -92,7 +95,13 @@
 </div>
 
 <script src="js/data.js"></script>
+<script src="js/stages/stages_01_09.js"></script>
+<script src="js/stages/stages_10_18.js"></script>
+<script src="js/stages/stages_19_27.js"></script>
+<script src="js/stages/stages_28_35.js"></script>
+<script src="js/story.js"></script>
 <script src="js/sprites.js"></script>
+<script src="js/battle.js"></script>
 <script src="js/game.js"></script>
 </body>
 </html>
