@@ -13,7 +13,7 @@ const STATUS_COLOR = { petrify: '#9a9aa8', freeze: '#7ad8ff', blind: '#f4e04a', 
 const BUFF_NAME = { atk: '攻击', def: '防御', mag: '魔力', mov: '移动', skill: '战技', fly: '飞行', bless: '祝福' };
 const LEVEL_CAP = 40;
 
-const OPT = { sound: true, fast: false, easy: false };
+const OPT = { sound: true, music: true, fast: false, easy: false, anim: true };
 let AUTO = false; // 自动对战（测试用）：我方也由 AI 控制，跳过动画与对话
 const T = ms => (AUTO ? 0 : OPT.fast ? ms / 2.5 : ms);
 const wait = ms => (T(ms) > 0 ? sleep(T(ms)) : Promise.resolve());
@@ -321,9 +321,14 @@ function resize() {
     for (let y = 0; y < B.h; y++) for (let x = 0; x < B.w; x++) {
       g.drawImage(getTile(tileAt(x, y), x, y, frame), Math.round(x * s), Math.round(y * s), Math.ceil(s), Math.ceil(s));
     }
-    g.strokeStyle = 'rgba(0,0,0,0.12)'; g.lineWidth = 1;
+    g.strokeStyle = 'rgba(0,0,0,0.10)'; g.lineWidth = 1;
     for (let x = 1; x < B.w; x++) { g.beginPath(); g.moveTo(Math.round(x * s) + 0.5, 0); g.lineTo(Math.round(x * s) + 0.5, c.height); g.stroke(); }
     for (let y = 1; y < B.h; y++) { g.beginPath(); g.moveTo(0, Math.round(y * s) + 0.5); g.lineTo(c.width, Math.round(y * s) + 0.5); g.stroke(); }
+    // 立体物件（山、树、城墙、石柱、村屋）由上往下逐行绘制，前排遮住后排
+    if (typeof getProp === 'function') for (let y = 0; y < B.h; y++) for (let x = 0; x < B.w; x++) {
+      const pr = getProp(tileAt(x, y), x, y, frame);
+      if (pr) g.drawImage(pr.c, Math.round(x * s), Math.round(y * s + pr.dy * s / 32), Math.ceil(s), Math.ceil(s * 1.5));
+    }
     return c;
   });
 }
@@ -333,9 +338,9 @@ const GRAY = {};
 function tintSprite(c, id, mode) {
   const kk = id + '|' + mode;
   if (GRAY[kk]) return GRAY[kk];
-  const g = document.createElement('canvas'); g.width = 16; g.height = 16;
+  const g = document.createElement('canvas'); g.width = c.width; g.height = c.height;
   const x = g.getContext('2d'); x.drawImage(c, 0, 0);
-  const d = x.getImageData(0, 0, 16, 16);
+  const d = x.getImageData(0, 0, c.width, c.height);
   for (let i = 0; i < d.data.length; i += 4) {
     const v = d.data[i] * 0.3 + d.data[i + 1] * 0.59 + d.data[i + 2] * 0.11;
     if (mode === 'gray') { d.data[i] = d.data[i + 1] = d.data[i + 2] = v * 0.75; }
@@ -382,10 +387,10 @@ function render(now) {
   for (const u of list) {
     const ux = (u.px ?? u.x) * ts + (u.ox || 0) * ts, uy = (u.py ?? u.y) * ts + (u.oy || 0) * ts;
     ctx.globalAlpha = u.dying ? Math.max(0, u.dying) : 1;
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.beginPath(); ctx.ellipse(ux + ts / 2, uy + ts * 0.86, ts * 0.32, ts * 0.11, 0, 0, 7); ctx.fill();
-    ctx.strokeStyle = TEAM_COLOR[u.team]; ctx.lineWidth = Math.max(1.5, ts / 20);
-    ctx.beginPath(); ctx.ellipse(ux + ts / 2, uy + ts * 0.86, ts * 0.34, ts * 0.12, 0, 0, 7); ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.beginPath(); ctx.ellipse(ux + ts / 2, uy + ts * 0.86, ts * 0.33, ts * 0.12, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = TEAM_COLOR[u.team]; ctx.lineWidth = Math.max(1.5, ts / 22);
+    ctx.beginPath(); ctx.ellipse(ux + ts / 2, uy + ts * 0.86, ts * 0.36, ts * 0.13, 0, 0, 7); ctx.stroke();
     let spr = unitSprite(u);
     const sid = `${spriteKey(u)}|${u.tier}|${u.team}|${u.hair}|${u.color || u.element}`;
     if (hasStatus(u, 'petrify')) spr = tintSprite(spr, sid, 'stone');
@@ -393,9 +398,10 @@ function render(now) {
     else if (u.acted && B.phase === u.team) spr = tintSprite(spr, sid, 'gray');
     const still = u.acted || !canAct(u) || u.px !== undefined || u.hp <= 0;
     const by = (!still && bob) ? -ts / 32 : 0;
-    const size = u.boss ? ts * 1.15 : ts;
-    ctx.drawImage(spr, ux + (ts - size) / 2, uy - ts * 0.06 + by - (size - ts), size, size);
-    if (u.flash && now < u.flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; ctx.drawImage(spr, ux + (ts - size) / 2, uy - ts * 0.06 - (size - ts), size, size); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; }
+    const size = ts * (u.boss ? 1.4 : 1.2);
+    const sx0 = ux + (ts - size) / 2, sy0 = uy + ts * 0.9 - size * 0.9 + by;
+    ctx.drawImage(spr, sx0, sy0, size, size);
+    if (u.flash && now < u.flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; ctx.drawImage(spr, sx0, sy0, size, size); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; }
     if (u.hp > 0) {
       const bw = ts * 0.7, bh = Math.max(2, ts * 0.075), bx = ux + ts * 0.15, byy = uy + ts - bh - 1;
       ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(bx - 1, byy - 1, bw + 2, bh + 2);
@@ -535,6 +541,7 @@ const SFX = {
 };
 function sfx(name) {
   if (!OPT.sound || AUTO) return;
+  if (typeof AUDIO !== 'undefined') { try { AUDIO.sfx(name); } catch (e) { } return; }
   try {
     AC = AC || new (window.AudioContext || window.webkitAudioContext)();
     if (AC.state === 'suspended') AC.resume();
@@ -553,6 +560,17 @@ function sfx(name) {
 // 通用 UI
 // =====================================================================
 function show(id) { for (const s of document.querySelectorAll('.screen')) s.hidden = s.id !== id; }
+// 背景音乐：随场景切换（AUDIO 由 js/audio.js 提供）
+function music(name) {
+  if (AUTO || typeof AUDIO === 'undefined') return;
+  try { AUDIO.setMusicOn(OPT.music); if (!OPT.music) { AUDIO.stopMusic(); return; } AUDIO.playMusic(name); } catch (e) { }
+}
+function battleTheme(team) {
+  if (!B) return 'player';
+  if (B.def.no === STAGES[STAGES.length - 1].no) return 'final';
+  if (B.def.win.type === 'boss' && B.units.some(u => u.boss && u.hp > 0 && B.turn >= 2)) return 'boss';
+  return team === 'player' || team === 'ally' ? 'player' : 'enemy';
+}
 function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 let toastTimer = null;
 function toast(msg) {
@@ -591,16 +609,28 @@ function modal(title, bodyHtml, buttons, opts) {
     if (opts && opts.onOpen) opts.onOpen(m);
   });
 }
-function portraitCanvas(who, size) {
+// 立绘：优先使用 portraits.js 的手绘风半身像（64×72），没有时退回放大的单位精灵
+function portraitCanvas(who, size, variant) {
   if (!who) return null;
-  const c = document.createElement('canvas'); c.width = 16; c.height = 16; c.className = 'pix';
-  c.style.width = c.style.height = size + 'px';
-  let spr;
-  if (who.startsWith('enemy:')) { const k = who.slice(6), cls = KIND_ALIAS[k] || k; if (CLASSES[cls]) spr = getSprite(CLASSES[cls].sprite, 0, 'enemy'); }
-  else if (HEROES[who]) { const d = (S && S.roster[who]) || heroData(who); spr = getSprite(CLASSES[d.cls].sprite, d.tier, 'player', d.hair); }
-  if (!spr) return null;
-  c.getContext('2d').drawImage(spr, 0, 0);
+  let src = null;
+  if (typeof getPortrait === 'function') {
+    try { src = getPortrait(who.startsWith('enemy:') ? 'enemy:' + (KIND_ALIAS[who.slice(6)] ? who.slice(6) : who.slice(6)) : who, variant); } catch (e) { src = null; }
+  }
+  if (!src) {
+    if (who.startsWith('enemy:')) { const k = who.slice(6), cls = KIND_ALIAS[k] || k; if (CLASSES[cls]) src = getSprite(CLASSES[cls].sprite, 0, 'enemy'); }
+    else if (HEROES[who]) { const d = (S && S.roster[who]) || heroData(who); src = getSprite(CLASSES[d.cls].sprite, d.tier, 'player', d.hair); }
+  }
+  if (!src) return null;
+  const c = document.createElement('canvas'); c.width = src.width; c.height = src.height; c.className = 'pix';
+  c.style.width = size + 'px'; c.style.height = Math.round(size * src.height / src.width) + 'px';
+  c.getContext('2d').drawImage(src, 0, 0);
   return c;
+}
+// 单位对应的立绘 id（英雄用自己的 id；敌人用兵种）
+function unitPortrait(u, size) {
+  if (u.id && HEROES[u.id]) return portraitCanvas(u.id, size);
+  const kind = Object.keys(KIND_ALIAS).find(k => KIND_ALIAS[k] === u.cls) || u.cls;
+  return portraitCanvas('enemy:' + kind, size, u.color || u.element);
 }
 function dialog(lines) {
   if (AUTO || !lines || !lines.length) return Promise.resolve();
@@ -612,7 +642,7 @@ function dialog(lines) {
       $('#dlg-name').textContent = narr ? '' : who;
       $('#dlg-name').style.display = narr ? 'none' : '';
       const pw = $('#dlg-portrait'); pw.innerHTML = '';
-      const pc = portraitCanvas(pid || heroIdByName(who), 64); if (pc) pw.appendChild(pc);
+      const pc = portraitCanvas(pid || heroIdByName(who), 76); if (pc) pw.appendChild(pc);
       pw.style.display = pc ? '' : 'none';
       box.classList.toggle('narration', narr);
       full = text; let n = 0;
@@ -735,6 +765,7 @@ async function phaseStart(team) {
   }
   const label = { player: '我方行动', ally: '友军行动', enemy: '敌军行动', rogue: '第三势力行动' }[team];
   updateHud();
+  music(battleTheme(team));
   if (team === 'player') {
     sfx('turn');
     const lim = B.def.win.turns;
@@ -791,12 +822,15 @@ async function killUnit(u) {
   for (const s of alive().filter(s => s.summoner === u.uid)) s.hp = 0;
 }
 async function strike(a, d, calc, ranged) {
-  if (ranged) await addFx('arrow', d.x, d.y, 200, { sx: a.x, sy: a.y });
-  else await lunge(a, d);
-  if (Math.random() * 100 >= calc.hit) { floatText(d.x, d.y, 'MISS', '#aaccff'); sfx('miss'); await wait(220); return { dmg: 0, killed: false }; }
-  const crit = Math.random() * 100 < calc.crit;
+  const hit = Math.random() * 100 < calc.hit;
+  const crit = hit && Math.random() * 100 < calc.crit;
   const dmg = Math.max(1, Math.round(calc.dmg * (0.9 + Math.random() * 0.2) * (crit ? 1.5 : 1)));
-  if (!ranged) addFx('slash', d.x, d.y, 200);
+  sfx(ranged ? 'arrow' : 'slash');
+  if (DUEL.on) await duelStrike(a, d, hit, dmg, crit, ranged);
+  else if (ranged) await addFx('arrow', d.x, d.y, 200, { sx: a.x, sy: a.y });
+  else await lunge(a, d);
+  if (!hit) { floatText(d.x, d.y, 'MISS', '#aaccff'); sfx('miss'); await wait(220); return { dmg: 0, killed: false }; }
+  if (!ranged && !DUEL.on) addFx('slash', d.x, d.y, 200);
   await applyDamage(a, d, dmg, crit);
   await wait(220);
   return { dmg, killed: d.hp <= 0 };
@@ -804,12 +838,13 @@ async function strike(a, d, calc, ranged) {
 async function doAttack(a, d) {
   B.cursor = null;
   const ranged = mdist(a.x, a.y, d.x, d.y) > 1;
+  const duel = await duelOpen(a, d);
   const r1 = await strike(a, d, physCalc(a, d), ranged);
+  let r2 = null;
+  if (d.hp > 0 && a.hp > 0 && canCounter(d, a)) r2 = await strike(d, a, physCalc(d, a), ranged);
+  if (duel) await duelClose();
   await giveExp(a, d, r1);
-  if (d.hp > 0 && a.hp > 0 && canCounter(d, a)) {
-    const r2 = await strike(d, a, physCalc(d, a), mdist(a.x, a.y, d.x, d.y) > 1);
-    await giveExp(d, a, r2);
-  }
+  if (r2) await giveExp(d, a, r2);
 }
 async function giveExp(u, t, r) {
   if (u.team !== 'player' || u.hp <= 0 || !r || (r.dmg === 0 && !r.killed)) return;
@@ -899,6 +934,7 @@ async function spellFx(u, sp, tx, ty) {
   if (sp.line) { await addFx('beam', tx, ty, 480, { sx: u.x, sy: u.y, color: sp.fx === 'ice' ? '#7ad8ff' : sp.fx === 'dark' ? '#a04ad8' : sp.fx === 'bolt' ? '#fff6a0' : '#ff6a1a' }); return; }
   if (sp.fx === 'slash') { await lunge(u, { x: tx, y: ty }); addFx('slash', tx, ty, 240, { color: sp.kind === 'pair' ? '#ffe08a' : '#fff' }); return; }
   const cells = areaTiles(tx, ty, sp.area || 0);
+  sfx({ fire: 'fire', ice: 'ice', bolt: 'bolt', wind: 'wind', rock: 'rock', dark: 'dark', holy: 'holy', acid: 'status', heal: 'heal', buff: 'buff' }[sp.fx] || 'magic');
   cells.forEach(c => addFx(sp.fx, c.x, c.y, 520));
   await wait(sp.area ? 520 : 420);
 }
@@ -908,7 +944,7 @@ async function castSpell(u, spId, tx, ty) {
   B.cursor = null;
   u.mp -= sp.mp;
   floatText(u.x, u.y, sp.name, '#ffe08a');
-  sfx(friendlySpell(sp) ? 'heal' : 'magic');
+  sfx(friendlySpell(sp) ? (sp.kind === 'heal' ? 'heal' : 'buff') : sp.kind === 'summon' ? 'summon' : 'magic');
   let partner = null;
   if (sp.kind === 'pair') { partner = pairPartner(u); if (partner) { partner.acted = true; floatText(partner.x, partner.y, '合击！', '#ffe08a'); } }
   await wait(280);
@@ -1412,7 +1448,7 @@ function refreshPanel() {
   else html = `<div class="ui-hint">点击我方单位进行移动与行动，点击敌人查看其攻击范围。</div>`;
   info.innerHTML = html;
   const pp = info.querySelector('[data-port]');
-  if (pp && f) { const c = document.createElement('canvas'); c.width = c.height = 16; c.className = 'pix'; c.getContext('2d').drawImage(unitSprite(f), 0, 0); pp.appendChild(c); }
+  if (pp && f) { const c = unitPortrait(f, 52); if (c) pp.appendChild(c); }
   const btn = (label, act, cls, dis) => `<button class="btn ${cls || ''}" data-act="${act}" ${dis ? 'disabled' : ''}>${label}</button>`;
   let b = '';
   const myTurn = B.phase === 'player' && B.endPhase && !B.over;

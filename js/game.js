@@ -35,15 +35,16 @@ async function runStage(idx, opts) {
   const st = STAGES[idx];
   const snapshot = JSON.stringify(S);
   const deploy = opts.deploy || defaultDeploy(st);
-  if (!opts.skipIntro) { show('battle'); await chapterCard(st); }
+  if (!opts.skipIntro) { show('battle'); music('story'); await chapterCard(st); }
   startBattle(idx, deploy);
   if (!opts.skipIntro) await dialog(st.intro);
   if (!AUTO) { const o = objectiveText(); await banner('胜利：' + o.win, '失败：' + o.lose); }
   const result = await battleLoop();
   if (result === 'abort') return;
   if (result === 'win') {
-    sfx('win');
+    music('victory');
     await banner('胜 利', st.title, 'win');
+    music('story');
     await dialog(st.outro);
     // 回写成长；中途加入（team player）的英雄正式入队
     for (const u of B.units) {
@@ -59,7 +60,7 @@ async function runStage(idx, opts) {
     await modal('战斗结算', `<p class="center">获得奖励金 <b class="gold">${st.reward || 0} G</b></p>${(st.shop || []).length ? `<p class="center dim small">商店新增：${st.shop.map(i => ITEMS[i].name).join('、')}</p>` : ''}`, [{ label: '前往营地', value: 1, cls: 'primary' }]);
     return showCamp();
   }
-  sfx('lose');
+  music('defeat');
   if (AUTO) { S = JSON.parse(snapshot); return 'lose'; }
   await banner('战 败', '', 'lose');
   const v = await modal('战斗失败', '<p class="center">胜败乃兵家常事，大侠请重新来过。</p>', [
@@ -83,15 +84,19 @@ async function battleMenu() {
   sfx('select');
   const v = await modal('菜单', '', [
     { label: '继续游戏', value: 'back', cls: 'primary' },
+    { label: `音乐：${OPT.music ? '开' : '关'}`, value: 'music' },
     { label: `音效：${OPT.sound ? '开' : '关'}`, value: 'sound' },
     { label: `战斗速度：${OPT.fast ? '快' : '标准'}`, value: 'fast' },
+    { label: `战斗画面：${OPT.anim ? '开' : '关'}`, value: 'anim' },
     { label: `难度：${OPT.easy ? '简单' : '标准'}（下次进入战斗生效）`, value: 'easy' },
     { label: '重新开始本关', value: 'restart' },
     { label: '返回营地', value: 'camp' },
     { label: '返回标题', value: 'title' },
   ], { dismiss: 'back' });
   if (v === 'sound') { OPT.sound = !OPT.sound; saveOpt(); return battleMenu(); }
+  if (v === 'music') { OPT.music = !OPT.music; saveOpt(); music(battleTheme(B && B.phase)); return battleMenu(); }
   if (v === 'fast') { OPT.fast = !OPT.fast; saveOpt(); return battleMenu(); }
+  if (v === 'anim') { OPT.anim = !OPT.anim; saveOpt(); return battleMenu(); }
   if (v === 'easy') { OPT.easy = !OPT.easy; saveOpt(); return battleMenu(); }
   if (['restart', 'camp', 'title'].includes(v)) {
     const ok = await modal('确认', '<p class="center">当前战斗进度将会丢失，确定吗？</p>', [{ label: '确定', value: 1, cls: 'red' }, { label: '取消', value: 0 }]);
@@ -138,6 +143,7 @@ function itemDesc(it) {
 function showCamp() {
   B = null;
   show('camp');
+  music('camp');
   prepareStage(Math.min(S.stage, STAGES.length - 1));
   renderCamp();
 }
@@ -166,7 +172,7 @@ function renderCamp() {
         <p class="small dim bio">${HEROES[id].bio}</p>
       </div>`;
     }).join('');
-    for (const p of body.querySelectorAll('[data-hero]')) { const c = portraitCanvas(p.dataset.hero, 48); if (c) p.appendChild(c); }
+    for (const p of body.querySelectorAll('[data-hero]')) { const c = portraitCanvas(p.dataset.hero, 52); if (c) p.appendChild(c); }
   } else if (campTab === 'items') {
     const ids = Object.keys(S.inv).filter(id => S.inv[id] > 0);
     body.innerHTML = ids.length ? ids.map(id => {
@@ -297,6 +303,7 @@ async function chooseDeploy(st) {
 function showTitle() {
   B = null;
   show('title');
+  music('title');
   const sv = readSave();
   $('#btn-continue').hidden = !sv;
   if (sv) $('#btn-continue').textContent = `继续旅程（${sv.stage >= STAGES.length ? '已通关' : `第 ${STAGES[sv.stage].no} 关`}）`;
@@ -304,6 +311,7 @@ function showTitle() {
 async function showEnding() {
   if (AUTO) return 'win';
   show('ending');
+  music('ending');
   const box = $('#ending-scroll');
   box.innerHTML = '';
   await dialog(ENDING_PRELUDE);
@@ -325,7 +333,7 @@ async function showEnding() {
     <p class="dim small">本作为粉丝向非官方重制，谨此致敬 宇峻科技 1996 年的经典战棋游戏《超时空英雄传说》。<br>剧情依原作改编，对白为重新撰写。</p>
     <p class="dim small">结局：${Object.keys(ENDINGS).map(k => ENDINGS[k].title).join(' / ')}——换个选择，也许会看到不同的结局。</p>
     <button class="btn primary" id="btn-end-title">返回标题</button>`;
-  for (const p of box.querySelectorAll('[data-hero]')) { const c = portraitCanvas(p.dataset.hero, 40); if (c) p.appendChild(c); }
+  for (const p of box.querySelectorAll('[data-hero]')) { const c = portraitCanvas(p.dataset.hero, 44); if (c) p.appendChild(c); }
   box.scrollTop = 0;
   $('#btn-end-title').onclick = () => { persist(); showTitle(); };
 }
@@ -363,7 +371,7 @@ $('#btn-help').addEventListener('click', () => {
 });
 function diffLabel() { $('#btn-diff').textContent = `难度：${OPT.easy ? '简单' : '标准'}`; }
 $('#btn-diff').addEventListener('click', () => { OPT.easy = !OPT.easy; saveOpt(); diffLabel(); sfx('select'); toast(OPT.easy ? '简单：敌人较弱，经验值 +25%' : '标准：接近原作的难度'); });
-$('#btn-sound').addEventListener('click', () => { OPT.sound = !OPT.sound; saveOpt(); $('#btn-sound').textContent = OPT.sound ? '🔊' : '🔇'; sfx('select'); });
+$('#btn-sound').addEventListener('click', () => { OPT.sound = OPT.music = !(OPT.sound || OPT.music); saveOpt(); $('#btn-sound').textContent = OPT.sound ? '🔊' : '🔇'; sfx('select'); music('title'); });
 
 // 标题画面：时空裂缝星空
 (function titleFx() {
@@ -389,14 +397,24 @@ $('#btn-sound').addEventListener('click', () => { OPT.sound = !OPT.sound; saveOp
 })();
 (function titleHeroes() {
   const row = $('#title-heroes');
-  for (const id of ['yangtie', 'mengqi', 'xueer', 'wushuang']) { const c = portraitCanvas(id, 52); if (c) row.appendChild(c); }
+  for (const id of ['yangtie', 'mengqi', 'xueer', 'wushuang']) { const c = portraitCanvas(id, 64); if (c) row.appendChild(c); }
 })();
 
 // =====================================================================
 // 启动
 // =====================================================================
 loadOpt();
-$('#btn-sound').textContent = OPT.sound ? '🔊' : '🔇';
+// 首次触摸时解锁音频（iOS / Android 浏览器要求用户手势），之后播放当前场景的音乐
+let audioUnlocked = false;
+const unlockAudio = () => {
+  if (audioUnlocked || typeof AUDIO === 'undefined') return;
+  audioUnlocked = true;
+  try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { } // iPhone 静音键开着也能听到音乐
+  try { AUDIO.unlock(); AUDIO.setMusicOn(OPT.music); AUDIO.setSfxOn(OPT.sound); } catch (e) { }
+  if (!$('#title').hidden) music('title'); else if (!$('#camp').hidden) music('camp');
+};
+for (const ev of ['pointerdown', 'touchend', 'keydown']) document.addEventListener(ev, unlockAudio, { passive: true });
+$('#btn-sound').textContent = (OPT.sound || OPT.music) ? '🔊' : '🔇';
 diffLabel();
 showTitle();
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });

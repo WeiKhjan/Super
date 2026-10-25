@@ -1,7 +1,7 @@
 // 离线缓存：首次打开后即可离线游玩
-const CACHE = 'cskyxcs-v2';
+const CACHE = 'cskyxcs-v3';
 const FILES = ['./', 'index.html', 'css/style.css', 'js/data.js', 'js/stages/stages_01_09.js', 'js/stages/stages_10_18.js', 'js/stages/stages_19_27.js', 'js/stages/stages_28_35.js',
-  'js/story.js', 'js/sprites.js', 'js/battle.js', 'js/game.js',
+  'js/story.js', 'js/sprites.js', 'js/sprites3.js', 'js/portraits.js', 'js/audio.js', 'js/battle.js', 'js/duel.js', 'js/game.js',
   'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', e => {
