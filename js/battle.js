@@ -66,7 +66,8 @@ function skillsOf(u) {
   const grunt = !u.id && !u.boss && (u.team === 'enemy' || u.team === 'rogue');
   const cap = grunt ? 10 + u.lv / 5 : 99;
   // 杂兵的职业战技只用单体的基本招式（贯穿、范围技留给我方与首领）
-  const gruntOk = (sp, lv) => !grunt || !['枪', '斧', '刀', '弓', '翼', '牙'].includes(sp.school) || (!sp.line && !sp.area && (sp.power || 0) <= 6 && u.lv >= lv + 5);
+  const gruntOk = (sp, lv) => !grunt || (sp.kind === 'phys' && (sp.line || sp.area || shaped(sp)) ? false
+    : !['枪', '斧', '刀', '弓', '翼', '牙'].includes(sp.school) || (!sp.line && !sp.area && !shaped(sp) && (sp.power || 0) <= 6 && u.lv >= lv + 5));
   for (const [lv, id] of list) if (lv <= u.lv && !seen.has(id) && SPELLS[id].mp <= cap && gruntOk(SPELLS[id], lv)) { seen.add(id); out.push(id); }
   return out;
 }
@@ -233,6 +234,27 @@ function tilesInRange(x, y, r0, r1) {
   }
   return out;
 }
+// 招式的作用格：直线 / 横扫（目标与左右两格）/ 扇形冲击波 / 以目标为中心的范围
+function spellCells(u, sp, x, y) {
+  if (sp.line) return lineTiles(u.x, u.y, x, y, sp.range[1]);
+  if (sp.arc || sp.cone) {
+    const dx = Math.sign(x - u.x), dy = Math.sign(y - u.y);
+    if (!dx && !dy) return [];
+    const px = dy ? 1 : 0, py = dx ? 1 : 0; // 与方向垂直
+    const out = [];
+    const depth = sp.cone || 1;
+    for (let k = 1; k <= depth; k++) {
+      const w = sp.arc ? 1 : k - 1;
+      for (let s = -w; s <= w; s++) {
+        const cx = u.x + dx * k + px * s, cy = u.y + dy * k + py * s;
+        if (inMap(cx, cy)) out.push({ x: cx, y: cy });
+      }
+    }
+    return out;
+  }
+  return areaTiles(x, y, sp.area || 0);
+}
+const shaped = sp => sp.around || sp.arc || sp.cone;
 // 直线贯穿：施法者到目标的直线（不含施法者），延伸到射程尽头
 function lineTiles(sx, sy, tx, ty, len) {
   const out = [];
@@ -905,7 +927,7 @@ function areaTiles(x, y, r) { return tilesInRange(x, y, 0, r); }
 const friendlySpell = sp => ['heal', 'buff', 'cure'].includes(sp.kind);
 function spellAffected(u, spId, x, y) {
   const sp = SPELLS[spId];
-  const tiles = sp.line ? lineTiles(u.x, u.y, x, y, sp.range[1]) : areaTiles(x, y, sp.area || 0);
+  const tiles = spellCells(u, sp, x, y);
   const out = [];
   for (const t of tiles) {
     const o = unitAt(t.x, t.y); if (!o) continue;
@@ -929,6 +951,7 @@ function spellTiles(u, spId) {
   if (sp.around) return spellAffected(u, spId, u.x, u.y).length ? [{ x: u.x, y: u.y }] : [];
   for (const t of tilesInRange(u.x, u.y, sp.range[0], sp.range[1])) {
     const c = unitAt(t.x, t.y);
+    if ((sp.arc || sp.cone) && !friendlySpell(sp)) { if (spellAffected(u, spId, t.x, t.y).some(o => hostile(u, o))) out.push(t); continue; }
     if (sp.kind === 'summon') {
       if (passable({ cls: sp.unit, tier: 0 }, t.x, t.y) && !c) out.push(t);
     } else if (sp.kind === 'heal') {
@@ -1022,7 +1045,7 @@ async function castSpell(u, spId, tx, ty) {
         const c = skillCalc(u, t, sp, partner);
         if (Math.random() * 100 >= c.hit) { floatText(t.x, t.y, 'MISS', '#aaccff'); continue; }
         const crit = Math.random() * 100 < c.crit;
-        const edge = sp.area && !sp.around && (t.x !== tx || t.y !== ty) ? 0.7 : 1; // 范围法术外圈伤害 70%
+        const edge = sp.area && !shaped(sp) && (t.x !== tx || t.y !== ty) ? 0.7 : 1; // 范围法术外圈伤害 70%
         const dmg = Math.max(1, Math.round(c.dmg * edge * (0.9 + Math.random() * 0.2) * (crit ? 1.5 : 1)));
         await applyDamage(u, t, dmg, crit);
         if (sp.status && t.hp > 0) { t.status[sp.status] = sp.turns + 1; floatText(t.x, t.y - 0.3, STATUS_NAME[sp.status], STATUS_COLOR[sp.status]); }
@@ -1135,7 +1158,7 @@ async function onTap(x, y) {
       B.pending = { x, y }; B.cursor = { x, y };
       if (B.mode === 'spell') {
         const sp = SPELLS[B.spell];
-        B.hlArea = new Set((sp.line ? lineTiles(B.sel.x, B.sel.y, x, y, sp.range[1]) : areaTiles(x, y, sp.area || 0)).map(t => key(t.x, t.y)));
+        B.hlArea = new Set(spellCells(B.sel, sp, x, y).map(t => key(t.x, t.y)));
       }
       B.focus = u || B.sel;
       sfx('select');
@@ -1354,7 +1377,7 @@ async function aiUnit(u) {
       if (['heal', 'summon', 'cure', 'buff'].includes(sp.kind)) continue;
       for (const t of tilesInRange(st.x, st.y, sp.range[0], sp.range[1])) {
         const c0 = unitAt(t.x, t.y);
-        if (!sp.around && (!c0 || !hostile(u, c0))) continue;
+        if (!shaped(sp) && (!c0 || !hostile(u, c0))) continue;
         let s = 0;
         for (const f of spellAffected(u, id, t.x, t.y)) {
           const enemy = hostile(u, f);
@@ -1363,7 +1386,7 @@ async function aiUnit(u) {
           else if (sp.kind === 'death') { if (enemy) s += f.hp * deathChance(u, f, sp) / 100 * 0.6; }
           else {
             const c = skillCalc(u, f, sp);
-            const dd = c.dmg * (sp.area && !sp.around && (f.x !== t.x || f.y !== t.y) ? 0.7 : 1);
+            const dd = c.dmg * (sp.area && !shaped(sp) && (f.x !== t.x || f.y !== t.y) ? 0.7 : 1);
             const v = dd * c.hit / 100 + (dd >= f.hp ? 40 : 0) + (f.lord ? 6 : 0);
             s += enemy ? v : -v * 1.5; // 直线法术会误伤友军
           }
@@ -1451,7 +1474,7 @@ function forecastHtml() {
         case 'debuff': return `${esc(o.name)} ${BUFF_NAME[sp.stat]}下降 ${sp.turns} 回合`;
         case 'status': return `${esc(o.name)} ${STATUS_NAME[sp.status]} 成功率 <em>${statusChance(u, o, sp)}%</em>`;
         case 'death': return `${esc(o.name)} 即死率 <em>${deathChance(u, o, sp)}%</em>`;
-        default: { const c = skillCalc(u, o, sp, partner); const dd = Math.round(c.dmg * (sp.area && !sp.around && (o.x !== p.x || o.y !== p.y) ? 0.7 : 1)); return `${ally ? '<span class="warn">误伤</span> ' : ''}${esc(o.name)} 伤害 <em>${dd}</em>${c.hit < 100 ? ` (${c.hit}%)` : ''}`; }
+        default: { const c = skillCalc(u, o, sp, partner); const dd = Math.round(c.dmg * (sp.area && !shaped(sp) && (o.x !== p.x || o.y !== p.y) ? 0.7 : 1)); return `${ally ? '<span class="warn">误伤</span> ' : ''}${esc(o.name)} 伤害 <em>${dd}</em>${c.hit < 100 ? ` (${c.hit}%)` : ''}`; }
       }
     }).join('<br>');
     return `<div class="fc"><div class="fc-side"><b>${sp.name}</b> <span class="dim">MP ${sp.mp}${partner ? ` · 与${esc(partner.name)}合击` : ''}</span><div class="fc-rows">${rows || '<span class="dim">范围内没有目标</span>'}</div></div></div>`;

@@ -406,6 +406,50 @@ const STYLE = {
     await wait(320);
   },
 };
+// 横扫：一道横跨三格的大弧光
+STYLE.sweep = async ({ u, sp, cells }) => {
+  if (!cells.length) return;
+  const mid = cells[(cells.length / 2) | 0], dx = mid.x - u.x, dy = mid.y - u.y;
+  const ang = Math.atan2(dy, dx) + Math.PI / 2;
+  sfx('slash');
+  PFX.slashes.push({ x: tc(mid.x) - dx * TS * 0.45, y: tc(mid.y) - dy * TS * 0.45, angle: ang, len: 1.5, color: sp.fx === 'rock' ? '#ffd8a0' : '#e8f0ff', t0: now0(), dur: T(320), thin: 1.3 });
+  await wait(120);
+  cells.forEach((c, k) => setTimeout(() => (sp.fx === 'rock' ? emit(10, tc(c.x), tc(c.y), { speed: [0.6, 1.8], life: [0.3, 0.6], size: [0.04, 0.08], cols: ELEM.rock.cols, gravity: 3, shape: 'rock' }) : hitSpark(tc(c.x), tc(c.y))), T(k * 50)));
+  sfx('hit');
+  await wait(260);
+};
+// 扇形冲击波：一排排向前推进
+STYLE.wave = async ({ u, sp, cells, E }) => {
+  if (!cells.length) return;
+  const dx = Math.sign(cells[0].x - u.x), dy = Math.sign(cells[0].y - u.y), ang = Math.atan2(dy, dx);
+  const col = sp.fx === 'rock' ? '#e0c090' : sp.fx === 'wind' ? '#a8f0d0' : '#e8f0ff';
+  const cols = sp.fx === 'rock' ? ELEM.rock.cols : sp.fx === 'wind' ? ELEM.wind.cols : ELEM.slash.cols;
+  sfx(sp.fx === 'rock' ? 'rock' : 'wind');
+  for (let k = 1; k <= (sp.cone || 1); k++) {
+    const row = cells.filter(c => Math.abs(c.x - u.x) * Math.abs(dx) + Math.abs(c.y - u.y) * Math.abs(dy) === k);
+    setTimeout(() => {
+      const cx = tc(u.x + dx * k), cy = tc(u.y + dy * k);
+      const L = 0.6 + k * 0.45;
+      PFX.slashes.push({ x: cx - dx * TS * L * 0.3, y: cy - dy * TS * L * 0.3, angle: ang + Math.PI / 2, len: L, color: col, t0: now0(), dur: T(300), thin: 1.4 });
+      row.forEach(c => emit(sp.fx === 'rock' ? 10 : 8, tc(c.x), tc(c.y), { angle: ang, spread: 0.6, speed: [1, 2.6], life: [0.25, 0.5], size: [0.04, 0.08], cols, gravity: sp.fx === 'rock' ? 3 : 0, drag: 0.8, shape: sp.fx === 'rock' ? 'rock' : 'shard' }));
+      if (sp.fx === 'rock') shakeStage();
+    }, T((k - 1) * 110));
+  }
+  await wait(140 + (sp.cone || 1) * 110);
+  sfx('hit');
+  await wait(180);
+};
+// 怒吼 / 咆哮：自身放出冲击环
+STYLE.roar = async ({ sp, cx, cy, cells }) => {
+  const col = sp.fx === 'dark' ? '#c070ff' : '#ff8a4a';
+  sfx('status');
+  for (let k = 0; k < 3; k++) PFX.rings.push({ x: cx, y: cy, r0: 0.3, r1: 1.8, color: col, t0: now0() + T(k * 110), dur: T(450) });
+  emit(24, cx, cy, { speed: [1.5, 3], life: [0.3, 0.5], size: [0.03, 0.06], cols: [col, '#ffffff'], drag: 0.8, shape: 'shard' });
+  shakeStage();
+  await wait(300);
+  cells.forEach(c => PFX.circles.push({ x: tc(c.x), y: tc(c.y) + TS * 0.3, r: 0.45, color: col, t0: now0(), dur: T(600) }));
+  await wait(200);
+};
 STYLE.rain = async ctx => { // 天马流星枪：自空中连续刺下
   sfx('slash');
   for (const c of ctx.cells) for (let k = 0; k < 2; k++) {
@@ -439,7 +483,7 @@ async function castAnim(u, sp, spId, tx, ty) {
   sfx(sp.kind === 'phys' || sp.kind === 'pair' ? 'slash' : 'magic');
   await wait(420);
 
-  const cells = sp.line ? lineTiles(u.x, u.y, tx, ty, sp.range[1]) : areaTiles(tx, ty, sp.area || 0);
+  const cells = spellCells(u, sp, tx, ty);
   const element = { fire: 'fire', ice: 'ice', bolt: 'bolt', wind: 'wind', rock: 'rock', dark: 'dark', holy: 'holy', acid: 'status', heal: 'heal', buff: 'buff', beam: 'fire' }[sp.fx];
 
   // 2) 施放
@@ -447,7 +491,7 @@ async function castAnim(u, sp, spId, tx, ty) {
     const ang = Math.atan2(y - cy, x - cx);
     const hitCells = sp.around ? cells.filter(c => c.x !== u.x || c.y !== u.y) : cells;
     await STYLE[sp.style]({ u, sp, cx, cy, x, y, ang, cells: hitCells, big, E });
-    if (sp.fx && IMPACT[sp.fx] && ['fire', 'holy', 'dark', 'bolt'].includes(sp.fx)) hitCells.forEach((c, k) => setTimeout(() => IMPACT[sp.fx](tc(c.x), tc(c.y), false), T(k * 40)));
+    if (sp.kind !== 'debuff' && sp.fx && IMPACT[sp.fx] && ['fire', 'holy', 'dark', 'bolt'].includes(sp.fx)) hitCells.forEach((c, k) => setTimeout(() => IMPACT[sp.fx](tc(c.x), tc(c.y), false), T(k * 40)));
     if (big) { flash(E.glow, 0.35, 300); shakeStage(); }
     await wait(200);
   } else if (sp.line) {
