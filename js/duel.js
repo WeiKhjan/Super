@@ -23,7 +23,7 @@ function duelResize() {
   duelCv.width = Math.round(w * dpr); duelCv.height = Math.round(h * dpr);
   DUEL.W = w; DUEL.H = h; DUEL.dpr = dpr;
   // 美术像素 → 屏幕像素：取整数个实体像素，放大后像素块大小一致
-  DUEL.s = Math.max(1, Math.round(h * 0.0072 * dpr)) / dpr;
+  DUEL.s = Math.max(1, Math.round(h * 0.0088 * dpr)) / dpr;
 }
 async function duelOpen(a, d) {
   if (AUTO || !OPT.anim) return false;
@@ -164,7 +164,7 @@ function duelRender(now) {
     const x = (isLeft ? W * 0.27 : W * 0.73) + f * (P.X * approach + P.P * sep + P.dx * s);
     // 影子
     const fly = st.spec.mount ? st.spec.mount.t !== 'horse' : st.spec.wings || st.spec.fly;
-    const sw = (st.spec.mount ? 26 : st.spec.kind === 'sprite' ? 7 * st.spec.scale : 13) * s;
+    const sw = (st.spec.mount ? 22 : st.spec.kind === 'sprite' ? 7 * st.spec.scale : 14) * s;
     g.fillStyle = `rgba(0,0,0,${fly ? 0.25 : 0.4})`; g.beginPath(); g.ellipse(isLeft ? x + 0 : x, feet + s, sw * (P.Y < -4 ? 0.7 : 1), 3.2 * s, 0, 0, 7); g.fill();
     // 顶阶光环
     if (st.spec.aura && !st.dead) {
