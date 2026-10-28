@@ -302,7 +302,7 @@ const DFIG = (() => {
     axe: { fa: 30, fe: 95, w: 148, two: 1, lean: 6 },
     lance: { fa: 18, fe: 80, w: 162 },
     fork: { fa: 18, fe: 80, w: 160 },
-    staff: { fa: 18, fe: 75, w: 176, lean: 2 },
+    staff: { fa: 50, fe: 90, w: 176, lean: 2 },
     bow: { ba: 35, be: 60, fa: 8, fe: 30, lean: 0 },
     xbow: { fa: 14, fe: 75, w: 112, two: 1, lean: 2 },
     claw: { fa: 40, fe: 150, ba: 28, be: 135, lean: 14, lt: 22, ls: -10, bt: -26, bs: -32 },
@@ -348,7 +348,7 @@ const DFIG = (() => {
   }
 
   // ---------------- 骨架（正向运动学 + 两段 IK） ----------------
-  const L1 = 7, L2 = 6.5, A1 = 6, A2 = 5.5, KU = 0.66, KV = 1.22, TL = 15 * KU, NK = 1.2, HR = 6.3 * 1.7;
+  const L1 = 4.2, L2 = 3.8, A1 = 4.6, A2 = 4.2, KU = 0.52, KV = 1.32, TL = 15 * KU, NK = 0.8, HR = 6.3 * 2.1;
   // 躯干局部坐标（沿用原 17 高的躯干单位）→ Q 版短胖躯干
   const T = (J, v, u, bk) => [J.hip[0] + J.fw[0] * v * KV * (bk || 1) + J.up[0] * u * KU, J.hip[1] + J.fw[1] * v * KV * (bk || 1) + J.up[1] * u * KU];
   const TLoc = (J, px, py, bk) => { const rx = px - J.hip[0], ry = py - J.hip[1]; return [(rx * J.fw[0] + ry * J.fw[1]) / (KV * (bk || 1)), (rx * J.up[0] + ry * J.up[1]) / KU]; };
@@ -365,14 +365,14 @@ const DFIG = (() => {
     J.kF = add(add(hip, [0.6, 0]), dv(P.lt, L1)); J.fF = add(J.kF, dv(P.ls, L2));
     J.kB = add(add(hip, [-0.6, 0]), dv(P.bt, L1)); J.fB = add(J.kB, dv(P.bs, L2));
     let oy = 0;
-    if (!seat) { oy = -(Math.max(J.fF[1], J.fB[1]) + 2.8) + P.Y; for (const k of ['kF', 'fF', 'kB', 'fB']) J[k][1] += oy; hip[1] += oy; }
+    if (!seat) { oy = -(Math.max(J.fF[1], J.fB[1]) + 3.4) + P.Y; for (const k of ['kF', 'fF', 'kB', 'fB']) J[k][1] += oy; hip[1] += oy; }
     J.hip = hip; J.ground = seat ? null : P.Y;
     const up = dv(180 - P.lean), fw = dv(90 - P.lean);
     J.up = up; J.fw = fw;
     J.sh = add(hip, up, TL); J.neck = add(hip, up, TL + NK);
-    J.hc = add(J.neck, dv(180 - P.lean * 0.5 - P.hd, HR * 0.78)); J.hc = [Math.round(J.hc[0]), Math.round(J.hc[1])];
+    J.hc = add(J.neck, dv(180 - P.lean * 0.5 - P.hd, HR * 0.68)); J.hc = [Math.round(J.hc[0]), Math.round(J.hc[1])];
     J.ha = P.lean * 0.5 + P.hd;
-    J.sF = add(add(J.sh, fw, 1), up, -1); J.sB = add(add(J.sh, fw, -2), up, -1);
+    J.sF = add(add(J.sh, fw, 1.5), up, -1.5); J.sB = add(add(J.sh, fw, -2.5), up, -1.5);
     let fa = P.fa, fe = P.fe, ba = P.ba, be = P.be;
     J.eF = add(J.sF, dv(fa, A1)); J.hF = add(J.eF, dv(fe, A2));
     J.wd = dv(P.w);
@@ -403,8 +403,8 @@ const DFIG = (() => {
   // ---------------- 坐骑骨架（Q 版：圆胖身体、短腿、大头） ----------------
   function rigMount(P, M, now) {
     const R = {}, fly = M.t !== 'horse', ga = P.ga || 0, ph = now * 0.019;
-    const hov = fly ? -10 + Math.sin(now * 0.004) * 2.5 : 0;
-    const B = [0, -17 + hov + P.Y - (ga && !fly ? Math.abs(Math.sin(ph)) * 2.5 * ga : 0)];
+    const hov = fly ? -6 + Math.sin(now * 0.004) * 2 : 0;
+    const B = [0, -14.5 + hov + P.Y - (ga && !fly ? Math.abs(Math.sin(ph)) * 2.5 * ga : 0)];
     const pitch = P.mp + (ga ? Math.sin(ph * 2) * 3 * ga : 0);
     const cs = Math.cos(-pitch * RAD), sn = Math.sin(-pitch * RAD);
     const L = v => [B[0] + v[0] * cs - v[1] * sn, B[1] + v[0] * sn + v[1] * cs];
@@ -413,7 +413,7 @@ const DFIG = (() => {
     if (M.t === 'wyvern') {
       R.legs = [[-4, 4.5, 1], [-2.5, 5, 0]].map(([x, y, far]) => {
         const hip = L([x, y]);
-        const a1 = fly ? -30 + Math.sin(now * 0.004 + far) * 6 : 0, k = add(hip, dv(a1 + 20, 5)), f = add(k, dv(a1 - 40, 5));
+        const a1 = fly ? -30 + Math.sin(now * 0.004 + far) * 6 : 0, k = add(hip, dv(a1 + 20, 3.8)), f = add(k, dv(a1 - 40, 3.8));
         return { hip, k, f, far };
       });
       const nb = L([10, -4]), n1 = add(nb, dv(138 - pitch + nod * 0.5, 7)), hd = add(n1, dv(162 - pitch + nod, 5));
@@ -429,24 +429,24 @@ const DFIG = (() => {
         if (ga) { const s1 = Math.sin(ph + o), c1 = Math.cos(ph + o); a1 = ga * (front ? 8 + 38 * s1 : -6 + 34 * s1); a2 = front ? a1 - ga * (6 + 70 * Math.max(0, c1)) : a1 + ga * (10 + 30 * Math.max(0, -c1)); }
         else if (fly) { a1 = front ? 40 + Math.sin(now * 0.004) * 6 : -35; a2 = front ? -30 : 15; }
         else { a1 = front ? 2 : -3; a2 = front ? 0 : 4; }
-        const k = add(hip, dv(a1, 5)), f = add(k, dv(a2, 5.5));
+        const k = add(hip, dv(a1, 3.6)), f = add(k, dv(a2, 4));
         return { hip, k, f, far };
       });
-      const nb = L([10, -4]), nt = add(nb, dv(138 - pitch + nod, 8.5));
+      const nb = L([11, -4]), nt = add(nb, dv(126 - pitch + nod, 9));
       R.neck = [nb, nt]; R.head = nt; R.muzzle = add(nt, dv(108 - pitch + nod, 7));
       const sw = Math.sin(now * 0.005) * 8 + (ga ? 25 * ga : 0);
       const t0 = L([-12, -3]), t1 = add(t0, dv(-40 - sw * 0.5, 5)), t2 = add(t1, dv(-20 - sw, 6));
       R.tail = [t0, t1, t2];
       R.wroot = L([3, -6]);
     }
-    R.seat = L([-3.5, -9]);
+    R.seat = L([-3.5, -9.5]);
     return R;
   }
 
   // ---------------- 绘制：零件 ----------------
   let NOW = 0;
   // Q 版：头部局部坐标放大 HK 倍（帽 / 盔 / 冠随大头一起放大），线宽放大 HKW 倍
-  const HK = 1.7, HKW = 1.35;
+  const HK = 2.1, HKW = 1.6;
   const discK = (p, r, c) => disc(p, r * HK, c);
   const capK = (a, b, r0, r1, c) => cap(a, b, r0 * HKW, (r1 == null ? r0 : r1) * HKW, c);
   const chainK = (pts, r0, r1, c) => chain(pts, r0 * HKW, r1 * HKW, c);
@@ -478,7 +478,7 @@ const DFIG = (() => {
     const fw = J.fw, up = J.up, A = T(J, -3.6, 14.5);
     const spd = Math.max(P.ra || 0, P.ga || 0, Math.abs(P.Y) > 6 ? 0.6 : 0);
     const phi = (mounted ? 38 : 17) + 30 * spd + Math.sin(NOW * 0.0035) * 4 - P.lean * 0.4;
-    const len = (cp.len || 30) * (mounted ? 0.55 : 0.62), d = dv(-phi), pp = dv(90 - phi);
+    const len = (cp.len || 30) * (mounted ? 0.42 : 0.46), d = dv(-phi), pp = dv(90 - phi);
     const bot = add(A, d, len), wv = Math.sin(NOW * 0.009) * (1 + spd * 2);
     const pts = [T(J, 1.5, 17.5), add(A, pp, -2.4), add(add(A, d, len * 0.5), pp, -6), add(add(bot, pp, -7.5), d, wv), add(bot, d, -wv * 0.6), add(add(bot, pp, 5.5), d, wv * 0.8), T(J, 1.5, 6)];
     const c1 = pc(cp.c), c2 = pc(cp.c2 || cp.c), tr = pc(cp.trim || cp.c2 || cp.c), wh = pc('#ffffff'), bk = pc('#1a1020');
@@ -492,23 +492,23 @@ const DFIG = (() => {
     part(NF);
     const n = add(add(J.neck, J.fw, -3.5), J.up, -1.5), spd = Math.max(P.ra || 0, Math.abs(P.Y) > 6 ? 0.6 : 0);
     const w1 = Math.sin(NOW * 0.011) * 9, w2 = Math.sin(NOW * 0.011 - 1.2) * 12;
-    const base = -38 - spd * 42 - (P.lean < -8 ? 20 : 0);
-    const l = S.scarfLong ? 8 : 5.5;
+    const base = -58 - spd * 28 - (P.lean < -8 ? 15 : 0);
+    const l = S.scarfLong ? 5.5 : 4.2;
     const a = add(n, dv(base + w1 - 8, l)), b = add(a, dv(base + w2 - 4, l)), c = add(b, dv(base + w2 * 1.3, l * 0.8));
     const rc = pc(S.scarf), rd = pc(C.dRed);
-    chain(S.scarfLong ? [n, a, b, c] : [n, a, b], 2.9, 2.1, (px, py, t) => rc);
+    chain(S.scarfLong ? [n, a, b, c] : [n, a, b], 3.3, 2.6, (px, py, t) => rc);
     if (S.scarfLong) cap(add(n, [0, 1]), add(a, dv(base + 30, 3)), 2.1, 1.6, rd);
   }
   function drawArm(s, e, h, S, back, fe) {
     part(back ? BF : NF);
     const sl = pc(S.sleeve), br = pc(S.bracer || S.sleeve), gl = pc(S.glove || S.skin);
-    cap(s, e, 3.1, 2.8, sl);
-    cap(e, h, 2.8, 2.6, (px, py, t) => (t > 0.3 ? br : sl));
+    cap(s, e, 3.2, 3, sl);
+    cap(e, h, 3, 2.9, (px, py, t) => (t > 0.3 ? br : sl));
     if (S.beast === 'wolf' || S.beast === 'hawk') {
       const cl = pc(S.beast === 'hawk' ? '#e0b030' : C.bone);
       disc(h, 2.9, pc(S.sleeve));
       if (S.wpn.k !== 'claw') { cap(h, add(h, dv(fe + 20, 4)), 1, 0.6, cl); }
-    } else disc(h, 2.8, gl);
+    } else disc(h, 3.2, gl);
     if (S.pads) {
       const pd = S.pads, j = part(back ? BF : NF);
       const a = angOf(s, e), pcol = pc(pd.c), pc2 = pc(pd.c2 || pd.c);
@@ -526,12 +526,12 @@ const DFIG = (() => {
     part(back ? BF : NF);
     const pa = pc(S.pants), bo = pc(S.boots || S.pants), gr = S.greave ? pc(S.greave) : 0;
     const wide = S.wide ? 1.3 : 0;
-    cap(hip, k, 3.7 + wide, 3.3 + wide, pa);
-    cap(k, f, 3.2 + wide, 2.9 + (wide ? 0.9 : 0), (px, py, t) => (gr && t > 0.12 ? gr : !wide && t > 0.4 ? bo : pa));
-    const sa = angOf(k, f), toe = add(f, dv(sa + 92, 3.6));
+    cap(hip, k, 3.8 + wide, 3.5 + wide, pa);
+    cap(k, f, 3.5 + wide, 3.3 + (wide ? 0.9 : 0), (px, py, t) => (gr && t > 0.12 ? gr : !wide && t > 0.4 ? bo : pa));
+    const sa = angOf(k, f), toe = add(add(f, dv(sa + 92, 3.4)), [0, 0.4]);
     if (S.beast === 'hawk') { const tc = pc('#e0b030'); cap(f, add(f, dv(sa + 70, 5)), 1.5, 0.8, tc); cap(f, add(f, dv(sa + 110, 4.5)), 1.5, 0.8, tc); cap(f, add(f, dv(sa - 80, 3)), 1.3, 0.8, tc); }
     else if (S.beast === 'wolf') { cap(f, toe, 2.8, 2.3, pc(S.fur)); dot(add(toe, dv(sa + 92, 1)), pc(C.bone)); }
-    else cap(f, toe, wide ? 2.2 : 2.8, 2.3, wide ? pc(C.white) : gr || bo);
+    else cap(add(f, [0, 0.4]), toe, wide ? 2.6 : 3.2, 2.7, wide ? pc(C.white) : gr || bo);
     if (gr) disc(k, 3.2, gr);
   }
   function drawTorso(J, S, P) {
@@ -633,21 +633,24 @@ const DFIG = (() => {
     if (S.beast === 'hawk') { drawHawkHead(J, S, P, W, L, nid); return; }
     // 头：Q 版大眼（近眼 + 远眼、高光、小嘴、腮红），蓬松头发
     const covered = ['helm', 'kettle', 'hood', 'cowl', 'mask', 'kabuto', 'bandana', 'cap', 'beakhelm'].includes(hd.t);
-    if (!covered && hs !== 'bald') { part(NF, nid); discK(W(-0.9, -0.9), r + 0.7, hair); }
+    if (!covered && hs !== 'bald') {
+      part(NF, nid); ell(W(-1.7, -1.2), (r + 0.5) * HK * 1.08, (r + 0.6) * HK, J.ha, hair);
+      for (const [x, y, rr] of [[-5.8, -3.8, 2.4], [-2.4, -6.4, 2.5], [1.4, -6.5, 2.1], [-7, 0.6, 2]]) discK(W(x, y), rr, hair);
+    }
     part(NF, nid);
     const shadowFace = hd.t === 'cowl', eyesCol = hd.eyes ? pc(hd.eyes) : 0;
-    const wh = pc('#ffffff'), iris = pc(S.eyeC || '#3a4a9a'), mouth = pc('#a8484a'), blush = pc('#f4a088');
+    const wh = pc('#ffffff'), iris = pc(S.eyeC || '#3a4a9a'), mouth = pc('#a8484a'), blush = pc('#f78c8c');
     const bangs = x => -1.1 - ((Math.floor((x + 8) * 1.25) % 3) === 0 ? 0.9 : 0);
-    discK(hc, r, (px, py) => {
+    ell(hc, r * HK * 1.1, r * HK * 0.96, J.ha, (px, py) => {
       const [x, y] = L(px, py);
       if (shadowFace) return (x > 0.9 && x < 2.5 && y > -1.4 && y < 0.6) || (x > 3.7 && x < 4.7 && y > -1.4 && y < 0.6) ? eyesCol : pc('#120a18');
       if (hs === 'bald') { if (x < -2 && y > -3.2 && y < 3) return hair; }
-      else if (y < -2.3 || (x < -1.2 && y < 4.2) || (y < bangs(x) && x > -1.2) || (x > 4.9 && y < 0.2)) return hair;
-      if (y >= -1.4 && y < 1.7 && x >= 0.8 && x < 2.6) return (x < 1.4 && y < -0.5) ? wh : y > 0.9 ? iris : eye;
-      if (y >= -1.2 && y < 1.5 && x >= 3.7 && x < 4.6) return (x < 4.1 && y < -0.4) ? wh : y > 0.7 ? iris : eye;
+      else if (y < -2.3 || (x < -2.4 && y < 3.6) || (y < bangs(x) && x > -2.4) || (x > 5.4 && y < -0.6)) return hair;
+      if (y >= -1.3 && y < 1.3 && x >= 0.7 && x < 2.7) return (x < 1.45 && y < -0.3) || (x >= 2.0 && x < 2.45 && y >= 0.55 && y < 0.95) ? wh : y > 0.25 ? iris : eye;
+      if (y >= -1.1 && y < 1.2 && x >= 3.7 && x < 4.7) return (x < 4.15 && y < -0.3) ? wh : y > 0.3 ? iris : eye;
       if (S.beard && y > 1.8 && x > -2.4) return hair;
-      if (y >= 3.2 && y < 3.8 && x >= 3.1 && x < 4.0) return mouth;
-      if (y >= 2.1 && y < 2.8 && x >= 0.6 && x < 2.2) return blush;
+      if (y >= 2.7 && y < 3.15 && x >= 3.1 && x < 3.8) return mouth;
+      if (y >= 1.7 && y < 2.4 && x >= 0.3 && x < 2.4) return blush;
       return skin;
     });
     if (hs === 'spiky' && !['helm', 'kettle', 'hood', 'kabuto', 'mask', 'cowl', 'crown', 'mitre', 'wizhat', 'bandana', 'feather', 'cap', 'straw', 'headdress'].includes(hd.t)) {
@@ -692,7 +695,7 @@ const DFIG = (() => {
       if (t === 'kettle') ellK(W(0, -1.4), 9.5, 1.5, J.ha, c1);
       if (t === 'beakhelm') { poly([W(3, -4.5), W(10, -1.5), W(4.5, -0.6)], c1); }
       if (hd.crest) { part(NF); const cc = pc(hd.crest); poly([W(-5, -6), W(-1, -9.8), W(3.5, -8), W(-2, -6.8)], cc); }
-      if (hd.horns) { part(NF); const hc2 = pc(hd.horns); chainK([W(-1.5, -6), W(-5, -10), W(-4, -14)], 1.8, 0.6, hc2); chainK([W(2, -6), W(5.5, -9), W(5, -13)], 1.6, 0.5, hc2); }
+      if (hd.horns) { part(NF); const hc2 = pc(hd.horns); chainK([W(-1.5, -6), W(-4.5, -8.5), W(-4, -11)], 1.8, 0.6, hc2); chainK([W(2, -6), W(4.8, -8), W(4.6, -10.5)], 1.6, 0.5, hc2); }
       if (hd.plume) { part(NF); const pl = pc(hd.plume), s = Math.sin(NOW * 0.008) * 1.5 - (P.ra || 0) * 2; chainK([W(0, -8), W(-4, -11), W(-9, -10 + s), W(-13, -6 + s * 1.4)], 2.6, 1.2, pl); }
     } else if (t === 'circlet' || t === 'crown') {
       discK(hc, r + 0.8, (px, py) => { const [, y] = L(px, py); return y > -4.2 && y < -2.4 ? c1 : 0; });
@@ -912,7 +915,7 @@ const DFIG = (() => {
       disc(L([8, -0.5]), 7, c);
       for (let i = 0; i < 4; i++) disc(L([-8 + i * 4.5, -8]), 1.1, pc(M.c2));
     } else {
-      ell(R.B, 13.5, 9, -R.pitch, c); disc(L([7.5, 0]), 8, c); disc(L([-7.5, 0]), 8, c);
+      ell(R.B, 13, 9.8, -R.pitch, c); disc(L([7, 0]), 8.8, c); disc(L([-7, 0]), 8.8, c);
     }
     part(NF);
     for (const lg of R.legs) if (!lg.far) {
@@ -1036,7 +1039,7 @@ const DFIG = (() => {
     const T = q => [sx + q[0] * s * f, sy + q[1] * s];
     const wt = weaponTip(J, S, P);
     const bowP = S.wpn.k === 'bow' ? add(J.hB, dv(J.aim), 5) : S.wpn.k === 'xbow' ? add(J.hF, J.wd, 14) : S.wpn.k === 'staff' ? wt[1] : J.hF;
-    return { tip: T(wt[1]), hand: T(J.hF), shot: T(bowP), head: T(J.hc), chest: T(add(J.hip, J.up, 6)), top: T(add(J.hc, [0, -HR - 4])) };
+    return { tip: T(wt[1]), hand: T(J.hF), shot: T(bowP), head: T(J.hc), chest: T(add(J.hip, J.up, 5)), top: T(add(J.hc, [0, -HR - 4])) };
   }
 
   const WHITE_SPR = {};

@@ -282,23 +282,26 @@ const METAL = {
 // =====================================================================
 // 脸型（朝画面右侧的 3/4 侧脸）
 // =====================================================================
+// Q 版：圆脸、短下巴、宽脸颊（脸部坐标，整体由头部缩放放大）
 const FACES = {
   // 少年
-  m: { pts: [21, 22, 20.3, 30, 21, 37, 24.3, 42.8, 28.8, 46.8, 32.6, 48.2, 36.6, 45.4, 40.2, 40, 41.8, 34, 42.2, 27, 40, 20, 31, 17, 23, 18.5],
-    ey: 31, nx: 22, fx: 34, nose: [35, 38], mouth: [33, 43], ear: [20.5, 34], neck: [25.5, 36.5], chin: [32.6, 48.2], shadowX: 38.8 },
+  m: { pts: [20.5, 22, 19.6, 30, 20.2, 36.5, 22.6, 41.2, 26.4, 44.6, 31.4, 46, 36, 44.4, 39.8, 40.6, 42, 35, 42.8, 28, 41, 21, 31, 17, 23, 18.5],
+    ey: 31.5, nx: 21.6, fx: 33.4, nose: [35.4, 39.4], mouth: [33.6, 41.9], ear: [20.2, 33], neck: [27.4, 34.8], chin: [31.4, 46], shadowX: 39.6 },
   // 少女
-  f: { pts: [21.5, 23, 21, 31, 21.8, 37, 24.8, 42.2, 29, 46, 32.4, 47.4, 36, 44.6, 39.6, 39.4, 41.2, 33, 41.5, 26, 39, 20, 31, 17, 24, 19],
-    ey: 31, nx: 22, fx: 34, nose: [35, 38], mouth: [33, 42], ear: [21, 34], neck: [26.5, 35.5], chin: [32.4, 47.4], shadowX: 38.4 },
-  // 成年男子（瘦长、下颌分明）
-  man: { pts: [21, 21, 20.5, 30, 21.2, 38, 23.8, 44, 28.4, 48.4, 33.2, 49.6, 37.4, 46.6, 40.4, 41, 42, 35, 42.4, 27, 40, 20, 31, 16, 23, 18],
-    ey: 31, nx: 22, fx: 34, nose: [35, 38], mouth: [33, 44], ear: [20.5, 34], neck: [25, 37], chin: [33.2, 49.6], shadowX: 38.8 },
+  f: { pts: [21, 22.5, 20.2, 30, 20.8, 36.5, 23, 41, 26.8, 44.2, 31.4, 45.4, 35.6, 43.8, 39.4, 40.2, 41.6, 34.6, 42.4, 27.6, 40.6, 21, 31, 17, 23.5, 18.8],
+    ey: 31.5, nx: 21.8, fx: 33.4, nose: [35.4, 39.4], mouth: [33.6, 41.8], ear: [20.6, 33], neck: [28, 34.2], chin: [31.4, 45.4], shadowX: 39.2 },
+  // 成年男子（下巴稍长）
+  man: { pts: [20.6, 21.5, 19.8, 30, 20.4, 37, 22.6, 41.8, 26.4, 45.4, 31.6, 47, 36.4, 45, 40, 41.2, 42.2, 35, 42.8, 27.6, 41, 21, 31, 16.6, 23, 18.4],
+    ey: 31.5, nx: 21.6, fx: 33.4, nose: [35.6, 39.4], mouth: [33.6, 42.4], ear: [20.4, 33], neck: [27.4, 35], chin: [31.6, 47], shadowX: 39.8 },
   // 魁梧（方下巴）
-  broad: { pts: [20, 21, 19.5, 30, 19.8, 39, 22.6, 45, 27.6, 49, 34, 49.8, 38.6, 46.8, 41.6, 41, 43, 34, 43, 27, 40.6, 20, 31, 16, 22.5, 18],
-    ey: 31, nx: 22, fx: 34, nose: [35, 38], mouth: [33, 44], ear: [19.8, 34], neck: [24, 38.5], chin: [34, 49.8], shadowX: 39.4 },
-  // 老人（颧骨、凹颊）
-  old: { pts: [21, 21, 20.5, 30, 21.5, 38, 24, 44, 28.6, 48.6, 33, 49.6, 37, 46.8, 39.8, 41.6, 41.4, 35, 42.2, 27, 40, 20, 31, 16, 23, 18],
-    ey: 31, nx: 22, fx: 34, nose: [35, 38], mouth: [33, 44], ear: [20.5, 34], neck: [25.5, 36.5], chin: [33, 49.6], shadowX: 38.6 },
+  broad: { pts: [19.6, 21.5, 19, 30, 19.4, 38, 21.8, 42.8, 26, 46.2, 32, 47.4, 37.4, 45.6, 41, 41.6, 43, 35, 43.4, 27.6, 41.2, 21, 31, 16.4, 22.5, 18.2],
+    ey: 31.5, nx: 21.6, fx: 33.6, nose: [35.8, 39.4], mouth: [33.8, 42.6], ear: [19.4, 33], neck: [26.8, 35.6], chin: [32, 47.4], shadowX: 40.2 },
+  // 老人
+  old: { pts: [20.6, 21.5, 19.8, 30, 20.6, 37, 23, 41.8, 26.8, 45.4, 31.6, 46.8, 36, 45, 39.6, 41.4, 41.8, 35, 42.6, 27.6, 41, 21, 31, 16.6, 23, 18.4],
+    ey: 31.5, nx: 21.6, fx: 33.4, nose: [35.6, 39.4], mouth: [33.6, 42.4], ear: [20.4, 33], neck: [27.6, 34.8], chin: [31.6, 46.8], shadowX: 39.6 },
 };
+// Q 版比例：头部放大（以 [31, py] 为基准），身体缩小（以 [bx, by] 为基准）
+const CHIBI = { s: 1.38, py: 25.4, bs: 0.8, bx: 31.5, by: 79 };
 
 // 发色色阶：深色头发的高光偏冷蓝，更有动画感
 function hairRamp(hex) {
@@ -313,31 +316,31 @@ SKIN.ogre = ['#1e2010', '#4e5a2a', '#76844a', '#9eac6a', '#bcc88a', '#dce6b4', '
 
 // ---------- 眼睛模板（朝右看）----------
 // K 睫毛 k 睫毛浅 W 眼白 w 眼白阴影 D 虹膜暗 I 虹膜 L 虹膜亮 H 高光 P 瞳孔 s 皮肤阴影 S 皮肤深影 0..7 = 皮肤色阶
-const EYES = {
+const EYES = { // Q 版大眼：高瞳、大高光（dy = 相对 ey 的下移行数）
   hero: {
-    near: ['..KKKKK.', '.KKwDDDK', 'KKWWHPIW', '..WWIPI.', '...WLLL.', '....ss..'],
-    far: ['.KKKK.', 'KwDDDK', '.WHPIK', '.WIPI.', '..LLL.', '..ss..'] },
+    near: ['..KKKKK.', '.KKKKKKK', 'KKWDDDDK', '..WHHDDK', '..WHHPIK', '..WDPPIK', '..WIPPIK', '..WIILLK', '...LLLK.', '....kk..'],
+    far: ['KKKKK.', 'KKKKKK', 'KDDDDK', 'KHHDDK', 'KHHPIK', 'KDPPIK', 'KIPPIK', 'KILLIK', '.LLLK.', '..kk..'] },
   girl: {
-    near: ['..KKKKK.', '.KKKKKKK', 'KKwwDDDK', '..WWHPIW', '..WWIPIW', '...WLLL.', '....kk..'],
-    far: ['.KKKK.', 'KKKKKK', 'kwDDDK', '.WHPIK', '.WIPI.', '..LLL.', '..kk..'] },
-  sharp: {
-    near: ['.KKKKKK.', 'KKwDDDKK', '..WHPIW.', '...LLL..', '...ss...'],
-    far: ['KKKKK.', 'kwDDDK', '.WHPIK', '..LL..', '..s...'] },
-  stern: {
-    near: ['KKKKKKKK', '.KKwDDKK', '..WHPIW.', '...ss...'],
-    far: ['KKKKKK', 'kwDDKK', '.HPIW.', '..s...'] },
-  kind: {
-    near: ['........', '..KKKKK.', '.KwDDDK.', '..WHPI..', '...ss...'],
-    far: ['......', '.KKKK.', 'KwDDK.', '.HPI..', '.ss...'] },
-  closed: {
-    near: ['........', '...KKK..', '.KK...KK', '........'],
-    far: ['......', '.KKK..', 'K...K.', '......'] },
-  fierce: {
-    near: ['KK......', '.KKKKKK.', '..KWWDKK', '...WWP..', '....ss..'],
-    far: ['......', 'KKKKK.', 'KDWWK.', '.PWW..', '..s...'] },
-  glow: {
-    near: ['........', '.KKKKKK.', 'KKLLLLKK', '..KKKK..'],
-    far: ['......', 'KKKKK.', 'KLLLKK', '.KKK..'] },
+    near: ['.KKKKKK.', 'KKKKKKKK', 'KKWDDDDK', '.KWHHDDK', '..WHHPIK', '..WDPPIK', '..WIPPIK', '..WIILLK', '...LLLK.', '....kk..'],
+    far: ['KKKKKKK', 'KKKKKK', 'KDDDDK', 'KHHDDK', 'KHHPIK', 'KDPPIK', 'KIPPIK', 'KILLIK', '.LLLK.', '..kk..'] },
+  sharp: { dy: 1,
+    near: ['.KKKKKKK', 'KKKKKKKK', '..WHHDDK', '..WHPPIK', '..WDPPIK', '..WILLLK', '...kkkk.'],
+    far: ['KKKKKK', 'KKKKKK', 'KHHDDK', 'KHPPIK', 'KDPPIK', 'KILLLK', '.kkkk.'] },
+  stern: { dy: 2,
+    near: ['KKKKKKKK', '.KKKKKKK', '..WHDDDK', '..WHPPIK', '..WIPLLK', '...kkkk.'],
+    far: ['KKKKKK', 'KKKKKK', 'KHDDDK', 'KHPPIK', 'KIPLLK', '.kkkk.'] },
+  kind: { dy: 2,
+    near: ['..KKKK..', '.KKKKKK.', 'K.WHDDK.', '..WPPIK.', '...kkk..'],
+    far: ['.KKKK.', 'KKKKKK', 'KHDDK.', 'KPPIK.', '.kkk..'] },
+  closed: { dy: 3,
+    near: ['..KKKK..', '.KK..KK.', 'KK....KK'],
+    far: ['.KKK..', 'KK.KK.', 'K...K.'] },
+  fierce: { dy: 1,
+    near: ['KK......', '.KKKKKK.', '..KKKKKK', '..WHHDDK', '..WHPPIK', '..WIPPIK', '...kkkk.'],
+    far: ['......', 'KKKKK.', 'KKKKKK', 'KHDDDK', 'KHPPIK', 'KIPPIK', '.kkkk.'] },
+  glow: { dy: 2,
+    near: ['.KKKKKK.', 'KKLLLLKK', 'KLLHLLLK', '.KLLLLK.', '..KKKK..'],
+    far: ['KKKKK.', 'KLLLKK', 'KLHLLK', '.KLLK.', '..KK..'] },
 };
 
 // =====================================================================
@@ -349,9 +352,10 @@ function drawHuman(S) {
   const skin = SKIN[S.skin] || SKIN.fair;
   const hairPal = S.hairPal || hairRamp(S.hair || '#3a2a20');
   const c = { p, F, S, skin, hairPal };
-  const HT = [S.scale || 1.18, 31, 33];
+  const HT = [CHIBI.s * (S.scale || 1.18) / 1.18, 31, CHIBI.py], BT = [CHIBI.bs, CHIBI.bx, CHIBI.by];
+  c.HT = HT; c.BT = BT;
   // 1 背后（披风、翅膀、武器）
-  TF = null; for (const f of [].concat(S.back || [])) f(c);
+  TF = BT; for (const f of [].concat(S.back || [])) f(c);
   TF = HT;
   if (S.headBack === 'hood') hoodBack(c, rp(S.hood || '#f0eef4', { coolHue: 235 }));
   else if (S.headBack) S.headBack(c);
@@ -363,7 +367,7 @@ function drawHuman(S) {
   c.neck = neck;
   p.auto(neck, { s: 2, hl: 0 });
   // 4 服装
-  TF = null;
+  TF = BT;
   (BODY[S.body] || BODY.tunic)(c);
   for (const f of [].concat(S.over || [])) f(c); // 转职装备层（画面坐标）
   TF = HT;
@@ -385,7 +389,14 @@ function drawHuman(S) {
   if (S.lines) S.lines(c);
   if (S.eyes !== 'none') drawEyes(c);
   drawNose(c); drawMouth(c);
-  if (S.blush) { const y = F.ey + 6; p.spx(F.nx + 2, y, face, 7); p.spx(F.nx + 3, y, face, 7); p.spx(F.nx + 4, y, face, 7); p.spx(F.fx + 3, y, face, 7); p.spx(F.fx + 4, y, face, 7); }
+  // Q 版腮红（画面像素）：S.blush = 浓；有长胡子 / 无眼者略去
+  if (S.eyes !== 'none' && S.blush !== false && !(S.beard && S.beard !== 'stubble')) {
+    const bx0 = Math.floor(tx(F.nx)), bx1 = Math.floor(tx(F.fx)), by = Math.floor(ty(F.ey)) + 11, old = TF; TF = null;
+    for (let k = S.blush ? -1 : 0; k <= (S.blush ? 2 : 1); k++) p.spx(bx0 + k + 0.5, by + 0.5, face, 7);
+    for (let k = 1; k <= (S.blush ? 3 : 2); k++) p.spx(bx1 + k + 2.5, by + 0.5, face, 7);
+    if (S.blush) { p.spx(bx0 + 0.5, by + 1.5, face, 7); p.spx(bx0 + 1.5, by + 1.5, face, 7); }
+    TF = old;
+  }
   if (S.scar) S.scar(c);
   // 8 胡须
   if (S.beard) BEARD[S.beard](c);
@@ -409,8 +420,9 @@ function drawEyes(c) {
   const id = p.obj(pal, 'eye', { ol: false });
   const map = { K: [id, 0], k: [id, 1], W: [id, 2], w: [id, 3], D: [id, 4], I: [id, 5], L: [id, 6], H: [id, 7], P: [id, 8], s: 2, S: 1 };
   const ey = F.ey + (S.eyeDy || 0);
-  p.tmpl(F.nx, ey, style.near, map);
-  p.tmpl(F.fx, ey, style.far, map);
+  const ox = TF ? TF[0] : 1;
+  p.tmpl(F.nx, ey + (style.dy || 0) / ox, style.near, map);
+  p.tmpl(F.fx, ey + (style.dy || 0) / ox, style.far, map);
   c.eyeId = id;
   // 眉毛
   const b = S.brow === undefined ? 'normal' : S.brow;
@@ -433,10 +445,10 @@ function drawEyes(c) {
 }
 const DIG = { 0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7 };
 const NOSES = {
-  small: { o: [-1, -1], t: ['.2', '21'] },
-  long: { o: [-1, -2], t: ['.2', '.2', '21'] },
-  big: { o: [-1, -2], t: ['.2.', '.22', '211'] },
-  hook: { o: [-1, -3], t: ['.2', '.2', '.22', '211'] },
+  small: { o: [0, 0], t: ['2'] },
+  long: { o: [0, -1], t: ['2', '2'] },
+  big: { o: [-1, -1], t: ['.2', '21'] },
+  hook: { o: [-1, -1], t: ['.2', '.2', '21'] },
 };
 const MOUTHS = {
   smile: { o: [-2, -1], t: ['1...', '.111', '..2.'] },
@@ -1308,6 +1320,7 @@ function wings(c, col, sc, n) {
 }
 function sword(c, x, y, blade, guard) {
   const { p } = c;
+  const oldTF = TF; TF = null; x += 5; y -= 6; // Q 版：剑柄露在大头右上方
   const dx = -0.32, dy = 1, L = Math.hypot(dx, dy), ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
   const P = (t, n) => [x + ux * t + nx * n, y + uy * t + ny * n];
   const q = (...a) => poly([].concat(...a));
@@ -1318,6 +1331,7 @@ function sword(c, x, y, blade, guard) {
   piece(c, q(P(7.2, -gw), P(7.2, gw), P(9, gw), P(9, -gw)), guard || METAL.gold, 'metal', { s: 0, hl: 1 });
   if (guard) for (const n of [-gw, gw]) piece(c, ell(...P(7.4, n), 1.5, 1.5), guard, 'metal', { s: 0, hl: 1 });
   piece(c, ell(...P(0, 0), 1.8, 1.8), guard || METAL.gold, 'metal', { s: 0, hl: 1 });
+  TF = oldTF;
 }
 // 神巫头冠
 function shamanHat(c) {
@@ -1940,6 +1954,7 @@ function wolfHead(v, hero, tier) {
   const p = mpic();
   // 坎培特的阶：0 狼族士兵 1 狼战士（默认）2 狼嚎战士
   const T = hero ? (tier == null ? 1 : tier) : -1;
+  if (hero) return wolfChibi(T);
   const furCol = hero ? '#9a9cac' : vcol(v, '#7a5a3e');
   const fur = ramp(furCol, { shift: 10 }), cream = ramp(hero ? '#e6e4ee' : '#d8c0a0', { coolHue: 230 });
   const c = { p, S: { cloth: hero ? (T === 0 ? '#6a4a2e' : T === 2 ? '#1e2e5a' : '#2e4a7a') : '#5a2a2a', fur: hero ? (T === 0 ? '#5a4030' : '#5a5a6a') : '#3a2a1c' } };
@@ -1988,6 +2003,64 @@ function wolfHead(v, hero, tier) {
   else {
     p.add(blob([42, 42.5, 50, 40.8, 58, 39, 55, 43.4, 48, 45.6, 42, 46]), MOUTH_IN, 'mouth');
     fang(p, 54, 39.4, 3.4, 1, -0.4); fang(p, 47.5, 41, 3, 1); fangUp(p, 50, 45, 2.6, 0.9);
+  }
+  return p.render(BG);
+}
+// 坎培特 Q 版：圆头、短吻、大眼（T = 阶）
+function wolfChibi(T) {
+  const p = mpic();
+  const fur = ramp('#9a9cac', { shift: 10 }), cream = ramp('#e8e6f0', { coolHue: 230 });
+  const c = { p, S: { cloth: T === 0 ? '#6a4a2e' : T === 2 ? '#1e2e5a' : '#2e4a7a', fur: T === 0 ? '#5a4030' : '#5a5a6a' } };
+  if (T === 2) GEAR.aura('#e0a040')(c);
+  TF = [CHIBI.bs, CHIBI.bx, CHIBI.by];
+  if (T === 2) GEAR.cape('#9a1e24', METAL.gold)(c);
+  BODY.wolf(c);
+  if (T === 0) piece(c, lock(10, 57, 46, 74, 2.6, 1.5, 2.6), rp('#4a3020'), 'cloth', { s: 1, hl: 1 });
+  if (T >= 1) piece(c, blob([22, 56, 31, 59, 42, 56, 41, 60, 31, 63, 23, 60]), METAL.gold, 'metal', { s: 1, hl: 1 });
+  if (T === 2) {
+    GEAR.pauldrons(METAL.steel, 'L', true)(c);
+    for (const [x, y] of [[2, 54], [8, 51.5], [14, 52.5]]) mp(p, poly([x - 1.8, y + 3, x + 1.8, y + 3, x + 0.6, y - 4]), METAL.silver, 'spike', { s: 0, hl: 1 });
+    pauldron(c, 52, 64, 8.5, 5.5, METAL.gold, 1, 0.2);
+  }
+  TF = null;
+  // 颈部蓬毛
+  const ruff = [];
+  for (let i = 0; i < 9; i++) ruff.push(lock(14 + i * 4, 46 + Math.abs(i - 4) * 0.4, 11 + i * 4.8, 58 + (i % 2) * 2.5, 4.4, (i % 2 ? 1 : -1), 0.4));
+  mp(p, union(...ruff), cream, 'cream', { s: 1, d: 0, hl: 1 });
+  if (T === 2) {
+    for (let i = 0; i < 5; i++) { const x = 21 + i * 5, y = 57 + Math.sin((i / 4) * PI) * 2.5; mp(p, poly([x - 1.4, y, x + 1.4, y, x, y + 4.4]), TOOTH, 'tooth', { s: 0, hl: 1 }); }
+    emblem(c, 31.5, 66, 2.2, '#d02030');
+  }
+  // 大耳朵
+  const ears = mp(p, union(blob([11, 28, 9, 12, 12, 1, 18, 6, 25, 16]), blob([33, 14, 41, 2.5, 47, 0, 49, 12, 47, 24])), fur, 'fur', { s: 2, d: 1, hl: 1 });
+  p.shade(union(blob([13.5, 24, 12.5, 12, 14, 5.5, 18, 9.5, 22, 16]), blob([36.5, 14, 42, 6, 45.5, 4.5, 46, 13, 44.5, 20])), ears, 1);
+  const pink = p.obj(['#5a2030', '#a04860', '#d07890', '#e8a0b0', '#f8c8d4', '#ffe8ee'], 'inner', { ol: false });
+  p.fill(union(blob([14.5, 21, 14, 12, 15.5, 7.5, 18, 10.5, 20.5, 16]), blob([39, 13, 42.5, 8, 44.5, 7, 44.6, 13, 43.5, 18])), pink, 3);
+  // 圆头 + 短吻
+  const h = mp(p, blob([11, 34, 12, 23, 18, 15, 28, 11, 38, 11.5, 46, 16, 50, 23, 55, 27, 60, 31, 60.5, 36, 57, 40, 50, 43, 44, 48, 34, 51.5, 23, 50, 14.5, 44]), fur, 'fur', { s: 2, d: 1, hl: 1, dx: 0.9, dy: 0.7 });
+  const cr = mp(p, blob([18, 42, 27, 38.5, 37, 40, 46, 39, 54, 39, 59.5, 37, 56, 41.5, 49, 45.5, 40, 49.5, 30, 51, 21, 48.5]), cream, 'cream', { s: 1, d: 0, hl: 1 });
+  spikes(p, [[14, 40, 6, 44, -1], [16, 45, 9, 51, -1]], cream, 'cream', 3.4);
+  spikes(p, [[24, 14, 22, 22, 1], [29.5, 12, 29.5, 20.5, 0], [35, 12.5, 37.5, 20, -1]], fur, 'fur', 3);
+  texture(p, ['fur'], 'fur', 'wc', 0.025);
+  // 鼻 + 嘴
+  const nose = p.add(blob([55, 30, 59.5, 30.5, 61.5, 33, 59.5, 35.5, 55.5, 34.4]), ['#000000', '#08080c', '#14141c', '#22222c', '#4a4a5a', '#9090a0'], 'nose');
+  p.px(57, 31, nose, 5); p.px(58, 31, nose, 4);
+  p.line([47, 41, 50, 42.5, 53, 41, 56, 42.5, 58.5, 40.5], cr, 0);
+  if (T === 2) fang(p, 51.5, 42, 2.2, 0.9);
+  // 大眼（琥珀色）
+  const ep = eyePal(T === 2 ? '#ffb020' : '#e8a020', '#141018');
+  const e = p.obj(ep, 'eye', { ol: false });
+  const map = { K: [e, 0], k: [e, 1], W: [e, 2], w: [e, 3], D: [e, 4], I: [e, 5], L: [e, 6], H: [e, 7], P: [e, 8] };
+  p.tmpl(21, 25, EYES.hero.near, map);
+  p.tmpl(36, 24, EYES.hero.far, map);
+  const bl = p.obj(['#802040', '#c04060', '#e07080', '#f090a0', '#ffb0c0', '#ffd0e0'], 'blush', { ol: false });
+  for (const [x, y] of [[21, 37], [22, 37], [23, 37], [40, 36], [41, 36]]) p.px(x, y, bl, 3);
+  // 战纹 + 金耳环
+  if (T === 2) {
+    const wp = p.obj(['#3a0408', '#8a1014', '#c42020', '#e04030', '#f08060', '#ffc0a0'], 'paint', { ol: false });
+    for (const [x0, y0, x1, y1] of [[13, 30, 19, 32], [13, 34, 19, 35.5]]) { p.line([x0, y0, x1, y1], wp, 3); }
+    p.line([30, 13, 31, 18], wp, 3); p.line([29, 14, 30, 18], wp, 2);
+    mp(p, ring(ell(45.5, 22.5, 2, 2.4), ell(45.5, 22.5, 1, 1.4)), METAL.gold, 'acc', { s: 0, hl: 1 });
   }
   return p.render(BG);
 }
@@ -2088,11 +2161,14 @@ const GEAR = {
   },
   // 圣光环（背后）
   aura: (col) => c => {
-    const { p } = c, pal = rp(col, { lit: 0.5 });
+    const { p } = c, pal = rp(col, { lit: 0.5 }), old = TF;
+    TF = null; // 以画面坐标围绕 Q 版大头
+    const cx = 31.5, cy = 29, R = 27.5;
     const id = p.obj(pal, 'aura', { ol: false });
-    for (let i = 0; i < 24; i++) { const a = i / 24 * PI * 2, r0 = 23.5, r1 = i % 2 ? 27.5 : 30.5; p.line([31 + Math.cos(a) * r0, 27 + Math.sin(a) * r0, 31 + Math.cos(a) * r1, 27 + Math.sin(a) * r1], id, i % 2 ? 2 : 3); }
-    p.fill(ring(ell(31, 27, 25, 25), ell(31, 27, 22.6, 22.6)), id, 4);
-    p.fill(ring(ell(31, 27, 23.6, 23.6), ell(31, 27, 23, 23)), id, 5);
+    for (let i = 0; i < 24; i++) { const a = i / 24 * PI * 2, r0 = R + 1, r1 = R + (i % 2 ? 3.5 : 6); p.line([cx + Math.cos(a) * r0, cy + Math.sin(a) * r0, cx + Math.cos(a) * r1, cy + Math.sin(a) * r1], id, i % 2 ? 2 : 3); }
+    p.fill(ring(ell(cx, cy, R + 1.6, R + 1.6), ell(cx, cy, R - 0.6, R - 0.6)), id, 4);
+    p.fill(ring(ell(cx, cy, R + 0.4, R + 0.4), ell(cx, cy, R - 0.4, R - 0.4)), id, 5);
+    TF = old;
   },
   // 斜挎皮带
   strap: (col) => c => { piece(c, lock(8, 58, 46, 74, 3, 1.5, 3), rp(col || '#6a4020'), 'cloth', { s: 1, hl: 1 }); rivet(c, 27, 66); },
@@ -2334,8 +2410,8 @@ const TIER_LOOK = {
   wushuang: { native: 1, t: [
     { body: 'mageRobe', trim: '#d8c8e8', head: HG.circlet(GOLD, '#e02a5a'), earring: false },
     {},
-    { back: GEAR.collar('#30206a', '#8a2a5a', GOLD) },
-    { over: [GEAR.mantle('#30206a', GOLD), GEAR.stars('#fff4b8', [[6, 64], [14, 60.5], [50, 61.5], [57, 66]])], back: GEAR.collar('#30206a', '#8a2a5a', GOLD) },
+    { over: [GEAR.mantle('#30206a', GOLD)], back: GEAR.collar('#30206a', '#8a2a5a', GOLD) },
+    { over: [GEAR.mantle('#30206a', GOLD), GEAR.stars('#fff4b8', [[6, 64], [14, 60.5], [50, 61.5], [57, 66]]), GEAR.emblem('#20b0a0', 31.5, 67, 2)], head: ['tiara', HG.circlet(GOLD, null, true)], back: GEAR.collar('#30206a', '#8a2a5a', GOLD) },
     { over: [GEAR.mantle('#30206a', GOLD), GEAR.stars('#fff4b8', [[6, 64], [14, 60.5], [50, 61.5], [57, 66], [10, 68.5]])], head: [HG.phoenix, 'tiara'], back: [GEAR.aura('#e080ff'), GEAR.collar('#30206a', '#c02a6a', GOLD)] },
   ] },
   lian: { native: 1, t: [

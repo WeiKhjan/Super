@@ -23,7 +23,8 @@ function duelResize() {
   duelCv.width = Math.round(w * dpr); duelCv.height = Math.round(h * dpr);
   DUEL.W = w; DUEL.H = h; DUEL.dpr = dpr;
   // 美术像素 → 屏幕像素：取整数个实体像素，放大后像素块大小一致
-  DUEL.s = Math.max(1, Math.round(h * 0.0088 * dpr)) / dpr;
+  DUEL.s = Math.max(1, Math.round(h * 0.0098 * dpr)) / dpr;
+  DUEL.sm = Math.max(1, Math.round(h * 0.0098 * 0.85 * dpr)) / dpr; // 骑乘者（含坐骑）略小，避免头顶出框
 }
 async function duelOpen(a, d) {
   if (AUTO || !OPT.anim) return false;
@@ -128,7 +129,7 @@ function duelSparks(u, n, col) {
 function duelRender(now) {
   if (!DUEL.on) return;
   requestAnimationFrame(duelRender);
-  const g = duelCtx, W = DUEL.W, H = DUEL.H, s = DUEL.s;
+  const g = duelCtx, W = DUEL.W, H = DUEL.H, s0 = DUEL.s;
   g.setTransform(DUEL.dpr, 0, 0, DUEL.dpr, 0, 0);
   g.imageSmoothingEnabled = false;
   let sx = 0, sy = 0;
@@ -156,7 +157,7 @@ function duelRender(now) {
   const feet = groundY + H * 0.1, sep = W * 0.46;
   const order = DUEL.actor === DUEL.left ? [DUEL.right, DUEL.left] : [DUEL.left, DUEL.right];
   for (const u of order) {
-    const st = duelFig(u), isLeft = u === DUEL.left, f = isLeft ? 1 : -1;
+    const st = duelFig(u), isLeft = u === DUEL.left, f = isLeft ? 1 : -1, s = st.spec.mount ? DUEL.sm : s0;
     if (st.anim && !st.anim.hold && (now - st.anim.t0) / st.anim.k >= st.anim.dur) st.anim = null;
     const P = duelPose(st, now);
     const foe = isLeft ? DUEL.right : DUEL.left;
@@ -179,6 +180,7 @@ function duelRender(now) {
     st.anch = DFIG.draw(g, u, st.spec, P, { x, feet, s, f, now, flash: (st.flash || 0) > now, prev, crit: st.crit });
   }
   // 特效
+  const s = s0;
   const anc = (u, k) => { const st = duelFig(u); return st.anch ? st.anch[k] : [u === DUEL.left ? W * 0.27 : W * 0.73, feet - 30 * s]; };
   for (let i = DUEL.fx.length - 1; i >= 0; i--) {
     const f = DUEL.fx[i];
