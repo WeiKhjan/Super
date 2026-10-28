@@ -1905,9 +1905,10 @@ const MONSTERS = {
     // 拉拉的阶：0 小龙 1 飞龙（默认）2 火龙 3 巨火龙
     const T = tier == null ? 1 : tier;
     const B = path === 'b' && T >= 2; // 分支 B：冰龙 / 冰晶龙王
-    const col = B ? (T === 3 ? '#7ac4ec' : '#3a78d8') : T >= 2 ? (T === 3 ? '#c8321e' : '#e0682a') : T === 0 ? '#5cc070' : vcol(v, '#44b060', DRAGON_COL);
-    const pal = ramp(col, { lit: 0.42 }), belly = ramp(B ? '#e4f6ff' : T >= 2 ? '#f8d878' : '#f4e2a8'), wing = ramp(B ? (T === 3 ? '#2a5a9a' : '#1e3a7a') : T >= 2 ? (T === 3 ? '#5a1418' : '#8a2a1a') : mix(col, '#203040', 0.35));
-    const fire = B ? ICE : ['#3a0800', '#a02008', '#e05010', '#f89020', '#ffd050', '#fff4c0'];
+    const Wd = path === 'white', Kd = path === 'black'; // 咕鲁鲁的白龙 / 黑龙
+    const col = Wd ? '#e4e8f4' : Kd ? '#2e2638' : B ? (T === 3 ? '#7ac4ec' : '#3a78d8') : T >= 2 ? (T === 3 ? '#c8321e' : '#e0682a') : T === 0 ? '#5cc070' : vcol(v, '#44b060', DRAGON_COL);
+    const pal = ramp(col, { lit: 0.42 }), belly = ramp(Wd ? '#fff8e0' : Kd ? '#5a2a3a' : B ? '#e4f6ff' : T >= 2 ? '#f8d878' : '#f4e2a8'), wing = ramp(Wd ? '#a8bce0' : Kd ? '#4a0a1a' : B ? (T === 3 ? '#2a5a9a' : '#1e3a7a') : T >= 2 ? (T === 3 ? '#5a1418' : '#8a2a1a') : mix(col, '#203040', 0.35));
+    const fire = Wd ? LIGHT : Kd ? ['#100008', '#3a0a2a', '#7a1a5a', '#b02a8a', '#e060c0', '#ffb0f0'] : B ? ICE : ['#3a0800', '#a02008', '#e05010', '#f89020', '#ffd050', '#fff4c0'];
     if (T === 3) { // 火焰光晕
       const fl = p.obj(fire, 'aura', { ol: false });
       for (let i = 0; i < 11; i++) { const a = PI * (1.05 + i * 0.09), r = 27 + (i % 2) * 4; p.fill(lock(32 + Math.cos(a) * 20, 34 + Math.sin(a) * 20, 32 + Math.cos(a) * r, 34 + Math.sin(a) * r, 3.4, (i % 2 ? 1 : -1), 0.2), fl, i % 2 ? 2 : 3); }
@@ -1927,7 +1928,7 @@ const MONSTERS = {
       const g = mp(p, ell(32, 62.5, 2.4, 2.6), ramp(B ? '#a0f0ff' : '#20b0e0', { lit: 0.5 }), 'acc', { s: 0, hl: 1 }); p.px(31, 61.5, g, 5);
     }
     // 角与头冠刺
-    const hornPal = B ? ICE : T === 3 ? METAL.gold : BONE;
+    const hornPal = Wd ? METAL.gold : Kd ? BLOOD : B ? ICE : T === 3 ? METAL.gold : BONE;
     if (T === 0) mp(p, union(lock(24, 18, 21, 10, 2.4, 0.5, 0.8), lock(36, 17, 39, 9.5, 2.2, -0.5, 0.8)), BONE, 'horn', { s: 1, hl: 1 });
     else if (T === 1) mp(p, union(lock(23, 17, 18, 5, 2.8, 1, 0.8), lock(37, 16, 42, 4.5, 2.6, -1, 0.8)), BONE, 'horn', { s: 1, hl: 1 });
     else {
@@ -1941,7 +1942,7 @@ const MONSTERS = {
     const h = mp(p, blob([14, 36, 15, 24, 22, 15.5, 31, 13, 40, 15.5, 46, 23, 50, 30, 54, 34, 55, 40, 52, 46, 44, 51, 33, 53.5, 23, 52, 16, 46]), pal, 'skin', { s: 3, d: 1, hl: 2, dx: 1, dy: 0.5 });
     p.shade(ell(24, 21, 5, 3), h, 5, t => t >= 4);
     // 大眼睛
-    const ep = eyePal(B ? (T === 3 ? '#20d0ff' : '#3aa0e8') : T >= 2 ? (T === 3 ? '#f0a010' : '#e07010') : v === 'red' ? '#d04020' : '#c87010', '#10200c');
+    const ep = eyePal(Wd ? '#40a0ff' : Kd ? '#ff2020' : B ? (T === 3 ? '#20d0ff' : '#3aa0e8') : T >= 2 ? (T === 3 ? '#f0a010' : '#e07010') : v === 'red' ? '#d04020' : '#c87010', '#10200c');
     const e = p.obj(ep, 'eye', { ol: false });
     const map = { K: [e, 0], k: [e, 1], W: [e, 2], w: [e, 3], D: [e, 4], I: [e, 5], L: [e, 6], H: [e, 7], P: [e, 8] };
     p.tmpl(21, 26, ['..KKKKK..', '.KKKKKKK.', 'KKDDDDDKK', 'KHHDDDDIK', 'KHHPPDIIK', 'KDPPPPIIK', 'KIIPPIILK', '.KLLLLLK.', '..KKKKK..'], map);
@@ -2486,7 +2487,7 @@ function heroTier(id, tier) {
 // 转职分支 B 路线：getPortrait(id, variant, tier, 'b')，tier >= 分支阶 at 时生效
 // =====================================================================
 const BRANCH_AT = { adventurer: 2, swordsman: 2, knight: 2, fighter: 2, samurai: 2, archer: 2, priest: 2, mage: 2, sorcerer: 1, hawk: 1, wolf: 1, babyDragon: 2 };
-const HERO_CLS = { oz: 'swordsman', yangtie: 'knight', kaidi: 'knight', klein: 'fighter', augustus: 'fighter', slade: 'samurai', judy: 'archer', hake: 'archer',
+const HERO_CLS = { guluru: 'babyDragon', oz: 'swordsman', yangtie: 'knight', kaidi: 'knight', klein: 'fighter', augustus: 'fighter', slade: 'samurai', judy: 'archer', hake: 'archer',
   xueer: 'priest', qu: 'priest', wushuang: 'mage', lian: 'mage', hao: 'sorcerer', dvra: 'hawk', kampeite: 'wolf', lala: 'babyDragon' };
 function branchAt(id) {
   try { const a = CLASSES[HEROES[id].cls].alt; if (a && a.at != null) return a.at; } catch (e) { /* data.js 尚无 alt */ }
@@ -2800,7 +2801,7 @@ function branchSpec(id, tier) {
 // =====================================================================
 const g2Active = () => typeof CUR_CAMPAIGN !== 'undefined' && CUR_CAMPAIGN === 'g2';
 // 二代之后的作品（g2 / g3）：回归角色显得成熟
-const laterCamp = () => typeof CUR_CAMPAIGN !== 'undefined' && (CUR_CAMPAIGN === 'g2' || CUR_CAMPAIGN === 'g3');
+const laterCamp = () => typeof CUR_CAMPAIGN !== 'undefined' && (CUR_CAMPAIGN === 'g2' || CUR_CAMPAIGN === 'g3' || CUR_CAMPAIGN === 'g4');
 const K_DEF = { c: '#4a5a8a', d: '#2a3a5a', t: '#e8c040', g: '#3a8ae0', c0: '#6a7aa8' };
 // —— 二代新增头饰 / 装饰 ——
 const HG2 = {
@@ -3340,6 +3341,297 @@ const G3_ENEMY = {
 MONSTERS.creb = (v) => drawHuman(G3_ENEMY.creb(v));
 
 // =====================================================================
+// 超时空英雄传说 3：狂神降世（g4）—— 血狮鹫兵团、新职业、隐藏职业、敌人
+// =====================================================================
+const GRIFFIN_RED = '#8a1a1e';
+// —— 头部（脸部坐标）——
+const HG4 = {
+  // 额上护目镜（炼金术士）
+  goggles: (strap, lens) => c => {
+    const { p } = c;
+    piece(c, blob([19.4, 18.6, 31, 16.4, 43.4, 18.2, 43.4, 21, 31, 19.2, 19.4, 21.4]), rp(strap || '#5a3a1e'), 'acc', { s: 1, hl: 1 });
+    for (const x of [26, 36]) { piece(c, ell(x, 18, 3.6, 3.2), METAL.bronze, 'metal', { s: 1, hl: 1 }); const l = piece(c, ell(x, 18, 2.4, 2.1), rp(lens || '#60c0e0', { lit: 0.5 }), 'acc', { s: 0, hl: 1 }); p.px(x - 1, 17, l, 5); }
+    p.cast('metal', ['skin', 'hair'], 0, 1, 2, 3);
+  },
+  // 眼罩（远侧眼）
+  eyepatch: c => {
+    const { p, F } = c, k = p.obj(['#000000', '#08080c', '#14141c', '#22222c', '#4a4a5a', '#8a8a9a'], 'patch', { ol: true });
+    p.fill(ell(F.fx + 3, F.ey + 3.6, 3.6, 3.6), k, 3); p.line([F.fx + 1, F.ey + 1, 21, F.ey - 3], k, 2); p.line([F.fx + 6, F.ey + 1.4, 43.6, F.ey - 1], k, 2);
+  },
+  // 阎魔判官帽
+  judgeCap: (col) => c => {
+    const { p } = c;
+    piece(c, union(rect(6, 13, 51, 3.4)), rp('#1a1018'), 'hat', { s: 1, hl: 1 });
+    const h = piece(c, blob([19.5, 22, 20, 10, 24, 5, 38, 5, 42, 10, 42.5, 22, 31, 19.6]), rp(col), 'hat', { s: 2, d: 1, hl: 1 });
+    piece(c, blob([19.4, 19.6, 31, 17.4, 42.8, 19.6, 42.8, 22.4, 31, 20.2, 19.4, 22.6]), METAL.gold, 'metal', { s: 0, hl: 1 });
+    const g = piece(c, ell(31, 11, 2, 2.2), rp('#ff3020', { lit: 0.5 }), 'acc', { s: 0, hl: 1 }); p.px(30.5, 10.4, g, 5);
+    p.cast(['hat', 'metal'], ['skin', 'hair'], 0, 1, 2, 3);
+  },
+  // 白色面具（蒙面人）：留眼缝
+  whiteMask: (col, trim) => c => {
+    const { p } = c;
+    const m = piece(c, blob([19.8, 26, 31, 23.6, 42.6, 26, 42.8, 38, 38, 45.6, 31.4, 47.4, 24.6, 45.6, 20, 38]), rp(col || '#e8e4dc'), 'mask', { s: 2, d: 0, hl: 1 });
+    const k = p.add(union(poly([22, 31.2, 29, 31.8, 28.6, 33.4, 22.6, 32.8]), poly([34, 31.8, 41, 31.2, 40.4, 32.8, 34.4, 33.4])), ['#000000', '#000000', '#0a0a14', '#0a0a14', '#202030', '#303040'], 'slit');
+    p.line([31, 25, 31, 46], m, 2, true);
+    if (trim) p.line([20.4, 26.6, 31, 24.4, 42.2, 26.6], p.obj(trim, 'metal'), 4);
+    p.cast(m, 'skin', 0, 1, 2, 3);
+  },
+  // 鹿角（德鲁依）
+  antlers: (col) => c => {
+    const a = rp(col || '#b89a6a');
+    for (const d of [-1, 1]) { const x0 = 31 + d * 8.5; piece(c, union(lock(x0, 15, x0 + d * 10, 2, 1.8, d * 2, 0.6), lock(x0 + d * 4, 9.5, x0 + d * 2, 1, 1.4, 0, 0.5), lock(x0 + d * 7.5, 6, x0 + d * 13, 4, 1.3, 0, 0.5)), a, 'horn', { s: 1, hl: 1 }); }
+  },
+  // 疤（眼下）
+  scarUnder: c => { c.p.line([c.F.fx + 1.6, c.F.ey + 8, c.F.fx + 6, c.F.ey + 10.6], c.face, 1, true); c.p.line([c.F.fx + 3, c.F.ey + 8.4, c.F.fx + 3.6, c.F.ey + 10.8], c.face, 1, true); },
+};
+// —— 身体 ——
+const GB4 = {
+  // 狮鹫纹章（盾形红底金狮鹫）
+  griffin: (x, y, s) => c => {
+    x = x || 31.5; y = y || 64.5; s = s || 1;
+    piece(c, blob([x - 5 * s, y - 5 * s, x + 5 * s, y - 5 * s, x + 5 * s, y + 1 * s, x, y + 6 * s, x - 5 * s, y + 1 * s]), METAL.gold, 'acc', { s: 0, hl: 1 });
+    piece(c, blob([x - 3.8 * s, y - 3.8 * s, x + 3.8 * s, y - 3.8 * s, x + 3.8 * s, y + 0.6 * s, x, y + 4.6 * s, x - 3.8 * s, y + 0.6 * s]), rp(GRIFFIN_RED), 'acc', { s: 0, hl: 0 });
+    piece(c, union(poly([x - 3, y - 2.6, x, y - 0.6, x + 2.4, y - 3, x + 1.4, y + 1, x, y + 2.6, x - 1.6, y + 0.6])), METAL.gold, 'acc', { s: 0, hl: 1 });
+  },
+  // 长戟（背后右）
+  halberd: (mt) => scr(c => {
+    piece(c, lock(44, 74, 58, 8, 2.2, 0, 2.2), rp('#6a4422'), 'acc', { s: 0, hl: 1 });
+    piece(c, union(poly([55, 14, 64, 10, 64, 22, 56, 20]), poly([57.6, 2, 59.6, 0, 60, 12, 57.4, 12])), mt || METAL.steel, 'metal', { s: 1, hl: 2 });
+    piece(c, poly([53, 16, 49, 14, 50, 18]), mt || METAL.steel, 'metal', { s: 0, hl: 1 });
+  }),
+  // 长枪（背后右）+ 枪缨
+  spear: (mt, tassel) => scr(c => {
+    piece(c, lock(44, 74, 58, 6, 2, 0, 2), rp('#6a4422'), 'acc', { s: 0, hl: 1 });
+    piece(c, poly([56.6, 6, 59.4, 6.6, 59.8, -4, 58.2, -8, 56.8, -4]), mt || METAL.steel, 'metal', { s: 1, hl: 2 });
+    if (tassel) piece(c, union(lock(57.6, 8, 61, 15, 2, -1, 1), lock(57.6, 8, 54, 15, 2, 1, 1)), rp(tassel), 'acc', { s: 1, hl: 1 });
+  }),
+  // 腰间药瓶
+  flasks: c => { for (const [x, col] of [[16, '#40c060'], [22, '#e04060'], [42, '#4080e0']]) { piece(c, rect(x - 0.8, 65, 1.6, 2), rp('#a08060'), 'acc', { s: 0, hl: 0 }); const f = piece(c, ell(x, 69.5, 2.6, 3), rp(col, { lit: 0.5 }), 'acc', { s: 0, hl: 1 }); c.p.px(x - 1, 68.4, f, 5); } },
+  // 四元素宝珠（胸前）
+  elemGems: c => { for (const [x, y, col] of [[25, 61, '#e04020'], [38, 61, '#3080e0'], [27.5, 67, '#40b040'], [35.5, 67, '#e0c030']]) { const g = piece(c, ell(x, y, 1.9, 1.9), rp(col, { lit: 0.5 }), 'acc', { s: 0, hl: 1 }); c.p.px(x - 0.5, y - 0.6, g, 5); } },
+  // 四元素灵珠环绕
+  elemOrbs: scr(c => { for (const [x, y, col] of [[6, 30, '#ff6030'], [58, 30, '#40a0ff'], [4, 50, '#60e060'], [60, 50, '#f0d040']]) GB.wisps(col, [[x, y]])(c); }),
+  // 精灵翅膀（薄翅）
+  fairyWings: (col) => c => { for (const d of [-1, 1]) { const X = (x) => 31.5 + d * x; const w = piece(c, union(ell(X(22), 40, 8, 13, d * 0.5), ell(X(20), 56, 6, 8, -d * 0.4)), rp(col, { lit: 0.55 }), 'wing', { s: 0, d: 0, hl: 1 }); c.p.line([X(16), 52, X(24), 32], w, 5, true); } },
+};
+const NAVY_G = '#1e2a5a';
+// —— g4 职业（加入 CLASS_A / CLASS_B）——
+Object.assign(CLASS_A, {
+  duelist: k => [
+    {},
+    { body: 'lightArmor', cloth: k.c, metal: STEEL, over: [GEAR.mantle(k.c, null, 'L'), GB4.griffin(31.5, 66, 0.8)], back: SW(52, 36, SILVER) },
+    { body: 'plate', metal: SILVER, cape: k.c, over: [GEAR.mantle(k.c, GOLD), GEAR.pauldrons(GOLD, null, true), GB4.griffin()], head: HG.circlet(GOLD, '#d02030'), back: [GEAR.cape(k.c, GOLD), SW(52, 36, SILVER, GOLD)] },
+  ],
+  longbowman: k => [
+    {},
+    { over: [GEAR.mantle(k.d, rp('#8a6a3a')), GEAR.bracer(rp('#6a4422')), GEAR.pauldrons(STEEL, 'L')], head: HG.featherCap(k.d, '#e8e0d0', 2, STEEL), back: [GB.bow(GOLD), quiver] },
+  ],
+  halberdier: k => [
+    { body: 'lightArmor', cloth: k.c, metal: STEEL, head: 'kettle', nasal: false, back: GB4.halberd() },
+    { body: 'plate', metal: STEEL, cape: k.c, over: [GEAR.mantle(k.c, null, 'L')], head: 'kettle', nasal: false, crest: '#e8e0d0', back: [GEAR.cape(k.c), GB4.halberd()] },
+    { body: 'plate', metal: SILVER, cape: k.c, over: [GEAR.mantle(k.c, GOLD), GEAR.pauldrons(GOLD, null, true)], head: 'plumeHelm', plume: '#3a8ae0', helmWings: '#f4f4fc', back: [GEAR.cape(k.c, GOLD), GB4.halberd(SILVER)] },
+  ],
+  tribesman: k => [
+    {},
+    { body: 'plate', metal: STEEL, torso: 'broad', cape: null, over: [GEAR.pauldrons(STEEL, null, true), GEAR.xstrap()], back: GB.bigBlade(STEEL, 'axe') },
+    { over: [GB.bodyPaint('#c02020'), GB.fur('#5a4a3a'), GEAR.pauldrons(STEEL, 'R', true)], head: [HB.skullHelm(), HB.warpaint('#c81e1e')], back: [GEAR.aura('#ff4020'), GB.bigBlade(STEEL, 'axe')] },
+  ],
+  thief: k => [
+    { over: [GB.ninjaScarf(k.c, 1.2), GEAR.strap('#4a2a14')], head: 'bandana', band: k.c, back: SW(52, 36, STEEL, METAL.bronze) },
+    { over: [GEAR.mantle(k.d, GOLD, 'L'), GB.ninjaScarf('#c01a2a', 1.8), GEAR.strap('#4a2a14')], headBack: 'hood', head: ['hood', HG.hoodGold()], hood: k.d, back: SW(52, 36, SILVER, GOLD) },
+  ],
+  alchemist: k => [
+    {},
+    { over: [GEAR.mantle(k.d, rp(k.t)), GB4.flasks, GB.wisps('#80e0a0', [[57, 46]])], head: HG.mageHat(k.d, k.t) },
+    { cloth: k.d, over: [GEAR.mantle(k.d, GOLD), GB4.flasks, GEAR.stars('#a0f0c0', [[6, 64], [14, 60.5], [50, 61.5], [57, 66]]), GB.wisps('#80e0a0', [[57, 46], [5, 40]])], head: [HG4.goggles('#3a2a1a', '#60f0a0'), HG.circlet(GOLD, '#40e0a0')], back: GEAR.aura('#80f0b0') },
+  ],
+  monk: k => [
+    { body: 'monkRobe', cloth: '#8a6a44', trim: '#4a3a24', headBack: 'hood', head: 'hood', hood: '#7a5c3a', over: [GB.beads('#6a4a2a')] },
+    { body: 'monkRobe', cloth: '#3a6a3a', trim: '#2a4a24', over: [GEAR.mantle('#2a5a2a', rp('#b89a6a')), GB.beads('#c8a050', true)], head: [HG4.antlers(), HG2.leafCrown('#4aa04a', '#f8e080')], headBack: null, back: GEAR.aura('#a0f080') },
+  ],
+  pirate: k => [
+    {},
+    { body: 'coat', cloth: '#7a1a1a', epaulette: GOLD, head: 'tricorne', hat: '#1e1a24', hatTrim: GOLD, hatFeather: '#f0e8d8', over: [GEAR.emblem('#e8e0d0', 31.5, 59, 1.8)], back: GB.bigBlade(STEEL, 'cleaver') },
+  ],
+  summoner: k => [
+    { cloth: '#2a3a6a', over: [GEAR.stars('#60f0e0', [[8, 64], [14, 61], [50, 62], [56, 66]]), GB.wisps('#50e0ff', [[57, 46]])], head: [HG.circlet(SILVER, '#40e0d0')] },
+    { cloth: '#1e2a5a', over: [GEAR.mantle('#1e2a5a', GOLD), GEAR.stars('#60f0e0', [[8, 64], [14, 61], [50, 62], [56, 66]]), GB.grimoire('#5a1e2a'), GB.wisps('#50e0ff', [[57, 46], [5, 40], [58, 26]])], head: 'crown', back: GEAR.aura('#50e0ff') },
+  ],
+  swordmaid: k => [
+    {},
+    { body: 'lightArmor', cloth: k.c, metal: SILVER, over: [GEAR.mantle(k.c, SILVER, 'L')], head: 'headband', band: k.c, bandPlate: SILVER, back: SW(52, 36, SILVER) },
+    { body: 'plate', metal: SILVER, cape: k.d, over: [GEAR.mantle(k.d, GOLD), GEAR.pauldrons(GOLD, null, false), GB3.rose('#e02a4a', 31.5, 65)], head: ['tiara'], back: [GEAR.cape(k.d, GOLD), SW(52, 36, SILVER, GOLD)] },
+  ],
+  shooter: k => [
+    {},
+    { body: 'coat', cloth: k.c, epaulette: SILVER, over: [GEAR.mantle(k.d, SILVER, 'L')], head: HG.featherCap(k.d, '#f0e8d8', 3, SILVER), back: [GEAR.cape(k.d, SILVER), GB.bow(SILVER)] },
+  ],
+  pikemaid: k => [
+    {},
+    { body: 'plate', metal: IVORY, cape: '#f4f2f8', over: [GEAR.mantle('#f4f2f8', GOLD), GEAR.pauldrons(GOLD, null, false)], head: 'plumeHelm', helmMetal: IVORY, helmWings: '#ffffff', plume: '#f4f4fc', back: [c => wings(c, '#f4f4fc', 1.05, 6), GEAR.cape('#f4f2f8', GOLD), GB4.spear(SILVER, '#f4f4fc')] },
+  ],
+  amazon: k => [
+    { body: 'tunic', cloth: '#7a4a24', over: [GB.fur('#8a6a3a'), GB.bodyPaint('#c02020')], head: HB.warpaint('#c81e1e'), back: GB.bigBlade(STEEL, 'axe') },
+    { body: 'plate', metal: BRONZE, cape: '#7a2a14', over: [GEAR.pauldrons(BRONZE, null, true), GEAR.emblem('#40c0a0')], head: 'headband', band: '#7a2a14', bandPlate: BRONZE, back: [GEAR.cape('#7a2a14', BRONZE), GB.bigBlade(STEEL, 'axe')] },
+  ],
+  pickpocket: k => [
+    { over: [GB.ninjaScarf(k.c, 1.2), GEAR.strap('#3a2014')], back: SW(52, 36, STEEL, METAL.bronze) },
+    { cloth: '#1a1420', over: [GB.ninjaScarf('#a01a2a', 2), GB.armGuards(METAL.black)], head: HB.ninjaMask('#1e1a26'), back: GB.twinBlades(STEEL) },
+  ],
+  sorceress: k => [
+    { over: [GEAR.stars('#fff4b8', [[8, 64], [55, 64]])], head: HG.circlet(SILVER, '#c060f0') },
+    { over: [GEAR.mantle(k.d, GOLD), GEAR.stars('#fff4b8', [[6, 64], [14, 60.5], [50, 61.5], [57, 66]])], head: HG.mageHat(k.d, GOLD, '#f4e070'), back: GEAR.aura('#c080ff') },
+  ],
+  nun: k => [
+    {},
+    { body: 'highPriest', trim: '#3a3456', over: [GEAR.mantle('#f4f2f8', GOLD), GEAR.cross(true)], head: ['hood', HG.hoodGold(), HG.circlet(GOLD, '#e02a5a')] },
+  ],
+  elementalist: k => [
+    {},
+    { over: [GEAR.mantle(k.d, GOLD), GB4.elemGems, GB4.elemOrbs], head: HG.circlet(GOLD, '#f0f0ff', true), back: GEAR.aura('#e0e0ff') },
+  ],
+});
+Object.assign(CLASS_B, {
+  halberdier: { 2: { body: 'plate', metal: STEEL, torso: 'broad', cape: '#3a3a4a', over: [GEAR.pauldrons(STEEL, null, true), GB.shield(rp(GRIFFIN_RED), STEEL, 'boss')], head: HB.heavyHelm(STEEL), back: GB4.halberd() } },
+  tribesman: { 2: { body: 'tunic', cloth: '#e88a20', over: [GB.gi('#e88a20', '#3a2a1a'), GB.beads('#8a4a20', true), GB.fist('#f0e8d8')], head: 'headband', band: '#c82020', back: null } },
+  alchemist: { 2: { cloth: '#1e0e24', over: [GEAR.mantle('#1a0a1e', BLOOD), GB4.flasks, GB.wisps('#c040ff', [[57, 46], [5, 40]])], head: [HG.hoodHorns('#9a3a7a'), HG4.goggles('#2a0a2a', '#c040ff')], back: [GEAR.aura('#a020c0'), GEAR.collar('#1a0a1e', '#8a1030', GOLD)] } },
+  amazon: { 1: { body: 'tunic', cloth: '#e85a20', over: [GB.gi('#e85a20', '#1a1a1a'), GB.armGuards(rp('#6a4a2a')), GB.fist('#e8e0d0')], head: 'headband', band: '#2a2a3a', back: null } },
+  nun: { 1: { over: [GEAR.mantle('#3a8a4a', rp('#c8f0a0')), GB.wisps('#a0ff80', [[57, 46], [5, 40]])], head: ['hood', HG2.leafCrown('#4aa04a', '#f8a0c0')], back: GB4.fairyWings('#c8f0ff') } },
+});
+Object.assign(BRANCH_AT, { halberdier: 2, tribesman: 2, alchemist: 2, amazon: 1, nun: 1 });
+// —— 隐藏职业（各自专属，单阶）——
+const HID = {
+  gSwordSaint: { body: 'plate', metal: IVORY, cape: '#f4f2f8', over: [GEAR.mantle('#f4f2f8', GOLD), GEAR.pauldrons(GOLD, null, true), GB4.griffin()], head: HG.circlet(GOLD, '#40c0ff', true), back: [GEAR.aura('#fff0a0'), GEAR.cape('#f4f2f8', GOLD), SW(52, 36, LIGHT, GOLD)] },
+  gSwordEvil: { body: 'plate', metal: METAL.black, cape: '#6a0a10', eyes: 'glow', iris: '#ff2020', over: [GEAR.mantle('#4a0a10', BLOOD), GEAR.pauldrons(BLOOD, null, true)], head: [HG.hoodHorns('#3a0a10'), HG.circlet(METAL.black, '#ff2020')], back: [GEAR.aura('#ff2020'), GEAR.cape('#6a0a10', BLOOD), SW(52, 36, BLOOD, METAL.black)], blush: false },
+  gGriffin: { body: 'plate', metal: GOLD, cape: GRIFFIN_RED, over: [GEAR.mantle(GRIFFIN_RED, GOLD), GEAR.pauldrons(GOLD, null, true), GB4.griffin()], head: 'plumeHelm', helmMetal: GOLD, helmRidge: SILVER, helmWings: '#c8a060', plume: GRIFFIN_RED, back: [c => wings(c, '#a87a3a', 1.2, 7), GEAR.cape(GRIFFIN_RED, GOLD), GB4.spear(GOLD, GRIFFIN_RED)] },
+  gBowKing: { body: 'coat', cloth: '#1e4a2a', epaulette: GOLD, over: [GEAR.mantle('#1e4a2a', GOLD), GEAR.emblem('#40e080', 31.5, 59, 1.8)], head: HG.circlet(GOLD, '#40e080', true), back: [GEAR.aura('#c0ff80'), GEAR.cape('#1e4a2a', GOLD), GB.bow(GOLD, LIGHT)] },
+  gShadowSniper: { body: 'cloak', cloth: '#14101e', over: [GB.ninjaScarf('#3a1a5a', 2), GB.wisps('#a040ff', [[58, 50]])], headBack: 'hood', head: ['hood', HB.ninjaMask('#1e1a26')], hood: '#1e1428', back: [GEAR.aura('#7020c0'), GB.bow(ARCANE, RUNE_BLADE)] },
+  gLightMaiden: { body: 'highPriest', trim: '#d0a030', over: [GEAR.mantle('#f4f2f8', GOLD), GB.fist(GOLD, '#fff080')], head: HG.circlet(GOLD, '#fff080', true), back: [GEAR.aura('#fff080'), c => wings(c, '#fffaf0', 1, 6)] },
+  gSpirit: { skin: 'pale', eyes: 'glow', iris: '#60f0ff', body: 'priestRobe', cloth: '#e8f8ff', trim: '#60c0e0', over: [GB.wisps('#80f0ff', [[57, 46], [5, 40], [58, 26], [4, 22]])], head: HG.circlet(SILVER, '#60f0ff', true), back: [GEAR.aura('#80f0ff'), GB4.fairyWings('#c8f8ff')], blush: false },
+  gNetherAxe: { body: 'plate', metal: ARCANE, torso: 'broad', cape: '#2a0a3a', over: [GEAR.pauldrons(METAL.black, null, true), GEAR.emblem('#c040ff', 31.5, 66, 2.6)], head: [HB.skullHelm(METAL.black, '#a060d0')], back: [GEAR.aura('#a040ff'), GEAR.cape('#2a0a3a', ARCANE), GB.bigBlade(ARCANE, 'axe')] },
+  gThunderAxe: { body: 'plate', metal: STEEL_BLUE, torso: 'broad', cape: '#1a2a5a', over: [GEAR.pauldrons(GOLD, null, true), GEAR.emblem('#ffe040', 31.5, 66, 2.6), GB.bolts([[2, 30, 1], [58, 34, -1], [4, 10, 1]])], head: HB.demonHelm(STEEL_BLUE, '#f0e080'), back: [GEAR.aura('#ffe040'), GEAR.cape('#1a2a5a', GOLD), GB.bigBlade(LIGHT, 'axe')] },
+  gMagicBlade: { body: 'plate', metal: BLOOD, cape: '#3a0a14', over: [GEAR.mantle('#3a0a14', GOLD), GEAR.pauldrons(METAL.black, null, true), GEAR.emblem('#ff3040')], head: HG.circlet(GOLD, '#ff3040', true), back: [GEAR.aura('#ff3040'), GEAR.cape('#3a0a14', GOLD), SW(52, 36, BLOOD, GOLD)] },
+  gSpellSword: { body: 'lightArmor', cloth: '#3a2a6a', metal: ARCANE, over: [GEAR.mantle('#3a2a8a', SILVER), GEAR.stars('#a0e0ff', [[7, 63], [56, 64]]), GB.wisps('#60c0ff', [[57, 46], [5, 40]])], head: HG.circlet(SILVER, '#60c0ff', true), back: [GEAR.aura('#80c0ff'), SW(52, 36, RUNE_BLADE, SILVER)] },
+  gYama: { cloth: '#1a0a10', trim: '#6a0a10', eyes: 'glow', iris: '#ff3020', over: [GEAR.mantle('#2a0a10', BLOOD)], headBack: null, head: HG4.judgeCap('#2a0a14'), back: [GEAR.aura('#ff3020'), GEAR.collar('#1a0a10', '#8a1010', GOLD)], blush: false },
+  gHolyDemon: { cloth: '#f4f2f8', trim: '#1a0a20', over: [GEAR.mantle('#f4f2f8', GOLD, 'L'), GEAR.mantle('#1a0a20', BLOOD, 'R')], headBack: null, head: [HG.hoodHorns('#2a0a20'), HG.circlet(GOLD, '#c040ff', true)], back: [GEAR.aura('#d080ff'), c => wings(c, '#f4f4fc', 0.9, 5)] },
+  gSpecialOps: { body: 'cloak', cloth: '#1a1a22', over: [GB.ninjaScarf('#b01e24', 1.6), GB.armGuards(METAL.black), GEAR.strap('#2a2a2a')], head: HB.ninjaMask('#1e1e26'), back: GB.twinBlades(STEEL) },
+  gShadowNinja: { body: 'samurai', cloth: '#1a1028', armor: '#2a1a3a', eyes: 'glow', iris: '#c060ff', over: [GB.ninjaScarf('#6a2aa0', 2.4), GB.armGuards(METAL.black)], headBack: 'hood', head: ['hood', HB.ninjaMask('#2a1a3a')], hood: '#2a1a3e', back: [GEAR.aura('#a040ff'), GB.twinBlades(TWIN_BLADE)], blush: false },
+  gPirateKing: { body: 'coat', cloth: '#a01a1a', epaulette: GOLD, head: 'tricorne', hat: '#1e1a24', hatTrim: GOLD, hatFeather: '#f0e8d8', hatPlume: '#d82a2a', over: [GEAR.mantle('#a01a1a', GOLD, 'L'), GEAR.emblem('#f4f0e8', 31.5, 59, 2)], back: [GEAR.aura('#ffc040'), GEAR.cape('#a01a1a', GOLD), GB.bigBlade(GOLD, 'axe')] },
+  gSeaLord: { body: 'coat', cloth: '#14141e', epaulette: SILVER, head: ['tricorne', HG4.eyepatch], hat: '#0e0e16', hatTrim: SILVER, hatFeather: '#6a2aa0', over: [GEAR.mantle('#0e2a2a', SEA_M, 'L')], back: [GEAR.aura('#30c0b0'), GEAR.cape('#0e2a2a', SEA_M), GB.bigBlade(SEA_M, 'cleaver')] },
+  gEvilSword: { body: 'plate', metal: METAL.black, cape: '#5a0a14', eyes: 'glow', iris: '#ff2040', over: [GEAR.mantle('#3a0a14', BLOOD), GEAR.pauldrons(BLOOD, null, true), GEAR.emblem('#ff2040')], head: [HG.hoodHorns('#3a0a14'), HG.circlet(METAL.black, '#ff2040', true)], back: [GEAR.aura('#ff2040'), GB2.batWings('#2a0a14'), SW(52, 36, BLOOD, METAL.black)], blush: false },
+  gHolySword: { body: 'plate', metal: IVORY, cape: '#f4f2f8', over: [GEAR.mantle('#f4f2f8', GOLD), GEAR.pauldrons(GOLD, null, true), GEAR.emblem('#40c0ff')], head: HG.circlet(GOLD, '#40c0ff', true), back: [GEAR.aura('#fff0a0'), c => wings(c, '#f8f8ff', 1, 6), SW(52, 36, LIGHT, GOLD)] },
+  gLightKnight: { body: 'plate', metal: GOLD, cape: '#f4f2f8', over: [GEAR.mantle('#f4f2f8', GOLD, 'R'), GEAR.pauldrons(GOLD, 'R', true), GB.shield(rp('#f4f2f8'), GOLD, 'cross')], head: 'plumeHelm', helmMetal: GOLD, helmRidge: SILVER, plume: '#fff8e0', helmWings: '#fff8e0', back: [GEAR.aura('#fff0a0'), GEAR.cape('#f4f2f8', GOLD)] },
+  gHolyKnight: { body: 'plate', metal: IVORY, cape: '#2a4aa8', over: [GEAR.mantle('#f4f2f8', GOLD), GEAR.pauldrons(GOLD, null, true), GEAR.emblem('#40c0ff', 31.5, 66, 2.8)], head: 'plumeHelm', helmMetal: IVORY, helmBand: GOLD, plume: '#f4f4fc', helmWings: '#ffffff', helmGem: '#40c0ff', back: [GEAR.aura('#c0e8ff'), c => wings(c, '#ffffff', 1.25, 7), GEAR.cape('#2a4aa8', GOLD), GB4.spear(GOLD, '#f4f4fc')] },
+};
+for (const k of Object.keys(HID)) CLASS_A[k] = () => [HID[k]];
+Object.assign(BRANCH_AT, {});
+const laterCamp4 = () => typeof CUR_CAMPAIGN !== 'undefined' && CUR_CAMPAIGN === 'g4';
+// —— g4 英雄 ——
+Object.assign(G2_HEROES, {
+  kehelin: { cls: 'duelist', lv: 1, k: { c: GRIFFIN_RED, d: '#5a0e12', g: '#d02030' },
+    base: { face: 'm', skin: 'fair', hair: '#7a3a1a', hairStyle: 'neat', iris: '#3a7a4a', eyes: 'hero', brow: 'normal', mouth: 'neutral', body: 'strap', cloth: GRIFFIN_RED, trim: '#e8dcb0', over: [GB4.griffin(31.5, 66, 0.7)], back: SW(52, 36) } },
+  maisi: { cls: 'longbowman', lv: 2, k: { c: '#2a4a2a', d: '#1a2e1a' },
+    base: { face: 'man', skin: 'fair', hair: '#2a2a2a', hairStyle: 'shaggy', iris: '#5a3a2a', eyes: 'sharp', brow: 'stern', mouth: 'frown', body: 'archer', cloth: '#2a4a2a', over: [GB.ninjaScarf('#3a3a3a', 1)], back: bow } },
+  tao: { cls: 'alchemist', lv: 3, k: { d: '#3a3a5a', t: '#c8c0a0' },
+    base: { face: 'man', skin: 'fair', hair: '#4a4a5a', hairStyle: 'short', iris: '#4a5a8a', eyes: 'sharp', brow: 'raised', mouth: 'smirk', body: 'mageRobe', cloth: '#5a4a3a', trim: '#c8c0a0', over: [GB4.flasks], head: HG4.goggles(), scar: HG4.scarUnder } },
+  bobi: { cls: 'tribesman', lv: 2, k: {},
+    base: { face: 'broad', skin: 'tan', hair: '#a86a2a', hairStyle: 'wild', iris: '#4a3a1a', eyes: 'hero', brow: 'worried', thickBrow: true, mouth: 'open', nose: 'big', beard: 'stubble', body: 'vest', cloth: '#5a3a24', over: [GB.fur('#7a5a3a')], back: GB.bigBlade(STEEL, 'axe') } },
+  kouqi: { cls: 'swordmaid', lv: 2, k: { c: '#2a6a8a', d: '#1a3a5a' },
+    base: { face: 'f', skin: 'fair', hair: '#e86a3a', hairStyle: 'spiky', iris: '#2a8a5a', eyes: 'girl', brow: 'raised', mouth: 'grin', blush: true, body: 'strap', cloth: '#2a6a8a', trim: '#f0e0c0', back: SW(52, 36) } },
+  lida: { cls: 'alchemist', lv: 2, k: { d: '#6a3a6a', t: '#f0d8e8' },
+    base: { face: 'f', skin: 'fair', hair: '#d8a8c8', hairStyle: 'bob', iris: '#8a5ab0', eyes: 'girl', brow: 'worried', mouth: 'small', blush: true, body: 'mageRobe', cloth: '#8a5a8a', trim: '#f0d8e8', over: [GB4.flasks], head: HG4.goggles('#6a3a4a', '#f080c0') } },
+  beiliqina: { cls: 'elementalist', lv: 4, k: { d: '#2a3a7a' },
+    base: { face: 'f', skin: 'pale', hair: '#e8e8f8', hairStyle: 'hime', iris: '#6a5ad0', eyes: 'girl', brow: 'soft', mouth: 'small', body: 'mageRobe', cloth: '#3a4a8a', trim: '#f0eef8', over: [GB4.elemGems], head: HG.circlet(SILVER, '#a0a0ff') } },
+  pulusi: { cls: 'illusionist', lv: 8, k: {},
+    base: { face: 'f', skin: 'pale', hair: '#6a3a8a', hairStyle: 'wavy', iris: '#c0a030', eyes: 'sharp', brow: 'soft', mouth: 'smirk', body: 'princess', cloth: '#3a1a5a', trim: '#1a0e2a', headBack: 'hood', head: 'hoodShadow', hood: '#4a2a6a' },
+    a: { illusionist: [
+      {},
+      { hood: '#5a2a7a', over: [GEAR.mantle('#2a1040', rp('#a060d0'))], head: ['hoodShadow', HG.hoodGold(HSO), HG.hoodGem('#c060ff')] },
+      { cloth: '#2a0e3a', hood: '#6a1a5a', over: [GEAR.mantle('#1e0a2e', GOLD), GB.wisps('#c060ff', [[57, 46], [5, 40]])], head: ['hoodShadow', HG.hoodGold(HSO), HG.hoodGem('#ffd040')] },
+      { cloth: '#1a0a28', hood: '#1e0a2e', over: [GEAR.mantle('#14061e', GOLD), GEAR.stars('#e0c0ff', [[6, 64], [14, 60.5], [50, 61.5], [57, 66]]), GB.wisps('#c060ff', [[57, 46], [5, 40], [58, 26]])], head: ['hoodShadow', HG.hoodGold(HSO), HB.crescent('#f0e080')], back: GEAR.aura('#c080ff') },
+    ] } },
+  baihe: { cls: 'pickpocket', lv: 8, k: { c: '#2a2a3a' },
+    base: { face: 'f', skin: 'pale', hair: '#1a1a2a', hairStyle: 'ponytail', iris: '#5a4a6a', eyes: 'sharp', brow: 'stern', mouth: 'neutral', body: 'cloak', cloth: '#1e1e2a', blush: false } },
+  liqi: { cls: 'pirate', lv: 12, k: {},
+    base: { face: 'broad', skin: 'tan', hair: '#3a6a8a', hairStyle: 'shaggy', iris: '#2a4a6a', eyes: 'sharp', brow: 'raised', thickBrow: true, mouth: 'grin', nose: 'big', beard: 'full', body: 'vest', cloth: '#6a2a1a', head: 'bandana', band: '#b02a2a', back: GB.bigBlade(STEEL, 'axe') } },
+  nushayi: { cls: 'pikemaid', lv: 12, k: {},
+    base: { face: 'f', skin: 'fair', hair: '#c8a840', hairStyle: 'bob', iris: '#2a5a9a', eyes: 'girl', brow: 'stern', mouth: 'neutral', body: 'lightArmor', cloth: '#2a5a9a', head: HG.circlet(STEEL), back: GB4.spear(STEEL, '#c02a2a') } },
+  xianniya: { cls: 'shooter', lv: 18, k: { c: '#3a3a5a', d: '#22223a' },
+    base: { face: 'f', skin: 'fair', hair: '#a8d8a8', hairStyle: 'ponytail', iris: '#2a7a5a', eyes: 'sharp', brow: 'normal', mouth: 'neutral', body: 'archer', cloth: '#3a3a5a', head: HG.featherCap('#22223a', '#a8d8a8', 1), back: bow } },
+  tuoli: { cls: 'nun', lv: 18, k: {},
+    base: { face: 'f', skin: 'fair', hair: '#f0d0a0', hairStyle: 'bob', iris: '#6a8ac0', eyes: 'closed', brow: 'soft', mouth: 'grin', blush: true, body: 'priestRobe', cloth: '#2a2630', trim: '#e8e4f0', headBack: 'hood', head: 'hood', hood: '#2a2632' } },
+  nafeiya: { cls: 'swordmaid', lv: 22, k: {},
+    base: { face: 'f', skin: 'pale', hair: '#3a1a2a', hairStyle: 'hime', iris: '#c02a4a', eyes: 'sharp', brow: 'stern', mouth: 'neutral', body: 'strap', cloth: '#2a1a24', trim: '#c8c8d8', back: SW(52, 36, SILVER) },
+    a: { swordmaid: [
+      {},
+      { body: 'lightArmor', cloth: '#5a0e1e', metal: METAL.black, over: [GEAR.mantle('#5a0e1e', SILVER, 'L')], head: HG.circlet(SILVER, '#e02a4a'), back: SW(52, 36, SILVER, SILVER) },
+      { body: 'plate', metal: METAL.black, cape: '#8a0e22', over: [GEAR.mantle('#8a0e22', SILVER), GEAR.pauldrons(SILVER, null, true), GB3.rose('#e02a4a', 31.5, 65)], head: HG.circlet(SILVER, '#e02a4a', true), back: [GEAR.cape('#8a0e22', SILVER), SW(52, 36, SILVER, SILVER)] },
+    ] } },
+  // NPC
+  andi: { cls: 'knight', single: true, k: {}, base: { face: 'old', skin: 'warm', hair: '#8a7a6a', hairStyle: 'short', iris: '#3a3a3a', eyes: 'stern', brow: 'stern', thickBrow: true, mouth: 'neutral', nose: 'big', beard: 'mustache', body: 'plate', metal: STEEL, cape: '#2a4a9a', over: [GEAR.pauldrons(GOLD, null, true), GEAR.emblem('#3a8ae0')], back: GEAR.cape('#2a4a9a', GOLD), lines: c => oldLines(c, false) } },
+  wood: { cls: 'king', single: true, k: {}, base: { face: 'broad', skin: 'warm', hair: '#b0a090', hairStyle: 'sides', iris: '#4a3a2a', eyes: 'sharp', brow: 'worried', mouth: 'smirk', nose: 'big', beard: 'mustache', body: 'regal', cloth: '#4a5a2a', head: HG.circlet(GOLD, '#20a060') } },
+  ambassador: { cls: 'mage', single: true, k: {}, base: { face: 'man', skin: 'fair', hair: '#6a6a7a', hairStyle: 'neat', iris: '#3a4a6a', eyes: 'hero', brow: 'normal', mouth: 'smile', body: 'coat', cloth: NAVY_G, epaulette: false, acc: 'glasses' } },
+  limu: { cls: 'villager', single: true, k: {}, base: { face: 'm', skin: 'warm', scale: 1.1, hair: '#c87a3a', hairStyle: 'messy', iris: '#5a3a1e', eyes: 'hero', brow: 'worried', mouth: 'open', blush: true, body: 'rags', cloth: '#8a7a5a', trim: '#a89870' } },
+  obutana: { cls: 'sorcerer', single: true, k: {}, base: { face: 'old', skin: 'old', hair: '#d8d0c0', hairStyle: 'sage', iris: '#c0a020', eyes: 'stern', brow: 'stern', thickBrow: true, mouth: 'smirk', nose: 'long', beard: 'long', body: 'highPriest', trim: '#d0a030', over: [GEAR.mantle('#f4f2f8', GOLD)], head: HG.circlet(GOLD, '#c02020', true), back: GEAR.aura('#fff0a0'), lines: c => oldLines(c, true) } },
+  deluowa: { cls: 'darkKnight', single: true, k: {}, base: { face: 'broad', skin: 'warm', hair: '#5a4a3a', hairStyle: 'short', iris: '#3a2a1a', eyes: 'fierce', brow: 'angry', thickBrow: true, mouth: 'frown', nose: 'big', beard: 'full', body: 'plate', metal: METAL.black, torso: 'broad', cape: '#6a1010', over: [GEAR.pauldrons(METAL.black, null, true), GEAR.emblem('#d02020')], back: GEAR.cape('#6a1010', BLOOD), blush: false,
+    scar: c => { c.p.line([c.F.nx + 1, c.F.ey - 3, c.F.nx + 6, c.F.ey + 8], c.face, 1, true); } } },
+  bide: { cls: 'mage', single: true, k: {}, base: { face: 'man', skin: 'fair', hair: '#a89a7a', hairStyle: 'neat', iris: '#5a4a2a', eyes: 'sharp', brow: 'raised', mouth: 'smirk', nose: 'long', beard: 'mustache', body: 'mageRobe', cloth: '#4a3a6a', trim: '#c8b890' } },
+  sisi: { cls: 'swordmaid', single: true, k: {}, base: { face: 'f', skin: 'pale', hair: '#8a2a4a', hairStyle: 'wavy', iris: '#a02a6a', eyes: 'sharp', brow: 'angry', mouth: 'lips', body: 'princess', cloth: '#5a1a3a', trim: '#2a0a1a', earring: true, over: [GEAR.pauldrons(SILVER)], head: 'tiara', back: SW(52, 36, SILVER, GOLD) } },
+  bailandi: { cls: 'illusionist', single: true, k: {}, base: { face: 'f', skin: 'pale', hair: '#f0f0f0', hairStyle: 'wavy', iris: '#8a4ad0', eyes: 'sharp', brow: 'soft', mouth: 'smirk', body: 'princess', cloth: '#2a1a4a', trim: '#140a28', earring: true, head: HG.circlet(SILVER, '#a060f0', true), back: GEAR.collar('#2a1a4a', '#6a2aa0', SILVER) } },
+  fendeli: { cls: 'sorcerer', single: true, k: {}, base: { face: 'old', skin: 'old', hair: '#e0e0e0', hairStyle: 'sides', iris: '#4a5a6a', eyes: 'hero', brow: 'raised', thickBrow: true, mouth: 'open', nose: 'big', beard: 'goatee', body: 'monkRobe', cloth: '#6a5a3a', trim: '#3a2a1a', acc: 'glasses', lines: c => oldLines(c, true) } },
+});
+// 咕鲁鲁：幼龙（沿用 babyDragon），隐藏职业白龙 / 黑龙
+function guluruPortrait(tier, path) {
+  let cls = 'babyDragon'; try { cls = HEROES.guluru.cls || cls; } catch (e) { /* 无 HEROES */ }
+  if (cls === 'gWhiteDragon' || cls === 'gBlackDragon') return MONSTERS.babyDragon('#4a8a3a', true, 3, cls === 'gWhiteDragon' ? 'white' : 'black');
+  return MONSTERS.babyDragon('#4a8a3a', true, tier == null ? 2 : tier, path);
+}
+// —— g4 敌人 ——
+function outsiderHead(v) {
+  const p = mpic(), pal = ramp(vcol(v, '#5a2a7a'), { lit: 0.4 }), dark = ramp('#2a0e3a');
+  for (let i = 0; i < 7; i++) { const a = PI * (0.1 + i * 0.13), x0 = 32 + Math.cos(a) * 14, y0 = 52 + Math.sin(a) * 6; mp(p, lock(x0, y0, 32 + Math.cos(a) * 34, 60 + Math.sin(a) * 16 + (i % 2) * 6, 4.4, (i % 2 ? 4 : -4), 0.4), dark, 'tent', { s: 1, d: 0, hl: 1 }); }
+  for (const [x0, y0, x1, y1, b] of [[14, 30, -2, 8, 6], [50, 30, 66, 8, -6], [12, 44, -4, 40, 3], [52, 44, 68, 40, -3]]) mp(p, lock(x0, y0, x1, y1, 4.6, b, 0.4), dark, 'tent', { s: 1, d: 0, hl: 1 });
+  const b = mp(p, blob([8, 46, 10, 24, 20, 10, 32, 6, 44, 10, 54, 24, 56, 46, 46, 58, 32, 62, 18, 58]), pal, 'skin', { s: 3, d: 1, hl: 1 });
+  texture(p, ['skin'], 'scale', 'os', 0.04);
+  for (const [x, y, r] of [[32, 22, 5.2], [20, 30, 3], [44, 30, 3], [26, 14, 2.2], [40, 14, 2.2], [14, 40, 2], [50, 40, 2]]) meye(p, x, y, r, r * 0.9, '#f0e020', { slit: true });
+  p.add(blob([20, 44, 32, 42, 44, 44, 40, 52, 32, 55, 24, 52]), MOUTH_IN, 'mouth');
+  for (let x = 22; x <= 41; x += 3) fang(p, x, 44, 2.4, 0.8);
+  for (let x = 24; x <= 39; x += 3) fangUp(p, x + 1, 53, 2.2, 0.8);
+  return p.render(BG_DARK);
+}
+function madGodTrue(v) {
+  const p = mpic();
+  const fl = p.obj(FIRE_P, 'aura', { ol: false });
+  for (let i = 0; i < 16; i++) { const a = PI * (1 + i / 15), r = 30 + (i % 2) * 6; p.fill(lock(32 + Math.cos(a) * 22, 38 + Math.sin(a) * 22, 32 + Math.cos(a) * r, 38 + Math.sin(a) * r, 4, (i % 2 ? 1 : -1), 0.2), fl, i % 2 ? 2 : 3); }
+  const bone = ramp('#c8b8a0'), flesh = ramp('#4a1018'), horn = ramp('#2a1a1a');
+  // 巨角
+  mp(p, union(lock(16, 22, -2, 0, 6, 8, 0.4), lock(48, 22, 66, 0, 6, -8, 0.4), lock(22, 12, 14, -4, 3.4, 2, 0.4), lock(42, 12, 50, -4, 3.4, -2, 0.4)), horn, 'horn', { s: 2, d: 1, hl: 1 });
+  // 身躯 / 肩刺
+  mp(p, blob([-1, 74, 2, 56, 14, 50, 50, 50, 62, 56, 65, 74]), flesh, 'skin', { s: 3, d: 1, hl: 1 });
+  spikes(p, [[8, 56, 2, 44, 1], [16, 52, 12, 40, 1], [48, 52, 52, 40, -1], [56, 56, 62, 44, -1]], horn, 'spike', 3);
+  // 头颅：骨面 + 裂口
+  const h = mp(p, blob([12, 36, 14, 20, 22, 10, 32, 7, 42, 10, 50, 20, 52, 36, 46, 50, 38, 56, 32, 57, 26, 56, 18, 50]), bone, 'bone', { s: 3, d: 1, hl: 1 });
+  p.line([32, 8, 30, 16, 33, 22], h, 1, true); p.line([46, 16, 42, 22], h, 1, true);
+  const hole = p.add(rect(0, 0, 0, 0), ['#000000', '#080006', '#10000c', '#180012', '#3a0018', '#5a0020'], 'hole');
+  p.fill(union(ell(23, 28, 6, 5), ell(41, 28, 6, 5)), hole, 2);
+  p.fill(blob([18, 42, 32, 39, 46, 42, 44, 52, 32, 55, 20, 52]), hole, 1);
+  for (let x = 20; x <= 44; x += 3) fang(p, x, 41.5, 3.4, 1);
+  for (let x = 21; x <= 43; x += 3) fangUp(p, x + 0.5, 54, 3, 0.9);
+  const g = p.obj(['#300000', '#a01010', '#ff2020', '#ff6040', '#ffd0a0', '#ffffff'], 'glow', { ol: false });
+  for (const x of [23, 41]) { p.fill(ell(x, 28.5, 3, 2.4), g, 3); p.fill(ell(x - 0.6, 28, 1.2, 1), g, 5); }
+  // 额上第三眼 + 破冠
+  meye(p, 32, 17, 2.6, 2, '#ff3020', { slit: true });
+  mp(p, poly([18, 14, 20, 4, 24, 10, 28, 1, 32, 8, 36, 1, 40, 10, 44, 4, 46, 14, 32, 11]), METAL.gold, 'metal', { s: 1, hl: 1 });
+  return p.render(['#100004', '#1e0408', '#2c060c', '#3a0810']);
+}
+MONSTERS.outsider = (v) => outsiderHead(v);
+MONSTERS.madGod2 = (v) => madGodTrue(v);
+const G4_ENEMY = {
+  maskman: v => ({ face: 'man', skin: 'warm', hair: '#2a2a2a', hairStyle: 'short', eyes: 'none', mouth: 'none', nose: 'none', brow: null, body: 'cloak', cloth: v === 'captain' ? '#3a1a1a' : '#2a2a30', over: v === 'captain' ? [GEAR.mantle('#8a1a1a', GOLD)] : [GEAR.strap('#3a2a1a')], headBack: 'hood', head: ['hood', HG4.whiteMask(v === 'captain' ? '#f0e8d0' : '#d8d4cc', v === 'captain' ? GOLD : null)], hood: v === 'captain' ? '#4a1a1a' : '#34343c', back: v === 'captain' ? [GEAR.cape('#6a1010', GOLD), SW(52, 36, STEEL, GOLD)] : SW(52, 36, STEEL, METAL.black), blush: false }),
+  madGod: v => ({ face: 'man', skin: 'demonF', hair: '#f0f0f8', hairStyle: 'wildLong', iris: '#ff3020', eyes: 'glow', brow: 'angry', thickBrow: true, mouth: 'teeth', nose: 'long', body: 'plate', metal: METAL.black, torso: 'broad', cape: '#4a0a10', over: [GEAR.mantle('#2a0a10', GOLD), GEAR.pauldrons(GOLD, null, true), GEAR.emblem('#ff3020', 31.5, 66, 2.8)], head: [HG.hoodHorns('#d8c8a8'), 'crown', HG3.thirdEye], back: [GEAR.aura('#ff4020'), GB2.batWings('#3a0a1a'), GEAR.cape('#4a0a10', BLOOD)], bg: ['#100004', '#1e0408', '#2c060c', '#3a0810'], blush: false }),
+};
+
+// =====================================================================
 // 对外接口
 // =====================================================================
 const CACHE = {};
@@ -3372,8 +3664,10 @@ function build(id, variant, tier, path) {
     const hs = enemyHuman(k, variant);
     if (hs) return drawHuman(hs);
     if (G3_ENEMY[k]) return drawHuman(G3_ENEMY[k](variant));
+    if (G4_ENEMY[k]) return drawHuman(G4_ENEMY[k](variant));
     return null;
   }
+  if (id === 'guluru') return guluruPortrait(tier, path);
   if (G2_HEROES[id] && !HERO_SPECS[id]) return drawHuman(g2Spec(id, tier, path));
   const s = heroSpec(id);
   if (!s) return null;
@@ -3391,10 +3685,11 @@ function build(id, variant, tier, path) {
 // tier：职业阶（0 起）；未指定 = 角色当前默认外观。仅对我方英雄有效
 // path：'b' = 转职分支 B 路线（tier >= 该职业分支阶 at 时生效）；省略 / 'a' = 原路线
 function getPortrait(id, variant, tier, path) {
-  if (typeof id === 'string' && id.startsWith('enemy:')) tier = null;
+  if (typeof id === 'string' && id.startsWith('enemy:')) { if (id === 'enemy:maskman' && tier >= 1 && !variant) variant = 'captain'; tier = null; }
   if (path !== 'b' || tier == null || !(tier >= (branchAt(id) == null ? Infinity : branchAt(id)))) path = null;
   let key = id + '|' + (variant || '') + (tier == null ? '' : '|' + tier) + (path ? '|b' : '');
   if (laterCamp() && G2_OLDER[id]) { key += '|' + CUR_CAMPAIGN; try { if (HEROES[id] && HEROES[id].cls !== HERO_CLS[id]) key += '|' + HEROES[id].cls; } catch (e) { /* 无 HEROES */ } }
+  if (id === 'guluru') { try { key += '|' + HEROES.guluru.cls; } catch (e) { /* 无 HEROES */ } }
   if (G2_HEROES[id] && !HERO_SPECS[id]) { key += '|' + g2Cls(id); if (tier == null) { try { key += '|lv' + HEROES[id].lv; } catch (e) { /* 无 HEROES */ } } }
   if (CACHE[key]) return CACHE[key];
   let c = null;
