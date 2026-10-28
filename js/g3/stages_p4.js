@@ -277,7 +277,7 @@ CAMPAIGN_STAGES.g3.push({
   maxDeploy: 8,
   start: [[5, 0], [6, 0], [7, 0], [8, 0], [5, 1], [6, 1], [7, 1], [8, 1], [4, 1], [9, 1]],
   units: [
-    ['fishman', 30, 6, 11, { team: 'enemy', name: '峦河水霸', boss: true, ai: 'hold' }],
+    ['fishman', 26, 6, 11, { team: 'enemy', name: '峦河水霸', boss: true, ai: 'hold' }],
     ['fishman', 27, 3, 7, { team: 'enemy', name: '鱼人战士' }],
     ['fishman', 27, 10, 7, { team: 'enemy', name: '鱼人战士' }],
     ['watersnake', 27, 6, 6, { team: 'enemy', name: '水蛇' }],

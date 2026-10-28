@@ -175,6 +175,8 @@ function spawnSpec(spec) {
     Object.assign(u, opts || {});
     if (opts && opts.name) u.name = opts.name;
     if (!opts || !opts.ai) u.ai = 'aggr';
+    // 必须保护的剧情友军（列在失败条件里）：加厚，免得开局就被集火
+    if (u.team === 'ally' && B && B.def && ((B.def.lose || {}).units || []).includes(id)) { u.mhp = u.hp = Math.round(u.mhp * 1.6); u.def = Math.round(u.def * 1.3); }
   } else {
     // 需要保护的友军 NPC 至少与本关敌兵同级
     const npc = opts && opts.team === 'ally' && B && B.def;
