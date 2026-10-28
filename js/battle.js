@@ -330,6 +330,11 @@ const cv = $('#map');
 const ctx = cv.getContext('2d');
 let TS = 32, DPR = 1;
 const FX = [], FLOATS = [];
+const CAM = { trauma: 0, last: 0 };
+// 加入镜头震动量（0~1）
+function addTrauma(v) { if (!AUTO) CAM.trauma = Math.min(1, CAM.trauma + v); }
+// 手机震动回馈
+function haptic(p) { if (AUTO || !OPT.sound) return; try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) { } }
 let mapLayers = null;
 
 function resize() {
@@ -383,10 +388,16 @@ const TEAM_COLOR = { player: '#4a9aff', ally: '#4ad87a', enemy: '#ff4a4a', rogue
 function render(now) {
   requestAnimationFrame(render);
   if (!B || !mapLayers || $('#battle').hidden) return;
+  // 镜头震动（trauma²：越强的冲击震得越厉害，并迅速衰减）
+  const dtc = Math.min(0.05, (now - (CAM.last || now)) / 1000); CAM.last = now;
+  CAM.trauma = Math.max(0, CAM.trauma - dtc * 1.6);
+  const sh = CAM.trauma * CAM.trauma, shx = Math.round((Math.random() * 2 - 1) * sh * TS * 0.45 * DPR), shy = Math.round((Math.random() * 2 - 1) * sh * TS * 0.35 * DPR);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
+  ctx.setTransform(1, 0, 0, 1, shx, shy);
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(mapLayers[Math.floor(now / 600) % 2], 0, 0);
-  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.setTransform(DPR, 0, 0, DPR, shx, shy);
   const ts = TS;
 
   for (const c of B.chests) drawChest(ctx, c.x * ts, c.y * ts, ts, c.opened);
@@ -412,7 +423,12 @@ function render(now) {
   const list = B.units.filter(u => u.hp > 0 || u.dying).sort((a, b) => (a.py ?? a.y) - (b.py ?? b.y));
   const bob = Math.floor(now / 400) % 2;
   for (const u of list) {
-    const ux = (u.px ?? u.x) * ts + (u.ox || 0) * ts, uy = (u.py ?? u.y) * ts + (u.oy || 0) * ts;
+    let ux = (u.px ?? u.x) * ts + (u.ox || 0) * ts, uy = (u.py ?? u.y) * ts + (u.oy || 0) * ts;
+    if (u.hitT) { // 受击：沿受力方向弹开再回位，带一点抖动
+      const k = (now - u.hitT) / T(u.hitBig ? 380 : 260);
+      if (k < 1) { const amp = Math.sin(k * Math.PI) * (1 - k) * ts * (u.hitBig ? 0.3 : 0.18); ux += u.hitDx * amp + (Math.random() - 0.5) * ts * 0.06 * (1 - k); uy += u.hitDy * amp; }
+      else u.hitT = 0;
+    }
     ctx.globalAlpha = u.dying ? Math.max(0, u.dying) : 1;
     ctx.fillStyle = 'rgba(0,0,0,0.55)';
     ctx.beginPath(); ctx.ellipse(ux + ts / 2, uy + ts * 0.86, ts * 0.33, ts * 0.12, 0, 0, 7); ctx.fill();
@@ -460,14 +476,19 @@ function render(now) {
   drawFx(now);
   if (typeof drawSpellFx === 'function') drawSpellFx(now);
   for (let i = FLOATS.length - 1; i >= 0; i--) {
-    const f = FLOATS[i], p = (now - f.t0) / 900;
+    const f = FLOATS[i], life = f.big ? 1150 : 950, p = (now - f.t0) / life;
     if (p >= 1) { FLOATS.splice(i, 1); continue; }
-    ctx.globalAlpha = p < 0.7 ? 1 : 1 - (p - 0.7) / 0.3;
-    ctx.font = `bold ${Math.round(ts * (f.big ? 0.5 : 0.4))}px sans-serif`;
-    ctx.textAlign = 'center';
-    const tx = (f.x + 0.5) * ts, ty = (f.y + 0.3) * ts - p * ts * 0.6;
-    ctx.lineWidth = 3; ctx.strokeStyle = '#000'; ctx.strokeText(f.text, tx, ty);
+    // 弹出：0 → 1.4 → 1，向上缓出；暴击字更大并抖动
+    const sc = p < 0.1 ? 0.3 + p / 0.1 * 1.1 : p < 0.2 ? 1.4 - (p - 0.1) / 0.1 * 0.4 : 1;
+    const rise = 1 - Math.pow(1 - Math.min(1, p / 0.6), 3);
+    ctx.globalAlpha = p < 0.75 ? 1 : 1 - (p - 0.75) / 0.25;
+    ctx.font = `900 ${Math.round(ts * (f.big ? 0.62 : 0.44) * sc)}px sans-serif`;
+    ctx.textAlign = 'center'; ctx.lineJoin = 'round';
+    const jit = f.big && p < 0.3 ? (Math.random() - 0.5) * ts * 0.08 : 0;
+    const tx = (f.x + 0.5) * ts + jit, ty = (f.y + 0.25) * ts - rise * ts * 0.7;
+    ctx.lineWidth = Math.max(3, ts * 0.11); ctx.strokeStyle = '#120818'; ctx.strokeText(f.text, tx, ty);
     ctx.fillStyle = f.color; ctx.fillText(f.text, tx, ty);
+    if (f.big && p < 0.2) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.6 * (1 - p / 0.2); ctx.fillStyle = '#ffffff'; ctx.fillText(f.text, tx, ty); ctx.globalCompositeOperation = 'source-over'; }
     ctx.textAlign = 'left'; ctx.globalAlpha = 1;
   }
 }
@@ -841,17 +862,32 @@ async function lunge(a, d) {
 }
 async function applyDamage(a, d, dmg, crit) {
   d.hp = Math.max(0, d.hp - dmg);
-  d.flash = performance.now() + T(160);
-  floatText(d.x, d.y, (crit ? '暴击 ' : '') + dmg, crit ? '#ffdd44' : '#ffffff', crit);
+  const lethal = d.hp <= 0;
+  d.flash = performance.now() + T(crit || lethal ? 220 : 160);
+  floatText(d.x, d.y, (crit ? '暴击 ' : '') + dmg, crit ? '#ffcc33' : dmg >= d.mhp * 0.35 ? '#ffb070' : '#ffffff', crit || lethal);
   sfx(crit ? 'crit' : 'hit');
   if (d.ai === 'hold') d.ai = 'aggr';
   if (hasStatus(d, 'freeze') && dmg > 0) delete d.status.freeze; // 受攻击会打破冻结
-  if (!AUTO && crit) { const st = $('#stage'); st.classList.remove('shake'); void st.offsetWidth; st.classList.add('shake'); }
+  if (!AUTO && !DUEL.on) {
+    // 地图上的打击感：受击弹开、镜头震动、顿帧、手机震动
+    const dx = Math.sign(d.x - a.x), dy = Math.sign(d.y - a.y);
+    Object.assign(d, { hitT: performance.now(), hitDx: dx || 0, hitDy: dy || (dx ? 0 : -1), hitBig: crit || lethal });
+    addTrauma(lethal ? 0.55 : crit ? 0.5 : 0.22);
+    haptic(lethal ? [40, 30, 80] : crit ? [30, 20, 40] : 15);
+    await sleep(T(lethal ? 140 : crit ? 110 : 55)); // hit-stop
+  }
   if (d.hp <= 0) await killUnit(d);
 }
 async function killUnit(u) {
-  sfx('die');
-  floatText(u.x, u.y, u.boss ? '击破！' : '倒下', '#ff8080');
+  sfx('die'); sfx('ko');
+  floatText(u.x, u.y - 0.35, u.boss ? '击破！' : '倒下', '#ff8080', u.boss);
+  if (!AUTO && typeof emit === 'function') {
+    // 击倒：碎成像素粒子 + 冲击环
+    const x = (u.x + 0.5) * TS, y = (u.y + 0.45) * TS;
+    emit(u.boss ? 50 : 28, x, y, { speed: [1, 3.2], life: [0.4, 0.9], size: [0.04, 0.09], cols: ['#ffffff', TEAM_COLOR[u.team], '#ffd0a0'], gravity: 2.5, drag: 0.88, shape: 'sq' });
+    PFX.rings.push({ x, y, r0: 0.2, r1: u.boss ? 2 : 1.2, color: '#ffffff', t0: performance.now(), dur: T(400) });
+    if (u.boss) { flash('#ffffff', 0.6, 350); addTrauma(0.8); }
+  }
   u.dying = 1;
   await tween(t => { u.dying = 1 - t; }, 420);
   u.dying = 0;
@@ -988,6 +1024,7 @@ async function castSpell(u, spId, tx, ty) {
   if (!anim) sfx(friendlySpell(sp) ? (sp.kind === 'heal' ? 'heal' : 'buff') : sp.kind === 'summon' ? 'summon' : 'magic');
   let partner = null;
   if (sp.kind === 'pair') { partner = pairPartner(u); if (partner) { partner.acted = true; floatText(partner.x, partner.y, '合击！', '#ffe08a'); } }
+  B.castPartner = partner;
   await wait(anim ? 120 : 280);
   if (sp.kind === 'summon') {
     if (anim) await castAnim(u, sp, spId, tx, ty); else await addFx('summon', tx, ty, 500, { color: '#9ae0ff' });

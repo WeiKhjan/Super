@@ -867,6 +867,7 @@
       },
       hit(t) {
         const o = so({ rev: 0.08 });
+        tone(o, t, { f: 90, f2: 38, sw: 0.14, dur: 0.2, vol: 0.9 }); // 低频重拳
         tone(o, t, { f: 170, f2: 48, sw: 0.11, dur: 0.22, vol: 0.85 });
         nz(o, t, { f: 2400, f2: 500, q: 0.9, dur: 0.13, vol: 0.8 });
         tone(o, t, { type: 'square', f: 130, f2: 55, dur: 0.08, vol: 0.1, lp: 1000 });
@@ -874,6 +875,7 @@
       },
       crit(t) {
         const o = so({ rev: 0.22 });
+        tone(o, t + 0.08, { f: 70, f2: 28, sw: 0.3, dur: 0.45, vol: 1 }); // 爆裂低音
         nz(o, t, { f: 600, f2: 5000, q: 2.5, dur: 0.03, a: 0.07, vol: 0.3 });
         const h = t + 0.08;
         tone(o, h, { f: 210, f2: 36, sw: 0.22, dur: 0.42, vol: 1 });
@@ -1006,6 +1008,28 @@
         I.taiko(o, t + 0.12, 0.55, 90);
         nz(o, t + 0.12, { type: 'highpass', f: 6000, dur: 0.5, vol: 0.06 });
       },
+      ko(t) {
+        // 击倒：沉重落地 + 碎裂
+        const o = so({ rev: 0.35 });
+        tone(o, t, { f: 120, f2: 30, sw: 0.4, dur: 0.6, vol: 1 });
+        nz(o, t, { type: 'lowpass', f: 2500, f2: 120, dur: 0.5, vol: 0.6 });
+        [0.05, 0.11, 0.18].forEach((d, i) => nz(o, t + d, { f: 3000 - i * 600, q: 3, dur: 0.05, vol: 0.25 }));
+      },
+      boom(t) {
+        // 大招落地：次低音爆破
+        const o = so({ rev: 0.5 });
+        tone(o, t, { f: 80, f2: 24, sw: 0.5, dur: 0.9, vol: 1 });
+        nz(o, t, { type: 'lowpass', f: 4000, f2: 200, dur: 0.8, vol: 0.7 });
+        I.crash(o, t + 0.02, 0.35);
+      },
+      cutin(t) {
+        // 必杀技插图：急促上扬 + 定音
+        const o = so({ rev: 0.4, dly: 0.15 });
+        nz(o, t, { f: 400, f2: 9000, sw: 0.35, q: 1.5, dur: 0.4, a: 0.3, vol: 0.4 });
+        tone(o, t + 0.36, { type: 'sawtooth', f: mtof(55), dur: 0.5, vol: 0.12, lp: 2500 });
+        I.brass(o, t + 0.36, 67, 0.45, 0.5); I.brass(o, t + 0.36, 74, 0.45, 0.35);
+        I.taiko(o, t + 0.36, 0.8, 60);
+      },
       levelup(t) {
         const o = so({ rev: 0.35, dly: 0.2 });
         [72, 76, 79, 84, 88, 91].forEach((m, i) => tone(o, t + i * 0.055, { type: 'pulse25', f: mtof(m), dur: 0.12, vol: 0.1 }));
@@ -1047,7 +1071,7 @@
     // 各音效响度校准（以短时响度为准，使其均落在音乐之上）
     const SFX_GAIN = {
       select: 5.8, move: 3.2, hit: 2.1, crit: 1.5, miss: 9, slash: 3.6, arrow: 2.4, magic: 2.9, fire: 2.6, ice: 4, bolt: 4.6,
-      wind: 6.3, rock: 1.2, dark: 1.25, holy: 1.2, heal: 3.3, buff: 5.3, status: 3.2, summon: 0.95, chest: 6.7, die: 1.95, turn: 0.85, levelup: 3.1, win: 0.95, lose: 1.2, charge: 3.5, promote: 0.9,
+      wind: 6.3, rock: 1.2, dark: 1.25, holy: 1.2, heal: 3.3, buff: 5.3, status: 3.2, summon: 0.95, chest: 6.7, die: 1.95, turn: 0.85, levelup: 3.1, win: 0.95, lose: 1.2, ko: 1.1, boom: 0.9, cutin: 0.9, charge: 3.5, promote: 0.9,
     };
     let lastSfx = {};
     function sfx(name, when) {
@@ -1153,7 +1177,7 @@
     get current() { try { return eng ? eng.curName() : null; } catch (e) { return null; } },
     tracks: Object.keys(TRACKS).filter(k => !TRACKS[k].once),
     jingles: Object.keys(TRACKS).filter(k => TRACKS[k].once),
-    sfxNames: ['select', 'move', 'hit', 'crit', 'miss', 'slash', 'arrow', 'magic', 'fire', 'ice', 'bolt', 'wind', 'rock', 'dark', 'holy', 'heal', 'buff', 'status', 'summon', 'chest', 'die', 'turn', 'levelup', 'win', 'lose', 'charge', 'promote'],
+    sfxNames: ['select', 'move', 'hit', 'crit', 'miss', 'slash', 'arrow', 'magic', 'fire', 'ice', 'bolt', 'wind', 'rock', 'dark', 'holy', 'heal', 'buff', 'status', 'summon', 'chest', 'die', 'turn', 'levelup', 'win', 'lose', 'charge', 'promote', 'ko', 'boom', 'cutin'],
     // 调试：曲目信息与离线渲染（测试用，不影响正常播放）
     _info(name) { const d = TRACKS[name]; return d ? { bpm: d.bpm, bars: d.bars, key: d.key, seconds: d.seconds, once: !!d.once, desc: d.desc } : null; },
     _state() { try { return eng ? Object.assign({ ctx: ctx.state, time: ctx.currentTime }, eng.state()) : { ctx: 'none' }; } catch (e) { return { error: String(e) }; } },

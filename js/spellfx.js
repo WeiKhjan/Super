@@ -183,7 +183,7 @@ function drawSpellFx(now) {
   }
 }
 function fxActive() { return PFX.parts.length || PFX.circles.length || PFX.bolts.length || PFX.beams.length || PFX.pillars.length || PFX.rings.length || PFX.slashes.length; }
-function shakeStage() { const st = $('#stage'); st.classList.remove('shake'); void st.offsetWidth; st.classList.add('shake'); }
+function shakeStage(v) { addTrauma(v || 0.5); haptic(25); }
 function flash(color, a, dur) { PFX.flash = { color, a, t0: now0(), dur: T(dur) }; }
 
 // ---------- 各系命中特效 ----------
@@ -462,6 +462,80 @@ STYLE.rain = async ctx => { // 天马流星枪：自空中连续刺下
   await wait(240);
 };
 
+// ---------- 必杀技插图（全屏 cut-in） ----------
+let cutCv = null;
+function isUltimate(u, sp) {
+  if (sp.kind === 'heal' || sp.kind === 'buff' || sp.kind === 'cure') return (sp.area || 0) >= 2 && u.team === 'player';
+  return sp.kind === 'pair' || (sp.power || 0) >= 26 || (sp.area || 0) >= 2 || (sp.kind === 'summon' && sp.mp >= 20) || (u.boss && (sp.power || 0) >= 16);
+}
+async function skillCutIn(u, sp, E) {
+  if (AUTO || !OPT.anim) return;
+  if (!cutCv) {
+    cutCv = document.createElement('canvas');
+    cutCv.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;z-index:34;pointer-events:none;image-rendering:pixelated';
+    $('#app').appendChild(cutCv);
+  }
+  const app = $('#app').getBoundingClientRect(), dpr = Math.min(3, window.devicePixelRatio || 1);
+  const W = app.width, H = app.height;
+  cutCv.width = Math.round(W * dpr); cutCv.height = Math.round(H * dpr); cutCv.hidden = false;
+  const g = cutCv.getContext('2d');
+  const ports = [u, B.castPartner].filter(Boolean).map(o => typeof unitPortrait === 'function' ? unitPortrait(o, 64) : null).filter(Boolean);
+  const col = E.glow, dur = T(1050), t0 = performance.now();
+  const lines = Array.from({ length: 26 }, () => ({ y: Math.random(), w: 0.2 + Math.random() * 0.5, sp: 1.5 + Math.random() * 2.5, o: Math.random() }));
+  sfx('cutin'); haptic(20);
+  await new Promise(res => {
+    const frame = now => {
+      const p = Math.min(1, (now - t0) / dur);
+      g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H); g.imageSmoothingEnabled = false;
+      const inP = Math.min(1, p / 0.16), outP = p > 0.82 ? (p - 0.82) / 0.18 : 0;
+      const ease = 1 - Math.pow(1 - inP, 3);
+      // 背景压暗
+      g.fillStyle = `rgba(4,2,14,${0.6 * ease * (1 - outP)})`; g.fillRect(0, 0, W, H);
+      // 斜向色带
+      const cy = H * 0.44, bh = H * 0.3 * (1 - outP * 0.95), sk = W * 0.18, slide = (1 - ease) * W * 1.2;
+      g.save(); g.translate(slide, 0);
+      const grd = g.createLinearGradient(0, cy - bh / 2, 0, cy + bh / 2);
+      grd.addColorStop(0, '#0a0620'); grd.addColorStop(0.5, col); grd.addColorStop(1, '#0a0620');
+      g.fillStyle = grd; g.globalAlpha = 0.92;
+      g.beginPath(); g.moveTo(-sk, cy - bh / 2 + sk * 0.5); g.lineTo(W + sk, cy - bh / 2 - sk * 0.5); g.lineTo(W + sk, cy + bh / 2 - sk * 0.5); g.lineTo(-sk, cy + bh / 2 + sk * 0.5); g.closePath(); g.fill();
+      g.clip();
+      // 速度线
+      g.globalCompositeOperation = 'lighter';
+      for (const L of lines) {
+        const x = W - ((now / 1000 * L.sp * W + L.o * W * 2) % (W * 2)), y = cy - bh / 2 + L.y * bh;
+        g.globalAlpha = 0.35; g.fillStyle = '#ffffff'; g.fillRect(x, y, W * L.w, Math.max(1, bh * 0.012));
+      }
+      g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1;
+      // 立绘（像素放大）由左滑入并缓慢推近
+      const ps = Math.min(bh * 1.05 / 72, W * 0.36 / 64) * (1 + p * 0.06);
+      ports.forEach((pc, i) => {
+        const pin = Math.min(1, Math.max(0, (p - 0.04 - i * 0.06) / 0.18)), pe = 1 - Math.pow(1 - pin, 3);
+        const px = W * 0.04 + i * 64 * ps * 0.82 - (1 - pe) * W * 0.6, py = cy - 72 * ps / 2;
+        g.globalAlpha = pe; g.drawImage(pc, px, py, 64 * ps, 72 * ps);
+      });
+      g.restore(); g.globalAlpha = 1;
+      // 招式名
+      const tin = Math.min(1, Math.max(0, (p - 0.12) / 0.16)), te = 1 - Math.pow(1 - tin, 3);
+      const fs = Math.round(Math.min(W * 0.11, bh * 0.3)), tx = W * 0.96 + (1 - te) * W * 0.5, ty = cy + bh * 0.12;
+      g.textAlign = 'right'; g.textBaseline = 'middle'; g.lineJoin = 'round';
+      g.font = `900 ${fs}px "PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif`;
+      g.globalAlpha = te * (1 - outP);
+      g.lineWidth = Math.max(4, fs / 6); g.strokeStyle = '#0a0418'; g.strokeText(sp.name, tx, ty);
+      const tg = g.createLinearGradient(0, ty - fs / 2, 0, ty + fs / 2);
+      tg.addColorStop(0, '#ffffff'); tg.addColorStop(0.55, E.label); tg.addColorStop(1, col);
+      g.fillStyle = tg; g.fillText(sp.name, tx, ty);
+      g.font = `bold ${Math.round(fs * 0.36)}px sans-serif`; g.lineWidth = 3;
+      const cap = sp.kind === 'pair' ? '双人合击' : u.team === 'player' ? '必杀技' : '强敌绝招';
+      g.strokeText(cap, tx, ty - fs * 0.78); g.fillStyle = '#ffffff'; g.fillText(cap, tx, ty - fs * 0.78);
+      g.globalAlpha = 1;
+      // 收尾闪光
+      if (outP > 0) { g.fillStyle = `rgba(255,255,255,${0.7 * Math.sin(outP * Math.PI)})`; g.fillRect(0, 0, W, H); }
+      if (p < 1) requestAnimationFrame(frame); else { g.clearRect(0, 0, W, H); cutCv.hidden = true; res(); }
+    };
+    requestAnimationFrame(frame);
+  });
+}
+
 // ---------- 施法流程 ----------
 // 返回时，命中特效已经打在目标上（之后才结算伤害），余韵继续在背景播放
 async function castAnim(u, sp, spId, tx, ty) {
@@ -470,6 +544,7 @@ async function castAnim(u, sp, spId, tx, ty) {
   const E = ELEM[fx] || ELEM.fire;
   const big = (sp.power || 0) >= 28 || (sp.area || 0) >= 2;
   const cx = tc(u.x), cy = tc(u.y), x = tc(tx), y = tc(ty);
+  if (isUltimate(u, sp)) await skillCutIn(u, sp, E);
   PFX.label = { text: sp.name, color: E.label, t0: now0(), dur: T(1300) };
   await tween(t => { PFX.dim = 0.42 * t; }, 160);
 
@@ -542,7 +617,7 @@ async function castAnim(u, sp, spId, tx, ty) {
       PFX.circles.push({ x, y: y + TS * 0.3, r: 0.55, color: sp.status ? STATUS_COLOR[sp.status] : '#ff7a9a', t0: now0() + T(150), dur: T(700) });
       if (sp.kind === 'death') { PFX.rings.push({ x, y, r0: 1.4, r1: 0.05, color: '#000000', t0: now0(), dur: T(600) }); flash('#2a0a40', 0.5, 400); }
     }
-    if (big) { flash(E.glow, 0.45, 380); shakeStage(); }
+    if (big) { flash(E.glow, 0.45, 380); shakeStage(0.75); sfx('boom'); haptic([30, 20, 60]); }
     await wait(big || spId === 'meteor' ? 620 : 440);
   }
   // 3) 收尾：变暗逐渐恢复（不阻塞伤害结算）
