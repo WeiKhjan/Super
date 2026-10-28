@@ -168,6 +168,7 @@ function renderCamp() {
           ${CLASSES[d.cls].weapon ? `<button class="btn small" data-equip="${id}" data-slot="weapon">武器：${d.weapon ? ITEMS[d.weapon].name : '无'}</button>` : ''}
           <button class="btn small" data-equip="${id}" data-slot="armor">防具：${d.armor ? ITEMS[d.armor].name : '无'}</button>
           <button class="btn small" data-equip="${id}" data-slot="acc">饰品：${d.acc ? ITEMS[d.acc].name : '无'}</button>
+          <button class="btn small purple" data-tree="${id}">职业树${CLASSES[d.cls].alt && !d.path && d.tier >= CLASSES[d.cls].alt.at ? ' ⚑' : ''}</button>
         </div>
         <p class="small dim bio">${HEROES[id].bio}</p>
       </div>`;
@@ -190,7 +191,40 @@ function renderCamp() {
     }).join('');
   }
 }
+// 职业树：共同阶段 → 分支 A / B（目前路线高亮）
+function treeHtml(d) {
+  const C = CLASSES[d.cls], u = Object.assign({ status: {}, buffs: [] }, d);
+  const node = (t, i, p) => {
+    const cur = d.tier === i && (!C.alt || i < C.alt.at || (d.path || 'a') === p);
+    const off = C.alt && i >= C.alt.at && d.path && d.path !== p;
+    return `<span class="tn ${cur ? 'cur' : ''} ${off ? 'off' : ''}">${esc(t.name)} <span class="lv">Lv${t.lv}</span></span>`;
+  };
+  if (!C.alt) return `<div class="tree-row">${C.tiers.map((t, i) => node(t, i)).join('→')}</div><p class="small dim">此职业没有分支。</p>`;
+  const at = C.alt.at, shared = C.tiers.slice(0, at).map((t, i) => node(t, i)).join('→');
+  const row = p => {
+    const I = pathInfo(C, p), list = p === 'b' ? C.alt.tiers : C.tiers.slice(at);
+    return `<div class="tree-row"><b class="${(d.path || (d.tier >= at ? 'a' : '')) === p ? 'gold' : 'dim'}">${p.toUpperCase()} · ${esc(I.label)}</b></div>
+      <div class="tree-row">${list.map((t, i) => node(t, at + i, p)).join('→')}</div>
+      <div class="small dim">${esc(I.focus)} · ${esc(I.desc)}</div><div class="pc-skills" style="justify-content:flex-start;margin:3px 0 8px">${I.skills.map(s => `<span>${esc(s)}</span>`).join('')}</div>`;
+  };
+  return `<div class="tree-row">${shared} →</div><div class="tree-branch">${row('a')}${row('b')}</div>
+    <p class="small dim">${d.path ? '已选定路线。' : d.tier >= at ? '尚未选择路线（目前视为 A），可在此选择一次。' : `到达 Lv ${branchLv(C)} 转职时选择路线。`}</p>`;
+}
 $('#camp').addEventListener('click', async e => {
+  const tr = e.target.closest('[data-tree]');
+  if (tr) {
+    const id = tr.dataset.tree, d = S.roster[id], C = CLASSES[d.cls];
+    sfx('select');
+    const canChoose = C.alt && !d.path && d.tier >= C.alt.at;
+    const btns = canChoose ? [{ label: '选 A 路线', value: 'a' }, { label: '选 B 路线', value: 'b', cls: 'primary' }, { label: '关闭', value: null }] : [{ label: '关闭', value: null }];
+    const r = await modal(`${esc(d.name)} · 职业树`, treeHtml(d), btns, { wide: true, dismiss: null });
+    if (canChoose && (r === 'a' || r === 'b')) {
+      d.path = r;
+      if (r === 'b') { const u = Object.assign({ status: {}, buffs: [] }, d); if (d.weapon && !canUseWeapon(u, d.weapon)) d.weapon = null; }
+      toast(`${d.name} 走上了「${pathInfo(C, r).label}」`); persist();
+    }
+    return renderCamp();
+  }
   const t = e.target.closest('.tab');
   if (t) { sfx('select'); campTab = t.dataset.tab; return renderCamp(); }
   const buy = e.target.closest('[data-buy]');
@@ -364,7 +398,7 @@ $('#btn-help').addEventListener('click', () => {
     <p><b>兵种相克</b>：依原作设定，例如弓箭克制飞行与鹰族，龙族、鹰族压制大多数地面部队，剑士面对战士、狼族稍弱。预测画面会显示「克制 / 被克」。</p>
     <p><b>魔法</b>：地、火、风、水、黑暗、神圣、召唤七大系统，另有各职业的专属战技——剑术系的单人剑式与需要相邻剑术伙伴的<b>双人剑式</b>、骑兵的<b>枪术</b>、战士的<b>斧技</b>、武士的<b>刀术</b>、弓手的<b>箭术</b>，以及鹰族、狼族的天赋战技。直线类法术（极热光束、闪电光束、冷冻波、诅咒之风）不论敌我都会受伤！</p>
     <p><b>异常状态</b>：石化、冻结、失明时无法行动；中毒每回合损失生命；禁锢无法施法；破魂剑法让敌人无法反击。可用状态回复、解石化、解毒草、化石草治疗。</p>
-    <p><b>成长</b>：获得 100 经验升级，到达一定等级自动转职（例如孟祈：作家 → 侠客 → 剑道家 → 圣剑士 → 剑侠 → 剑王 → 剑圣）。</p>
+    <p><b>成长</b>：获得 100 经验升级，到达一定等级自动转职（例如孟祈：作家 → 侠客 → 剑道家 → 圣剑士 → 剑侠 → 剑王 → 剑圣）。多数职业在中期转职时会出现<b>分支</b>，可选择原作路线或新路线（如剑士→魔法剑士、骑兵→圣骑士、武士→忍者、法师→时空术士），营地的「职业树」可查看。</p>
     <p><b>营地</b>：每关之间可以更换装备（武器 / 防具 / 饰品）、使用道具、购物，并选择出击人员。进度自动保存在本机。</p>
     <p class="dim">提示：在手机浏览器中「添加到主屏幕」，即可像 App 一样全屏游玩。</p>
     </div>`, [{ label: '明白了', value: 1, cls: 'primary' }], { dismiss: 1, wide: true });

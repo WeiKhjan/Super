@@ -179,6 +179,48 @@ const SPELLS = {
   // 龙族
   tailSweep:   { name: '龙尾扫',   school: '技', mp: 5,  power: 10, range: [1, 1], arc: true, kind: 'phys', sure: true, style: 'sweep', fx: 'rock', desc: '甩尾横扫前方三格' },
   dragonFlame: { name: '龙焰冲击', school: '技', mp: 14, power: 26, range: [1, 4], line: true, kind: 'magic', fx: 'beam', desc: '喷出直线烈焰，路径上不论敌我' },
+  // ===== 转职分支（B 路线）专属招式 =====
+  // 魔法剑士系
+  flameSword:  { name: '火焰剑',   school: '魔', mp: 7,  power: 14, range: [1, 1], kind: 'phys', sure: true, style: 'blade', fx: 'fire', desc: '剑身燃起烈焰的一击' },
+  thunderSword:{ name: '雷光剑',   school: '魔', mp: 12, power: 20, range: [1, 2], area: 1, kind: 'phys', sure: true, style: 'rain', fx: 'bolt', desc: '引雷入剑，劈向目标与周围' },
+  frostSword:  { name: '冰霜剑',   school: '魔', mp: 10, power: 16, range: [1, 1], kind: 'phys', sure: true, status: 'freeze', turns: 1, chance: 45, style: 'thrust', fx: 'ice', desc: '寒气入骨，有机会冻结敌人' },
+  arcaneBlade: { name: '圣魔剑',   school: '魔', mp: 26, power: 40, range: [1, 4], line: true, kind: 'phys', sure: true, style: 'charge', fx: 'holy', desc: '圣与魔交织的剑气贯穿一列' },
+  // 圣骑士系
+  shieldWall:  { name: '铁壁',     school: '枪', mp: 8,  range: [0, 0], area: 1, kind: 'buff', stat: 'def', amount: 6, turns: 3, fx: 'buff', desc: '举盾守护，自己与身边同伴防御 +6' },
+  holyLance:   { name: '圣枪',     school: '枪', mp: 9,  power: 16, range: [1, 2], kind: 'phys', sure: true, style: 'thrust', fx: 'holy', desc: '注入圣光的长枪突刺' },
+  royalCharge: { name: '王者冲锋', school: '枪', mp: 26, power: 42, range: [1, 4], line: true, kind: 'phys', sure: true, style: 'charge', fx: 'holy', desc: '率领王旗冲锋，贯穿一列' },
+  // 狂战士系
+  bloodRage:   { name: '血怒',     school: '斧', mp: 6,  range: [0, 0], kind: 'buff', stat: 'atk', amount: 10, turns: 3, fx: 'fire', desc: '以血激发狂怒，自身攻击 +10' },
+  rampage:     { name: '暴走',     school: '斧', mp: 10, power: 22, range: [0, 0], area: 1, around: true, kind: 'phys', sure: true, style: 'spin', fx: 'fire', desc: '狂暴乱斩身边所有敌人' },
+  twinCleave:  { name: '双斧裂',   school: '斧', mp: 10, power: 26, range: [1, 1], kind: 'phys', style: 'axe', fx: 'rock', desc: '双斧交叉劈下，威力极大但可能落空' },
+  deathBlow:   { name: '灭世斩',   school: '斧', mp: 22, power: 52, range: [1, 1], kind: 'phys', sure: true, style: 'axe', fx: 'fire', desc: '破坏神的一击' },
+  // 忍者系
+  shuriken:    { name: '手里剑',   school: '忍', mp: 4,  power: 9,  range: [2, 3], kind: 'phys', sure: true, style: 'feathers', fx: 'slash', desc: '投出手里剑，射程 2-3' },
+  poisonBlade: { name: '毒刃',     school: '忍', mp: 6,  power: 10, range: [1, 1], kind: 'phys', sure: true, status: 'poison', turns: 3, chance: 75, style: 'blade', fx: 'acid', desc: '淬毒的刀刃，令敌人中毒' },
+  smokeBomb:   { name: '烟玉',     school: '忍', mp: 9,  range: [1, 3], area: 1, kind: 'status', status: 'blind', turns: 1, chance: 65, fx: 'dark', desc: '烟雾弥漫，令一片敌人失明' },
+  shadowStrike:{ name: '影袭',     school: '忍', mp: 12, power: 26, range: [1, 3], line: true, kind: 'phys', sure: true, crit: 30, style: 'dash', fx: 'dark', desc: '化作黑影穿过敌阵' },
+  shadowDance: { name: '影舞',     school: '忍', mp: 22, power: 34, range: [0, 0], area: 1, around: true, kind: 'phys', sure: true, crit: 20, style: 'spin', fx: 'dark', desc: '无数分身同时斩向身边敌人' },
+  // 游侠系
+  frostArrow:  { name: '冰结箭',   school: '弓', mp: 7,  power: 10, range: [2, 5], kind: 'phys', sure: true, status: 'freeze', turns: 1, chance: 50, style: 'arrow', fx: 'ice', desc: '冰之箭，有机会冻结敌人' },
+  thunderArrow:{ name: '雷鸣箭',   school: '弓', mp: 10, power: 16, range: [2, 5], area: 1, kind: 'phys', sure: true, style: 'volley', fx: 'bolt', desc: '箭化雷霆落向一片区域' },
+  arcaneArrow: { name: '天穹箭',   school: '弓', mp: 18, power: 30, range: [1, 6], line: true, kind: 'phys', sure: true, style: 'pierce', fx: 'holy', desc: '光之箭贯穿一列' },
+  // 武僧系
+  chiPalm:     { name: '气功掌',   school: '拳', mp: 4,  power: 12, range: [1, 1], kind: 'phys', sure: true, style: 'claw', fx: 'holy', desc: '运气出掌，必中' },
+  meditate:    { name: '冥想',     school: '拳', mp: 5,  power: 30, range: [0, 0], kind: 'heal', fx: 'heal', desc: '调息回复自身生命' },
+  hundredFist: { name: '百裂拳',   school: '拳', mp: 10, power: 20, range: [1, 1], kind: 'phys', sure: true, crit: 20, style: 'claw', fx: 'slash', desc: '快拳连打' },
+  chiWave:     { name: '气功波',   school: '拳', mp: 14, power: 22, range: [1, 1], cone: 3, kind: 'phys', sure: true, style: 'wave', fx: 'holy', desc: '扇形气功波，前方三排都受伤' },
+  holyFist:    { name: '圣拳',     school: '拳', mp: 22, power: 44, range: [1, 1], kind: 'phys', sure: true, style: 'claw', fx: 'holy', desc: '拳圣的必杀一拳' },
+  // 时空术士系
+  slow:        { name: '迟缓术',   school: '时', mp: 6,  range: [1, 4], area: 1, kind: 'debuff', stat: 'mov', amount: -2, turns: 2, fx: 'dark', desc: '扭曲时间，一片敌人移动 -2' },
+  timeStop:    { name: '时间停止', school: '时', mp: 14, range: [1, 4], area: 1, kind: 'status', status: 'freeze', turns: 1, chance: 55, fx: 'ice', desc: '冻结一片区域的时间，令敌人无法行动' },
+  quicken:     { name: '时间加速', school: '时', mp: 18, range: [1, 3], kind: 'refresh', fx: 'buff', desc: '让一名已行动的同伴再次行动' },
+  gravity:     { name: '重力场',   school: '时', mp: 16, power: 26, range: [1, 4], area: 1, kind: 'magic', fx: 'dark', desc: '扭曲空间的重力压垮敌人' },
+  chronoBreak: { name: '时空崩坏', school: '时', mp: 36, power: 46, range: [1, 4], area: 2, kind: 'magic', fx: 'dark', desc: '撕裂时空的最强魔法' },
+  // 召唤士系
+  sumDragon:   { name: '召唤神龙', school: '召', mp: 30, range: [1, 1], kind: 'summon', unit: 'dragon', turns: 3, fx: 'summon', desc: '召唤巨龙助战 3 回合' },
+  // 月影狼系
+  lunarHowl:   { name: '月之嚎',   school: '牙', mp: 8,  range: [0, 0], area: 1, kind: 'buff', stat: 'skill', amount: 25, turns: 3, fx: 'buff', desc: '月下长嚎，自己与身边同伴命中、暴击提升' },
+  moonRush:    { name: '月光疾驰', school: '牙', mp: 18, power: 32, range: [1, 4], line: true, kind: 'phys', sure: true, crit: 15, style: 'charge', fx: 'holy', desc: '化作月光贯穿一列' },
   // 怪物 / 敌方专用
   breathFire:  { name: '喷火',     school: '技', mp: 0,  power: 10, range: [1, 2], kind: 'magic', fx: 'fire', desc: '喷出火焰' },
   breathIce:   { name: '喷冰气',   school: '技', mp: 0,  power: 10, range: [1, 2], kind: 'magic', fx: 'ice', desc: '喷出冰气' },
@@ -190,7 +232,7 @@ const SPELLS = {
   sumPig:      { name: '召唤豬頭龍', school: '召', mp: 10, range: [1, 1], kind: 'summon', unit: 'pigdragon', turns: 99, fx: 'summon', desc: '' },
   sumSkeleton: { name: '召唤魔兵', school: '召', mp: 12, range: [1, 1], kind: 'summon', unit: 'beast', turns: 99, fx: 'summon', desc: '' },
 };
-const SCHOOL_NAME = { 地: '地系', 火: '火系', 风: '风系', 水: '水系', 暗: '黑暗系', 圣: '神圣系', 召: '召唤系', 剑: '单人剑式', 双: '双人剑式', 枪: '枪术', 斧: '斧技', 刀: '刀术', 弓: '箭术', 翼: '鹰族战技', 牙: '狼族战技', 技: '特技' };
+const SCHOOL_NAME = { 地: '地系', 火: '火系', 风: '风系', 水: '水系', 暗: '黑暗系', 圣: '神圣系', 召: '召唤系', 剑: '单人剑式', 双: '双人剑式', 魔: '魔剑术', 忍: '忍术', 拳: '拳法', 时: '时空魔法', 枪: '枪术', 斧: '斧技', 刀: '刀术', 弓: '箭术', 翼: '鹰族战技', 牙: '狼族战技', 技: '特技' };
 
 // ---------- 道具 ----------
 // type: weapon(kind) / armor / acc 饰品 / use 消耗 / key 任务道具
@@ -388,6 +430,64 @@ const CLASSES = {
   turtle:     mk('巨龟', '爬虫', 'turtle', null, 'water', [1, 1], 4, { hp: 50, mp: 0, atk: 12, def: 16, mag: 0, spd: 3 }, { hp: 4.5, mp: 0, atk: 1.6, def: 2.0, mag: 0, spd: 0.5 }),
 };
 // 关卡里的兵种 id → 职业 key（人类兵种直接沿用我方职业系，按等级自动显示阶级名）
+// ===== 转职分支：到达 at 阶时可选择 A（原作路线）或 B 路线 =====
+// B 路线的各阶等级与 A 相同；skills 取代 A 路线在分支等级之后学到的招式
+const ALT = (at, sprite, label, desc, focus, tiers, growth, promo, skills, extra) => Object.assign({ at, sprite, label, desc, focus, tiers, growth, promo, skills }, extra || {});
+Object.assign(CLASSES.swordsman, { aLabel: '剑圣之道', aDesc: '专精剑术与双人剑式的正统剑士', aFocus: '攻击 · 速度',
+  alt: ALT(2, 'swordsman_b', '魔剑之道', '以剑为杖，剑技与攻击魔法兼修', '攻击 · 魔力',
+    [TIER('魔法剑士', 12, 5), TIER('魔导剑士', 19, 6), TIER('圣魔剑士', 26, 6)],
+    { hp: 2.7, mp: 1.6, atk: 1.5, def: 1.0, mag: 1.3, spd: 1.2 }, { hp: 4, mp: 6, atk: 2, def: 1, mag: 3, spd: 1 },
+    [[12, 'fireball'], [12, 'flameSword'], [14, 'thunder'], [17, 'thunderSword'], [20, 'frostSword'], [24, 'heatBeam'], [28, 'arcaneBlade']]) });
+Object.assign(CLASSES.knight, { aLabel: '天空之道', aDesc: '骑乘天马、飞龙，翱翔战场的机动骑士', aFocus: '移动 · 飞行',
+  alt: ALT(2, 'knight_b', '圣骑之道', '重甲与圣光守护同伴的骑士，能治疗', '防御 · 治疗',
+    [TIER('重装骑士', 12, 5, 'horse'), TIER('圣骑士', 19, 6, 'horse'), TIER('皇家骑士', 26, 6, 'horse')],
+    { hp: 3.6, mp: 1.0, atk: 1.4, def: 1.7, mag: 0.7, spd: 0.8 }, { hp: 8, mp: 3, atk: 2, def: 4, mag: 2, spd: 0 },
+    [[12, 'shieldWall'], [12, 'heal'], [15, 'holyLance'], [19, 'bigHeal'], [24, 'holyNova'], [28, 'royalCharge']]) });
+Object.assign(CLASSES.fighter, { aLabel: '圣战之道', aDesc: '攻守兼备、受光明祝福的战士', aFocus: '生命 · 防御',
+  alt: ALT(2, 'fighter_b', '狂战之道', '舍弃防御、以狂怒换取毁灭性攻击', '攻击 · 暴击',
+    [TIER('狂战士', 12, 5), TIER('斗神', 19, 6), TIER('破坏神', 26, 6)],
+    { hp: 3.9, mp: 0.4, atk: 2.3, def: 0.7, mag: 0, spd: 1.1 }, { hp: 8, mp: 1, atk: 5, def: 0, mag: 0, spd: 2 },
+    [[12, 'bloodRage'], [14, 'rampage'], [18, 'twinCleave'], [24, 'cataclysm'], [28, 'deathBlow']]) });
+Object.assign(CLASSES.samurai, { aLabel: '武将之道', aDesc: '统率战场的将军，刀术与防御出众', aFocus: '防御 · 刀术',
+  alt: ALT(2, 'samurai_b', '忍之道', '来去如影的忍者，移动力高，擅长毒、烟与暗杀', '速度 · 移动',
+    [TIER('忍者', 12, 7), TIER('上忍', 19, 7), TIER('影忍', 26, 8)],
+    { hp: 2.6, mp: 0.9, atk: 1.5, def: 0.9, mag: 0.5, spd: 1.9 }, { hp: 4, mp: 2, atk: 2, def: 1, mag: 0, spd: 4 },
+    [[12, 'shuriken'], [14, 'poisonBlade'], [17, 'smokeBomb'], [21, 'shadowStrike'], [27, 'shadowDance']]) });
+Object.assign(CLASSES.archer, { aLabel: '神射之道', aDesc: '精于弓弩连射的射手', aFocus: '攻击 · 连射',
+  alt: ALT(2, 'archer_b', '游侠之道', '以魔力附箭的游侠，射程更远，会冻结与治疗', '射程 · 魔力',
+    [TIER('游侠', 12, 5, 'foot', [2, 4]), TIER('魔弓手', 19, 5, 'foot', [2, 5]), TIER('天弓使', 26, 6, 'foot', [2, 5])],
+    { hp: 2.4, mp: 1.3, atk: 1.5, def: 0.8, mag: 1.0, spd: 1.5 }, { hp: 4, mp: 4, atk: 2, def: 1, mag: 2, spd: 2 },
+    [[12, 'frostArrow'], [15, 'thunderArrow'], [18, 'heal'], [22, 'arcaneArrow'], [27, 'starArrows']]) });
+Object.assign(CLASSES.priest, { aLabel: '神官之道', aDesc: '专精治疗与神圣魔法的神职者', aFocus: '魔力 · 治疗',
+  alt: ALT(2, 'priest_b', '武僧之道', '以拳证道的武僧，近身作战并能自我回复', '攻击 · 生命',
+    [TIER('武僧', 12, 5), TIER('圣拳士', 19, 5), TIER('拳圣', 26, 6)],
+    { hp: 3.2, mp: 1.0, atk: 1.8, def: 1.2, mag: 0.8, spd: 1.4 }, { hp: 7, mp: 2, atk: 3, def: 2, mag: 1, spd: 2 },
+    [[12, 'chiPalm'], [12, 'cureAll'], [14, 'meditate'], [17, 'hundredFist'], [21, 'chiWave'], [27, 'holyFist']], { weapon: ['claw', 'staff'] }) });
+Object.assign(CLASSES.mage, { aLabel: '元素之道', aDesc: '掌握火、风、雷的元素大魔法', aFocus: '魔力 · 范围',
+  alt: ALT(2, 'mage_b', '时空之道', '操纵时间与空间：迟缓、停止时间，让同伴再次行动', '速度 · 辅助',
+    [TIER('时空术士', 12, 5), TIER('时空法师', 19, 5), TIER('时空贤者', 26, 6)],
+    { hp: 2.1, mp: 2.6, atk: 0.4, def: 0.7, mag: 1.6, spd: 1.3 }, { hp: 4, mp: 8, atk: 0, def: 1, mag: 3, spd: 2 },
+    [[12, 'slow'], [16, 'timeStop'], [19, 'quicken'], [22, 'gravity'], [27, 'chronoBreak']]) });
+Object.assign(CLASSES.sorcerer, { aLabel: '咒术之道', aDesc: '精通诅咒与黑暗魔法', aFocus: '魔力 · 异常',
+  alt: ALT(1, 'sorcerer_b', '召唤之道', '同时操纵两只召唤兽，最终可召唤神龙', '召唤 · 魔力',
+    [TIER('召唤士', 10, 5), TIER('召唤王', 20, 5)],
+    { hp: 2.3, mp: 2.8, atk: 0.4, def: 0.8, mag: 1.6, spd: 1.0 }, { hp: 6, mp: 10, atk: 1, def: 2, mag: 3, spd: 1 },
+    [[10, 'sumWater'], [12, 'sumFire'], [14, 'sumWind'], [16, 'silence'], [19, 'sumDemon'], [22, 'vortex'], [25, 'sumTurtle'], [28, 'sumDragon']], { maxSummons: 2 }) });
+Object.assign(CLASSES.hawk, { aLabel: '鹰战之道', aDesc: '空中近战的勇士', aFocus: '攻击 · 速度',
+  alt: ALT(1, 'hawkman_b', '风鹰之道', '驾驭风雷的鹰族术士', '魔力 · 范围',
+    [TIER('风鹰术士', 10, 7, 'fly', [1, 2]), TIER('风暴之翼', 20, 7, 'fly', [1, 2])],
+    { hp: 2.4, mp: 1.8, atk: 1.1, def: 0.8, mag: 1.5, spd: 1.4 }, { hp: 4, mp: 6, atk: 1, def: 1, mag: 3, spd: 2 },
+    [[10, 'tornado'], [12, 'thunder'], [14, 'haste'], [16, 'lightning'], [24, 'stormThunder']]) });
+Object.assign(CLASSES.wolf, { aLabel: '狼战之道', aDesc: '强韧的狼族战士', aFocus: '攻击 · 生命',
+  alt: ALT(1, 'wolfman_b', '月影之道', '月光下疾驰的狼，速度与暴击惊人', '速度 · 暴击',
+    [TIER('月影狼', 10, 7), TIER('月神狼', 20, 8)],
+    { hp: 2.9, mp: 0.6, atk: 1.8, def: 0.8, mag: 0.3, spd: 1.8 }, { hp: 5, mp: 2, atk: 3, def: 1, mag: 0, spd: 4 },
+    [[10, 'frenzy'], [14, 'moonFang'], [16, 'lunarHowl'], [22, 'moonRush']]) });
+Object.assign(CLASSES.babyDragon, { aLabel: '火龙之道', aDesc: '喷吐烈焰的火龙', aFocus: '攻击 · 火焰',
+  alt: ALT(2, 'dragon_b', '冰龙之道', '冰晶之龙，吐息能冻结敌人', '防御 · 冰冻',
+    [TIER('冰龙', 16, 6, 'fly', [1, 2]), TIER('冰晶龙王', 24, 7, 'fly', [1, 2])],
+    { hp: 3.6, mp: 1.0, atk: 1.5, def: 1.4, mag: 1.2, spd: 1.0 }, { hp: 8, mp: 2, atk: 3, def: 3, mag: 2, spd: 1 },
+    [[16, 'breathIce'], [18, 'freezeWave'], [22, 'freeze'], [28, 'blizzard']]) });
 const KIND_ALIAS = { wolfman: 'wolf', hawkman: 'hawk' };
 // 被视为「黑暗」的类别（圣光术双倍伤害）
 const DARK_TYPES = ['魔族', '黑暗系'];

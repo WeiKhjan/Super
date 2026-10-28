@@ -22,10 +22,10 @@ function promoResize() {
 
 async function promoteAnim(u, fromTier) {
   if (AUTO || !OPT.anim) return;
-  const toTier = u.tier, tiers = clsOf(u).tiers;
-  const oldDef = tiers[Math.min(fromTier, tiers.length - 1)], newDef = tierDef(u);
-  const sprOld = getSprite(spriteKey(u), fromTier, u.team, u.hair, u.color || u.element);
-  const sprNew = unitSprite(u);
+  const toTier = u.tier, newDef = tierDef(u), sprNew = unitSprite(u);
+  u.tier = fromTier; // 旧职阶（分支前用 A 路线的外观）
+  const oldDef = tierDef(u), sprOld = unitSprite(u);
+  u.tier = toTier;
 
   // 1) 地图上：旧形象被光柱包围
   u.tier = fromTier;

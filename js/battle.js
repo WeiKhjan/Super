@@ -29,7 +29,11 @@ function tierForLevel(cls, lv) {
   tiers.forEach((x, i) => { if (lv >= x.lv) t = i; });
   return t;
 }
-const tierDef = u => clsOf(u).tiers[Math.min(u.tier, clsOf(u).tiers.length - 1)];
+// 转职分支：B 路线单位在分支阶之后使用 alt 的职阶、成长与招式
+const altOf = u => { const a = clsOf(u).alt; return a && u.path === 'b' && u.tier >= a.at ? a : null; };
+const branchLv = C => C.alt ? C.tiers[C.alt.at].lv : 99;
+const growthOf = u => (altOf(u) || clsOf(u)).growth;
+const tierDef = u => { const a = altOf(u); return a ? a.tiers[Math.min(u.tier - a.at, a.tiers.length - 1)] : clsOf(u).tiers[Math.min(u.tier, clsOf(u).tiers.length - 1)]; };
 const className = u => tierDef(u).name;
 const itemStat = (id, k) => (id && ITEMS[id] && ITEMS[id][k]) || 0;
 const gear = (u, k) => itemStat(u.weapon, k) + itemStat(u.armor, k) + itemStat(u.acc, k);
@@ -51,11 +55,12 @@ const typeOf = u => clsOf(u).type;
 const isFlying = u => moveTypeOf(u) === 'fly';
 const hasStatus = (u, s) => !!(u.status && u.status[s] > 0);
 const canAct = u => !hasStatus(u, 'petrify') && !hasStatus(u, 'freeze') && !hasStatus(u, 'blind');
-const spriteKey = u => clsOf(u).sprite;
+const spriteKey = u => (altOf(u) || clsOf(u)).sprite;
 
 function skillsOf(u) {
-  const C = clsOf(u);
-  let list = C.skills.slice();
+  const C = clsOf(u), A = u.path === 'b' && C.alt;
+  // B 路线：分支等级之后的职业招式改为 B 路线的招式
+  let list = A ? C.skills.filter(s => s[0] < branchLv(C)).concat(C.alt.skills) : C.skills.slice();
   if (u.element && SHAMAN_SKILLS[u.element]) list = list.concat(SHAMAN_SKILLS[u.element]);
   if (u.cls === 'dragon' && u.color && DRAGON_BREATH[u.color]) list = list.filter(s => s[1] !== 'breathFire').concat([[1, DRAGON_BREATH[u.color]]]);
   const h = u.id && HEROES[u.id];
@@ -72,7 +77,7 @@ function skillsOf(u) {
   return out;
 }
 function canUseWeapon(u, itemId) {
-  const it = ITEMS[itemId], w = clsOf(u).weapon;
+  const it = ITEMS[itemId], w = (altOf(u) && altOf(u).weapon) || clsOf(u).weapon;
   return !!(it && it.type === 'weapon' && w && w.includes(it.kind));
 }
 
@@ -88,7 +93,7 @@ function advMult(a, d) {
 // =====================================================================
 // 英雄数据（存档中的成长）与单位生成
 // =====================================================================
-const PERSIST_FIELDS = ['lv', 'exp', 'tier', 'mhp', 'mmp', 'atk', 'def', 'mag', 'spd', 'weapon', 'armor', 'acc'];
+const PERSIST_FIELDS = ['lv', 'exp', 'tier', 'path', 'mhp', 'mmp', 'atk', 'def', 'mag', 'spd', 'weapon', 'armor', 'acc'];
 function heroData(id, minLv) {
   const h = HEROES[id], C = CLASSES[h.cls];
   const d = {
@@ -128,6 +133,12 @@ function makeMonster(kind, lv, opts) {
   }
   u.weapon = weaponFor(cls, lv); u.armor = null; u.acc = null;
   Object.assign(u, opts || {});
+  // 敌方单位过了分支阶时，约三分之一走 B 路线（首领除外，可由关卡指定 path）
+  if (C.alt && tier >= C.alt.at && !u.path) u.path = !u.boss && Math.random() < 0.35 ? 'b' : 'a';
+  if (u.path === 'b' && C.alt && tier >= C.alt.at) {
+    const n = Math.max(0, slv - branchLv(C));
+    for (const k of STATS) { const f = k === 'hp' ? 'mhp' : k === 'mp' ? 'mmp' : k; u[f] = Math.max(k === 'hp' ? 1 : 0, Math.round(u[f] + (C.alt.growth[k] - C.growth[k]) * n + ((C.alt.promo[k] || 0) - ((C.promo && C.promo[k]) || 0)))); }
+  }
   if (kind === 'villager' && !(opts && opts.ai)) u.ai = 'guard';
   // 杂兵比同等级英雄弱一些；首领更强
   if (u.boss) { u.mhp = Math.round(u.mhp * 1.3); u.mmp = Math.max(u.mmp, 20); }
@@ -136,7 +147,7 @@ function makeMonster(kind, lv, opts) {
   if (OPT.easy && (u.team === 'enemy' || u.team === 'rogue')) for (const k of ['mhp', 'atk', 'mag']) u[k] = Math.round(u[k] * 0.85);
   // 施法单位至少有一些 MP
   if (skillsOf(u).some(id => SPELLS[id].mp > 0) && u.mmp < 12) u.mmp = 12 + lv;
-  u.name = u.name || (u.element && SHAMAN_NAME[u.element]) || C.tiers[tier].name;
+  u.name = u.name || (u.element && SHAMAN_NAME[u.element]) || tierDef(u).name;
   u.hp = u.mhp; u.mp = u.mmp;
   return u;
 }
@@ -658,8 +669,51 @@ function modal(title, bodyHtml, buttons, opts) {
     if (opts && opts.onOpen) opts.onOpen(m);
   });
 }
+// 转职分支：显示两条路线让玩家选择（各自的职阶、特色、专属招式与外观预览）
+function pathInfo(C, p) {
+  const at = C.alt.at, bl = branchLv(C);
+  const tiers = p === 'b' ? C.alt.tiers : C.tiers.slice(at);
+  const skills = (p === 'b' ? C.alt.skills : C.skills.filter(s => s[0] >= bl)).filter(s => SPELLS[s[1]]).map(s => SPELLS[s[1]].name);
+  return { tiers, skills: [...new Set(skills)], label: p === 'b' ? C.alt.label : C.aLabel, desc: p === 'b' ? C.alt.desc : C.aDesc, focus: p === 'b' ? C.alt.focus : C.aFocus };
+}
+function pathCardsHtml(C, cur) {
+  return ['a', 'b'].map(p => {
+    const I = pathInfo(C, p);
+    return `<button class="path-card ${cur === p ? 'on' : ''}" data-pick="${p}">
+      <div class="pc-art" data-art="${p}"></div>
+      <div class="pc-label">${esc(I.label)}</div>
+      <div class="pc-tiers">${I.tiers.map(t => esc(t.name)).join(' → ')}</div>
+      <div class="pc-focus">${esc(I.focus || '')}</div>
+      <div class="pc-desc">${esc(I.desc || '')}</div>
+      <div class="pc-skills">${I.skills.map(s => `<span>${esc(s)}</span>`).join('')}</div>
+    </button>`;
+  }).join('');
+}
+function fillPathArt(m, u) {
+  const C = clsOf(u), at = C.alt.at;
+  for (const el of m.querySelectorAll('[data-art]')) {
+    const p = el.dataset.art, key = p === 'b' ? C.alt.sprite : C.sprite;
+    const spr = getSprite(key, at, u.team || 'player', u.hair);
+    if (u.id && typeof getPortrait === 'function') {
+      try { const pc = getPortrait(u.id, undefined, at, p); const c = document.createElement('canvas'); c.width = pc.width; c.height = pc.height; c.getContext('2d').drawImage(pc, 0, 0); c.className = 'pix pc-port'; el.appendChild(c); } catch (e) { }
+    }
+    const c = document.createElement('canvas'); c.width = spr.width; c.height = spr.height; c.getContext('2d').drawImage(spr, 0, 0); c.className = 'pix pc-spr'; el.appendChild(c);
+  }
+}
+async function choosePath(u) {
+  const C = clsOf(u);
+  sfx('charge');
+  const p = await modal(`${esc(u.name)} 的转职之路`, `<p class="dim small">到达 Lv ${branchLv(C)}，请选择今后的道路（选择后不可更改）。</p><div class="path-cards">${pathCardsHtml(C)}</div>`, [], { wide: true, onOpen: m => fillPathArt(m, u) });
+  return p === 'b' ? 'b' : 'a';
+}
 // 立绘：优先使用 portraits.js 的手绘风半身像（64×72），没有时退回放大的单位精灵
 // 英雄当前的职阶（战斗中以场上单位为准，否则看存档）——立绘随转职换装
+function heroPath(id) {
+  const u = B && B.units && B.units.find(o => o.id === id);
+  if (u) return u.path;
+  const d = typeof S !== 'undefined' && S && S.roster && S.roster[id];
+  return d ? d.path : undefined;
+}
 function heroTier(id) {
   const u = B && B.units && B.units.find(o => o.id === id);
   if (u) return u.tier;
@@ -671,7 +725,7 @@ function portraitCanvas(who, size, variant) {
   let src = null;
   if (typeof getPortrait === 'function') {
     const enemy = who.startsWith('enemy:');
-    try { src = getPortrait(who, variant, enemy ? undefined : heroTier(who)); } catch (e) { src = null; }
+    try { src = getPortrait(who, variant, enemy ? undefined : heroTier(who), enemy ? undefined : heroPath(who)); } catch (e) { src = null; }
   }
   if (!src) {
     if (who.startsWith('enemy:')) { const k = who.slice(6), cls = KIND_ALIAS[k] || k; if (CLASSES[cls]) src = getSprite(CLASSES[cls].sprite, 0, 'enemy'); }
@@ -930,6 +984,18 @@ async function gainExp(u, amt) {
   while (u.exp >= 100 && u.lv < LEVEL_CAP) {
     u.exp -= 100;
     const r = levelUp(u);
+    if (r.choose) {
+      // 转职分支：玩家选择路线（自动对战默认 A 路线，测试可设 window.__pathB）
+      const before = new Set(skillsOf(u));
+      u.path = AUTO || u.team !== 'player' ? (window.__pathB ? 'b' : 'a') : await choosePath(u);
+      const P = (altOf(u) || clsOf(u)).promo || {};
+      for (const k of STATS) {
+        const v = P[k] || 0; r.gains[k] += v;
+        if (k === 'hp') { u.mhp += v; u.hp += v; } else if (k === 'mp') { u.mmp += v; u.mp += v; } else u[k] += v;
+      }
+      r.newSkills = skillsOf(u).filter(s => !before.has(s) || r.newSkills.includes(s));
+      if (u.weapon && !canUseWeapon(u, u.weapon)) u.weapon = null;
+    }
     if (!AUTO) {
       if (r.promoted && typeof promoteAnim === 'function') await promoteAnim(u, r.from);
       sfx('levelup');
@@ -946,21 +1012,25 @@ function levelUp(u) {
   const C = clsOf(u), before = new Set(skillsOf(u));
   u.lv++;
   const gains = {};
-  for (const k of STATS) { const g = C.growth[k]; gains[k] = Math.floor(g) + (Math.random() < g % 1 ? 1 : 0); }
+  const G = growthOf(u);
+  for (const k of STATS) { const g = G[k]; gains[k] = Math.floor(g) + (Math.random() < g % 1 ? 1 : 0); }
   const from = u.tier, nt = tierForLevel(u.cls, u.lv), promoted = nt > u.tier;
-  if (promoted) { u.tier = nt; for (const k of STATS) gains[k] += (C.promo && C.promo[k]) || 0; }
+  // 到达分支阶且尚未选择路线：先不加转职奖励，等玩家选完再加
+  const choose = promoted && C.alt && nt === C.alt.at && !u.path;
+  if (promoted) { u.tier = nt; if (!choose) { const P = (altOf(u) || C).promo; for (const k of STATS) gains[k] += (P && P[k]) || 0; } }
   for (const k of STATS) {
     if (k === 'hp') { u.mhp += gains.hp; u.hp += gains.hp; }
     else if (k === 'mp') { u.mmp += gains.mp; u.mp += gains.mp; }
     else u[k] += gains[k];
   }
   const newSkills = skillsOf(u).filter(s => !before.has(s));
-  return { gains, promoted, from, newSkills };
+  return { gains, promoted, from, newSkills, choose };
 }
 
 // ---------- 法术目标 ----------
 function areaTiles(x, y, r) { return tilesInRange(x, y, 0, r); }
-const friendlySpell = sp => ['heal', 'buff', 'cure'].includes(sp.kind);
+const friendlySpell = sp => ['heal', 'buff', 'cure', 'refresh'].includes(sp.kind);
+const maxSummons = u => (altOf(u) && altOf(u).maxSummons) || 1;
 function spellAffected(u, spId, x, y) {
   const sp = SPELLS[spId];
   const tiles = spellCells(u, sp, x, y);
@@ -978,7 +1048,7 @@ function canCastNow(u, spId) {
   if (u.mp < sp.mp) return false;
   if (hasStatus(u, 'silence') && sp.school !== '技') return false;
   if (sp.kind === 'pair' && !pairPartner(u)) return false;
-  if (sp.kind === 'summon' && alive().some(o => o.summoner === u.uid)) return false;
+  if (sp.kind === 'summon' && alive().filter(o => o.summoner === u.uid).length >= maxSummons(u)) return false;
   return true;
 }
 function spellTiles(u, spId) {
@@ -992,6 +1062,8 @@ function spellTiles(u, spId) {
       if (passable({ cls: sp.unit, tier: 0 }, t.x, t.y) && !c) out.push(t);
     } else if (sp.kind === 'heal') {
       if (sp.area ? spellAffected(u, spId, t.x, t.y).some(o => o.hp < o.mhp) : (c && !hostile(u, c) && c.hp < c.mhp)) out.push(t);
+    } else if (sp.kind === 'refresh') {
+      if (c && c !== u && !hostile(u, c) && c.acted && canAct(c) && c.team === u.team) out.push(t);
     } else if (sp.kind === 'cure') {
       if (c && !hostile(u, c) && sp.cures.some(s => hasStatus(c, s))) out.push(t);
     } else if (sp.kind === 'buff') {
@@ -1053,6 +1125,11 @@ async function castSpell(u, spId, tx, ty) {
         exp = Math.max(exp, 15);
         break;
       }
+      case 'refresh': {
+        t.acted = false; floatText(t.x, t.y, '再行动！', '#7ad8ff', true);
+        exp = Math.max(exp, 25);
+        break;
+      }
       case 'cure': {
         for (const s of sp.cures) if (t.status[s]) { delete t.status[s]; floatText(t.x, t.y, STATUS_NAME[s] + '解除', '#ffffff'); }
         if (canAct(t) && t.team === B.phase && t !== u && t.acted && t.team === 'player') t.acted = false;
@@ -1085,7 +1162,7 @@ async function castSpell(u, spId, tx, ty) {
         const edge = sp.area && !shaped(sp) && (t.x !== tx || t.y !== ty) ? 0.7 : 1; // 范围法术外圈伤害 70%
         const dmg = Math.max(1, Math.round(c.dmg * edge * (0.9 + Math.random() * 0.2) * (crit ? 1.5 : 1)));
         await applyDamage(u, t, dmg, crit);
-        if (sp.status && t.hp > 0) { t.status[sp.status] = sp.turns + 1; floatText(t.x, t.y - 0.3, STATUS_NAME[sp.status], STATUS_COLOR[sp.status]); }
+        if (sp.status && t.hp > 0 && (!sp.chance || Math.random() * 100 < statusChance(u, t, sp))) { t.status[sp.status] = sp.turns + 1; floatText(t.x, t.y - 0.3, STATUS_NAME[sp.status], STATUS_COLOR[sp.status]); }
         if (hostile(u, t)) exp += expFor(u, t, t.hp <= 0);
       }
     }
@@ -1411,7 +1488,7 @@ async function aiUnit(u) {
     }
     for (const id of skills) {
       const sp = SPELLS[id];
-      if (['heal', 'summon', 'cure', 'buff'].includes(sp.kind)) continue;
+      if (['heal', 'summon', 'cure', 'buff', 'refresh'].includes(sp.kind)) continue;
       for (const t of tilesInRange(st.x, st.y, sp.range[0], sp.range[1])) {
         const c0 = unitAt(t.x, t.y);
         if (!shaped(sp) && (!c0 || !hostile(u, c0))) continue;
@@ -1508,6 +1585,7 @@ function forecastHtml() {
         case 'heal': return `${esc(o.name)} 回复 <em>${Math.min(o.mhp - o.hp, healAmount(u, sp))}</em>`;
         case 'buff': return `${esc(o.name)} ${BUFF_NAME[sp.stat]}提升 ${sp.turns} 回合`;
         case 'cure': return `${esc(o.name)} 解除异常状态`;
+        case 'refresh': return `${esc(o.name)} 本回合可再次行动`;
         case 'debuff': return `${esc(o.name)} ${BUFF_NAME[sp.stat]}下降 ${sp.turns} 回合`;
         case 'status': return `${esc(o.name)} ${STATUS_NAME[sp.status]} 成功率 <em>${statusChance(u, o, sp)}%</em>`;
         case 'death': return `${esc(o.name)} 即死率 <em>${deathChance(u, o, sp)}%</em>`;
