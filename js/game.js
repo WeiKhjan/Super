@@ -55,7 +55,7 @@ async function runStage(idx, opts) {
   const deploy = opts.deploy || defaultDeploy(st);
   if (!opts.skipIntro) { show('battle'); music('story'); await chapterCard(st); }
   startBattle(idx, deploy);
-  if (!opts.skipIntro) await dialog(st.intro);
+  if (!opts.skipIntro || AUTO) await dialog(st.intro); // 自动对战时对白不显示，但仍会处理选项与效果
   if (!AUTO) { const o = objectiveText(); await banner('胜利：' + o.win, '失败：' + o.lose); }
   const result = await battleLoop();
   if (result === 'abort') return;
