@@ -311,6 +311,10 @@ function hairRamp(hex) {
   return r;
 }
 
+SKIN.sea = ['#10283a', '#3a6a8a', '#6aa0b8', '#a8d4e0', '#cceef4', '#f0fcff', '#4a8aa0', '#e0a0b0'];
+SKIN.goblin = ['#142010', '#3a5a24', '#5a8a3a', '#82b058', '#a8d07a', '#d4f0b0', '#5a3a2a', '#a0c080'];
+SKIN.beast = ['#1a1018', '#4a3040', '#7a5868', '#a88898', '#c8aab8', '#ead8e0', '#6a2a3a', '#b07888'];
+SKIN.demonF = ['#1e1028', '#5a4078', '#9a7ab8', '#d0b8e8', '#e8dcf6', '#ffffff', '#a02a6a', '#d090c0'];
 SKIN.snake = ['#142a1c', '#3a6a4a', '#6a9a72', '#a0c8a0', '#c4e0c0', '#e8f8e4', '#6a2a4a', '#c08090'];
 SKIN.ogre = ['#1e2010', '#4e5a2a', '#76844a', '#9eac6a', '#bcc88a', '#dce6b4', '#5a3a2a', '#9a7a5a'];
 
@@ -323,6 +327,9 @@ const EYES = { // Q 版大眼：高瞳、大高光（dy = 相对 ey 的下移行
   girl: {
     near: ['.KKKKKK.', 'KKKKKKKK', 'KKWDDDDK', '.KWHHDDK', '..WHHPIK', '..WDPPIK', '..WIPPIK', '..WIILLK', '...LLLK.', '....kk..'],
     far: ['KKKKKKK', 'KKKKKK', 'KDDDDK', 'KHHDDK', 'KHHPIK', 'KDPPIK', 'KIPPIK', 'KILLIK', '.LLLK.', '..kk..'] },
+  adult: { dy: 1, // 成年（二代回归角色）：眼睛略短
+    near: ['.KKKKKK.', 'KKKKKKKK', '..WHHDDK', '..WHHPIK', '..WDPPIK', '..WIILLK', '...LLLK.', '....kk..'],
+    far: ['KKKKKK', 'KKKKKK', 'KHHDDK', 'KHHPIK', 'KDPPIK', 'KILLIK', '.LLLK.', '..kk..'] },
   sharp: { dy: 1,
     near: ['.KKKKKKK', 'KKKKKKKK', '..WHHDDK', '..WHPPIK', '..WDPPIK', '..WILLLK', '...kkkk.'],
     far: ['KKKKKK', 'KKKKKK', 'KHHDDK', 'KHPPIK', 'KDPPIK', 'KILLLK', '.kkkk.'] },
@@ -373,7 +380,7 @@ function drawHuman(S) {
   TF = HT;
   // 5 耳朵
   if (!S.noEar) {
-    const ear = p.add(ell(F.ear[0], F.ear[1], 2.3, 3.6, -0.15), skin, 'skin');
+    const ear = S.elfEar ? p.add(blob([F.ear[0] + 1.6, F.ear[1] - 3, F.ear[0] - 8, F.ear[1] - 9.5, F.ear[0] - 2, F.ear[1] + 1.5, F.ear[0] + 1, F.ear[1] + 3.6]), skin, 'skin') : p.add(ell(F.ear[0], F.ear[1], 2.3, 3.6, -0.15), skin, 'skin');
     p.shade(ell(F.ear[0] + 0.4, F.ear[1] + 0.4, 1, 2), ear, 2);
     c.ear = ear;
     if (S.earring) { const e = p.add(ell(F.ear[0] - 0.3, F.ear[1] + 4.6, 0.9, 1.1), METAL.gold, 'acc'); }
@@ -536,6 +543,19 @@ const HAIR = {
       hAdd(c, blob([19.5, 24, 21, 16, 30, 12, 40, 14, 44, 22, 40, 21, 30, 20, 23, 22]), { ol: false });
       hLocks(c, [[23, 16, 19.8, 31, 4, -1.5], [25, 16, 28.5, 27.5, 4.5, -1.5], [29, 15, 34.5, 27, 4.5, -1.5], [33, 15, 39.5, 26.5, 4.2, -1],
         [37, 16, 43.5, 27.5, 3.6, -0.5], [41, 19, 44.5, 32, 2.5, 0]]);
+      hShade(c);
+      gloss(c, 31, 25, 13, 11.5, -PI * 0.9, -PI * 0.2, 1.3, 9);
+    },
+  },
+  swept: { // 彦清风：侧分刘海 + 呆毛
+    back(c) {
+      hAdd(c, [ell(31, 24.5, 14.5, 12.5), lock(22, 30, 17, 42, 4.2, 1), lock(40, 30, 45, 41, 4, -1), lock(36, 13, 48, 16, 4.4, -1.5), lock(26, 14, 18, 13, 4, 1), lock(42, 20, 51, 26, 4, -1)]);
+      hShade(c, { d: 0 });
+    },
+    front(c) {
+      hAdd(c, blob([19.5, 24, 21, 16, 30, 12, 40, 14, 44, 22, 40, 21, 30, 20, 23, 22]), { ol: false });
+      hLocks(c, [[22, 17, 19.6, 31, 4.2, -1.5], [24, 16, 26, 27.5, 4.6, -2.5], [28, 15, 32.5, 26.5, 4.6, -2.5], [32, 15, 38.5, 25, 4.4, -2], [36, 16, 42.5, 25.5, 3.8, -1.5], [40.5, 19, 44.6, 31, 2.6, 0]]);
+      hLocks(c, [[30, 13, 35, 4, 2.6, -2.4, 0.4]]);
       hShade(c);
       gloss(c, 31, 25, 13, 11.5, -PI * 0.9, -PI * 0.2, 1.3, 9);
     },
@@ -1401,6 +1421,12 @@ function enemyHuman(kind, v) {
       scar: c => { c.p.line([c.F.fx + 1, c.F.ey + 4, c.F.fx + 5, c.F.ey + 9], c.face, 1, true); } },
     banditRider: { face: 'man', skin: 'tan', hair: '#3a2a1a', iris: '#3a2a1a', eyes: 'fierce', brow: 'angry', mouth: 'none', nose: 'none', body: 'rags', cloth: vc || '#a88a5a', trim: '#6a4a2a', strap: true, head: 'turban', band: '#d8c8a0' },
     villager: { face: 'm', skin: 'warm', hair: '#5a3a1e', hairStyle: 'short', iris: '#5a3a1e', eyes: 'hero', brow: 'worried', mouth: 'neutral', body: 'rags', cloth: vc || '#8a7a5a', trim: '#a89870' },
+    assassin: { face: 'man', skin: 'warm', hair: '#1a1a22', hairStyle: 'short', iris: '#c02020', eyes: 'sharp', brow: 'angry', mouth: 'none', nose: 'none', body: 'samurai', cloth: vc || '#2a1a1e', armor: '#3a2a30', headBack: 'hood', head: ['hood', HB.ninjaMask('#2a1a1e')], hood: vc || '#3a1a22', back: GB.twinBlades(STEEL) },
+    siren: { face: 'f', skin: 'sea', hair: vc || '#2ab0a0', hairStyle: 'wavy', iris: '#f0d020', eyes: 'girl', brow: 'soft', mouth: 'lips', body: 'princess', cloth: '#1e6a7a', trim: '#0e3a4a', head: HG2.shellCrown, earring: true, elfEar: true },
+    goblin: { face: 'broad', skin: 'goblin', hairStyle: 'bald', iris: '#f0c020', eyes: 'fierce', brow: 'angry', thickBrow: true, mouth: 'grin', nose: 'big', body: 'rags', cloth: vc || '#6a5a3a', trim: '#4a3a2a', strap: true, elfEar: true, blush: false,
+      scar: c => { c.p.line([c.F.fx + 1, c.F.ey - 2, c.F.fx + 4, c.F.ey + 3], c.face, 1, true); } },
+    beastKing: { face: 'broad', skin: 'beast', hair: '#7a3a12', hairStyle: 'wild', iris: '#ff3020', eyes: 'glow', brow: 'angry', thickBrow: true, mouth: 'teeth', nose: 'big', body: 'regal', cloth: '#2a0e14', head: [HG.hoodHorns('#3a2a20'), 'crown'], back: GEAR.aura('#ff3020'), bg: BG_DARK, blush: false },
+    revengeDemon: { face: 'f', skin: 'demonF', hair: '#1e1a2a', hairStyle: 'wavy', iris: '#ff40c0', eyes: 'glow', brow: 'angry', mouth: 'lips', body: 'princess', cloth: '#1a0818', trim: '#0e0814', earring: true, head: [HG.hoodHorns('#2a0a2a'), HG2.flower('#a01a4a'), HG.circlet(GOLD, '#ff40c0', true)], over: [GEAR.mantle('#14061a', BLOOD)], back: [GEAR.aura('#c040ff'), GB2.batWings('#2a0a30')], bg: BG_DARK, blush: false },
     king: { face: 'old', skin: 'warm', hair: '#6a6470', hairStyle: 'mane', iris: '#8a2a1a', eyes: 'fierce', brow: 'angry', thickBrow: true, mouth: 'frown', nose: 'hook', beard: 'full', body: 'regal', cloth: vc || '#8a1a2a', head: 'crown', lines: c => oldLines(c, false), bg: BG_DARK },
   }[kind];
   return S || null;
@@ -2459,12 +2485,14 @@ function heroTier(id, tier) {
 // =====================================================================
 // 转职分支 B 路线：getPortrait(id, variant, tier, 'b')，tier >= 分支阶 at 时生效
 // =====================================================================
-const BRANCH_AT = { swordsman: 2, knight: 2, fighter: 2, samurai: 2, archer: 2, priest: 2, mage: 2, sorcerer: 1, hawk: 1, wolf: 1, babyDragon: 2 };
+const BRANCH_AT = { adventurer: 2, swordsman: 2, knight: 2, fighter: 2, samurai: 2, archer: 2, priest: 2, mage: 2, sorcerer: 1, hawk: 1, wolf: 1, babyDragon: 2 };
 const HERO_CLS = { oz: 'swordsman', yangtie: 'knight', kaidi: 'knight', klein: 'fighter', augustus: 'fighter', slade: 'samurai', judy: 'archer', hake: 'archer',
   xueer: 'priest', qu: 'priest', wushuang: 'mage', lian: 'mage', hao: 'sorcerer', dvra: 'hawk', kampeite: 'wolf', lala: 'babyDragon' };
 function branchAt(id) {
   try { const a = CLASSES[HEROES[id].cls].alt; if (a && a.at != null) return a.at; } catch (e) { /* data.js 尚无 alt */ }
-  const k = HERO_CLS[id]; return k == null ? null : BRANCH_AT[k];
+  const k = G2_HEROES[id] && !HERO_SPECS[id] ? g2Cls(id) : HERO_CLS[id];
+  try { const a = CLASSES[k].alt; if (a && a.at != null) return a.at; } catch (e) { /* 无 CLASSES */ }
+  return k == null || BRANCH_AT[k] == null ? null : BRANCH_AT[k];
 }
 const ARCANE = ['#0c0820', '#261a52', '#3e2e84', '#6250b4', '#a090e0', '#ece6ff'];
 const IVORY = ['#241e2c', '#6a6278', '#a8a2b8', '#e2deec', '#f6f4fc', '#ffffff'];
@@ -2768,6 +2796,267 @@ function branchSpec(id, tier) {
 }
 
 // =====================================================================
+// 超时空英雄传说 2：复仇魔神 —— 新英雄（外观随当前职业 HEROES[id].cls 与阶数变化）
+// =====================================================================
+const g2Active = () => typeof CUR_CAMPAIGN !== 'undefined' && CUR_CAMPAIGN === 'g2';
+// —— 二代新增头饰 / 装饰 ——
+const HG2 = {
+  // 芙蓉花（发侧）
+  flower: (col, x, y) => c => {
+    const { p } = c; x = x || 42; y = y || 16;
+    for (let i = 0; i < 5; i++) { const a = -PI / 2 + i * PI * 0.4; piece(c, ell(x + Math.cos(a) * 2.6, y + Math.sin(a) * 2.6, 2.2, 1.7, a), rp(col), 'flower', { s: 1, hl: 1 }); }
+    const ctr = piece(c, ell(x, y, 1.3, 1.3), rp('#f8d040'), 'acc', { s: 0, hl: 1 }); p.px(x - 0.3, y - 0.3, ctr, 5);
+  },
+  // 叶冠（精灵）：big = 加花与金叶
+  leafCrown: (col, flower, big) => c => {
+    const lf = rp(col);
+    for (let i = 0; i < (big ? 9 : 7); i++) { const t = i / ((big ? 9 : 7) - 1), x = 19 + t * 24.5, y = 20.5 - Math.sin(t * PI) * 3; piece(c, lock(x, y + 1, x + (t - 0.5) * 5, y - (big ? 6 : 4.2), 2.4, (t - 0.5) * 2, 0.2), lf, 'leaf', { s: 1, d: 0, hl: 1 }); }
+    piece(c, blob([19.4, 20.6, 31, 18.6, 43.4, 20.2, 43.4, 22.2, 31, 20.6, 19.4, 22.6]), rp('#6a4a22'), 'acc', { s: 0, hl: 1 });
+    if (flower) for (const x of big ? [22, 31, 40] : [24, 38]) { const f = piece(c, ell(x, 19.4, 1.8, 1.8), rp(flower), 'flower', { s: 0, hl: 1 }); c.p.px(x, 19, f, 5); }
+    if (big) { const g = piece(c, ell(31, 15.5, 1.6, 2), METAL.gold, 'metal', { s: 0, hl: 1 }); }
+    c.p.cast('leaf', ['skin', 'hair'], 0, 1, 2, 3);
+  },
+  // 贝壳冠（海妖）
+  shellCrown: c => {
+    piece(c, blob([25, 20, 26, 12, 31, 9, 36, 12, 37, 20, 31, 21.5]), rp('#f4c8d8'), 'acc', { s: 1, hl: 1 });
+    for (const x of [28, 31, 34]) c.p.line([31, 20.5, x, 11], 'acc', 2, true);
+    for (const x of [21, 41]) piece(c, ell(x, 21, 1.4, 1.4), rp('#f4f8ff', { lit: 0.5 }), 'acc', { s: 0, hl: 1 });
+  },
+};
+const GB2 = {
+  // 蝙蝠翼（背后）
+  batWings: (col) => c => {
+    for (const d of [-1, 1]) {
+      const X = (x) => 31.5 + d * x;
+      const id = piece(c, poly([X(14), 58, X(22), 30, X(34), 14, X(36), 30, X(31), 34, X(34), 44, X(28), 46, X(30), 56, X(22), 58]), rp(col), 'wing', { s: 2, d: 0, hl: 1 });
+      for (const [a, b] of [[34, 14], [31, 34], [28, 46]]) c.p.line([X(16), 56, X(a), b], id, 1, true);
+    }
+  },
+  // 金甲虫护符（蛊术）
+  beetle: (col) => c => {
+    const b = piece(c, ell(31.5, 64.5, 3.2, 3.8), rp(col), 'acc', { s: 1, hl: 1 });
+    c.p.line([31.5, 61, 31.5, 68], b, 1, true);
+    piece(c, ell(31.5, 60.4, 1.8, 1.4), METAL.gold, 'acc', { s: 0, hl: 1 });
+    for (const [x0, y0, x1, y1] of [[28.5, 63, 26, 61], [34.5, 63, 37, 61], [28.5, 66, 26, 68], [34.5, 66, 37, 68]]) c.p.line([x0, y0, x1, y1], c.p.obj(METAL.gold, 'acc', { ol: false }), 2);
+  },
+};
+const bk = (k, ...f) => f.concat(k.w ? [k.w] : []);
+const HSO = [19.5, 44, 19.5, 26, 24, 19, 31, 17.5, 38.5, 19, 43.5, 26, 43, 42, 37, 49, 31, 51, 25, 49];
+const DRAGON_M = ['#1a0606', '#5a1210', '#8a2018', '#b83a22', '#e07040', '#ffc080'];
+const BLUE = '#2a4aa8';
+// —— 一代职业的通用外观（按英雄主色 k 着色）——
+const CLASS_A = {
+  swordsman: k => [
+    {},
+    { over: [GEAR.pauldrons(STEEL, 'L'), GEAR.bracer(STEEL)], head: 'headband', band: k.c, bandPlate: true },
+    { body: 'lightArmor', cloth: k.c, metal: SILVER, over: [GEAR.strap('#6a4020')], head: 'headband', band: k.c, bandPlate: SILVER, back: SW(52, 36, SILVER) },
+    { body: 'lightArmor', cloth: k.c, metal: GOLD, over: [GEAR.mantle(k.c, GOLD, 'L'), GEAR.pauldrons(GOLD, 'R')], head: HG.circlet(GOLD, k.g), back: [GEAR.cape(k.c), SW(52, 36, SILVER, GOLD)] },
+    { body: 'plate', metal: GOLD, cape: k.d, over: [GEAR.mantle('#f0ece0', GOLD), GEAR.pauldrons(GOLD, null, true), GEAR.emblem(k.g, 31.5, 66, 2.8)], head: HG.circlet(GOLD, k.g, true), back: [GEAR.aura('#f4d468'), GEAR.cape(k.d, GOLD), SW(52, 36, SILVER, GOLD)] },
+  ],
+  knight: k => [
+    {},
+    { over: [GEAR.mantle(k.c, null, 'L')], head: HG.circlet(STEEL) },
+    { body: 'plate', metal: STEEL, cape: k.c, head: 'kettle', nasal: false, crest: k.t, back: GEAR.cape(k.c) },
+    { body: 'plate', metal: SILVER, cape: k.c, over: [GEAR.mantle(k.c, SILVER, 'L')], head: 'plumeHelm', plume: '#f0f0f8', helmWings: '#f4f4fc', back: GEAR.cape(k.c, SILVER) },
+    { body: 'plate', metal: SILVER, cape: k.d, over: [GEAR.mantle(k.d, GOLD), GEAR.pauldrons(GOLD, null, true), GEAR.emblem(k.g)], head: 'plumeHelm', helmMetal: GOLD, helmBand: SILVER, helmRidge: SILVER, helmHorns: '#f4ecd8', helmGem: k.g, plume: k.t, back: GEAR.cape(k.d, GOLD) },
+  ],
+  fighter: k => [
+    {},
+    { over: [GEAR.xstrap(), GEAR.pauldrons(STEEL, 'R'), GEAR.bracer(STEEL)] },
+    { body: 'plate', metal: STEEL, torso: 'broad', over: [GEAR.tabard('#eeeaf0')] },
+    { body: 'plate', metal: SILVER, torso: 'broad', cape: '#f0eef6', over: [GEAR.tabard('#f4f2f8'), GEAR.pauldrons(GOLD, 'L'), GEAR.emblem('#f0c020', 31.5, 66, 2.6)], back: bk(k, GEAR.cape('#f0eef6', GOLD)) },
+    { body: 'plate', metal: GOLD, torso: 'broad', cape: k.c, over: [GEAR.mantle(k.c, GOLD), GEAR.pauldrons(GOLD, null, true), GEAR.emblem(k.g, 31.5, 66, 2.8)], back: bk(k, GEAR.aura('#ff8a3a'), GEAR.cape(k.c, GOLD)) },
+  ],
+  archer: k => [
+    {},
+    { head: HG.featherCap(k.c, k.t, 1), back: [bow, quiver] },
+    { over: [GEAR.mantle(k.d, rp('#c8a060'))], head: HG.featherCap(k.c, k.t, 2), back: [bow, quiver] },
+    { body: 'coat', cloth: k.c, epaulette: STEEL, over: [GEAR.crossbow(STEEL), GEAR.pauldrons(STEEL, 'L')], head: HG.featherCap(k.d, k.t, 2, STEEL), back: null },
+    { body: 'coat', cloth: k.d, epaulette: GOLD, over: [GEAR.crossbow(GOLD, '#5a2a1a', true), GEAR.mantle(k.d, GOLD, 'L'), GEAR.emblem(k.g, 31.5, 59, 1.8)], head: HG.featherCap(k.d, k.t, 3, GOLD), back: GEAR.cape(k.d, GOLD) },
+  ],
+  priest: k => [
+    {},
+    { over: [GEAR.stole(k.t)], head: ['hood', HG.hoodGold()] },
+    { over: [GEAR.mantle(k.t, GOLD), GEAR.cross()], head: ['hood', HG.hoodGold(), HG.circlet(GOLD, k.g)] },
+    { body: 'highPriest', trim: k.t, over: [GEAR.mantle('#f4f2f8', GOLD)], head: ['hood', HG.hoodGold(), 'tiara'] },
+    { body: 'highPriest', trim: k.t, over: [GEAR.mantle(k.t, GOLD), GEAR.stars('#fff4b8', [[6, 64], [14, 60.5], [50, 61.5], [57, 66]]), GEAR.cross(true)], head: ['hood', HG.hoodGold(), HG.circlet(GOLD, '#e02a5a', true)], back: GEAR.aura('#fff0a0') },
+  ],
+  mage: k => [
+    { trim: k.c0 },
+    {},
+    { head: HG.mageHat(k.c, k.t) },
+    { over: [GEAR.mantle(k.c, rp(k.t)), GEAR.stars('#fff4b8', [[6, 64], [14, 60.5], [50, 61.5], [57, 66]])], head: HG.mageHat(k.c, GOLD, '#f4e070') },
+    { cloth: k.d, over: [GEAR.mantle(k.d, GOLD), GEAR.stars('#fff4b8', [[6, 64], [14, 60.5], [50, 61.5], [57, 66], [10, 68.5]])], head: HG.mageHat(k.d, GOLD, '#f4e070'), back: [GEAR.aura(k.g), GEAR.collar(k.d, k.c, GOLD)] },
+  ],
+  sorcerer: k => [
+    {},
+    { over: [GEAR.mantle(k.d, rp(k.t))], head: ['hoodShadow', HG.hoodGold(HSO), HG.hoodGem('#c02040')] },
+    { cloth: k.d, over: [GEAR.mantle(k.d, GOLD)], head: ['hoodShadow', HG.hoodGold(HSO), HG.hoodHorns('#d8ccb4'), HG.hoodGem('#ff3040')], back: [GEAR.aura(k.g), GEAR.collar(k.d, '#a01a3a', GOLD)] },
+  ],
+  samurai: k => [
+    {},
+    { over: [GEAR.dou('#3a2a2e')], head: 'headband', band: '#ece8e0' },
+    { over: [GEAR.dou(k.c)], headBack: kabutoBack, head: 'kabuto', helm: '#2a2a3a', kuwa: 'small' },
+    { armor: '#a82228', over: [GEAR.dou('#8a1c22', '#e8c050')], headBack: kabutoBack, head: 'kabuto', helm: '#2a2a3a', kuwa: 'big' },
+    { armor: '#1e1e28', over: [GEAR.jinbaori('#b01e24', GOLD), GEAR.dou('#1e1e28', '#e8c050')], headBack: kabutoBack, head: 'kabuto', helm: '#1a1a24', kuwa: 'grand', back: bk(k, GEAR.aura('#f07030')) },
+  ],
+  // —— 二代职业 ——
+  adventurer: k => [
+    {},
+    { body: 'lightArmor', cloth: BLUE, metal: STEEL, over: [GEAR.mantle(BLUE, null, 'L')], head: HG.circlet(STEEL), back: [GEAR.cape(BLUE), SW(52, 36, STEEL)] },
+    { body: 'plate', metal: STEEL, cape: BLUE, over: [GEAR.mantle(BLUE, SILVER, 'L'), GEAR.pauldrons(STEEL, 'R', true), GEAR.strap('#5a3418')], head: 'headband', band: BLUE, bandPlate: SILVER, back: [GEAR.cape(BLUE, SILVER), SW(52, 36, SILVER, GOLD)] },
+    { body: 'plate', metal: SILVER, cape: BLUE, over: [GEAR.mantle(BLUE, GOLD), GEAR.pauldrons(GOLD, null, true), GEAR.emblem('#3a8ae0', 31.5, 66, 2.8)], head: HG.circlet(GOLD, '#3a8ae0', true), back: [GEAR.aura('#f4d468'), GEAR.cape(BLUE, GOLD), SW(52, 36, ['#1a2a40', '#6a9ad0', '#a8d0f8', '#e0f4ff', '#ffffff', '#ffffff'], GOLD)] },
+  ],
+  lordmage: k => [
+    { body: 'mageRobe', cloth: BLUE, trim: '#eae6f0', over: [GEAR.strap('#5a3418')], back: SW(52, 36) },
+    { body: 'regal', cloth: BLUE, over: [GEAR.emblem('#3a8ae0', 31.5, 62, 2)], head: HG.circlet(GOLD, '#3a8ae0'), back: [GEAR.cape(BLUE, GOLD), SW(52, 36, SILVER, GOLD)] },
+    { body: 'highPriest', trim: BLUE, over: [GEAR.mantle('#f4f2f8', GOLD), GEAR.stars('#fff4b8', [[6, 64], [14, 60.5], [50, 61.5], [57, 66]])], head: HG.circlet(GOLD, '#3a8ae0', true), back: [GEAR.aura('#fff0a0'), GEAR.cape('#f4f2f8', GOLD)] },
+  ],
+  whiteKnight: k => [
+    {},
+    { over: [GEAR.mantle('#f4f2f8', GOLD, 'L'), GEAR.emblem('#d02a3a')], head: HG.circlet(GOLD, '#d02a3a'), back: GEAR.cape('#f4f2f8', GOLD) },
+    { over: [GEAR.mantle('#2a3a8a', GOLD), GEAR.pauldrons(GOLD, null, true), GEAR.emblem('#d02a3a')], head: HG.circlet(GOLD, '#d02a3a', true), back: GEAR.cape('#2a3a8a', GOLD) },
+    { metal: IVORY, over: [GEAR.mantle('#4a2a8a', GOLD), GEAR.pauldrons(GOLD, null, true), GEAR.emblem('#a040f0', 31.5, 66, 2.8), GB.wisps('#c080ff', [[6, 30], [58, 50], [4, 46]])], head: HG.circlet(GOLD, '#a040f0', true), back: [GEAR.aura('#c080ff'), GEAR.cape('#4a2a8a', GOLD)] },
+  ],
+  illusionist: k => [
+    {},
+    { over: [GEAR.mantle('#2a1030', rp('#c02a6a'))], head: [HG2.flower('#f070a0'), HG.circlet(SILVER, '#c02a6a')] },
+    { cloth: '#2a0e24', trim: '#0e0814', over: [GEAR.mantle('#1a0a1e', GOLD), GB.wisps('#c040ff', [[57, 46], [5, 40]])], head: [HG2.flower('#c02a6a'), HG.circlet(GOLD, '#c02a6a', true)], back: GEAR.collar('#1a0a1e', '#a01a4a', GOLD) },
+    { cloth: '#1a0818', trim: '#0e0814', eyes: 'glow', iris: '#ff40c0', over: [GEAR.mantle('#14061a', BLOOD), GB.wisps('#c040ff', [[57, 46], [5, 40], [58, 26]])], head: [HG.hoodHorns('#9a3a7a'), HG2.flower('#a01a4a')], back: [GEAR.aura('#c040ff'), GB2.batWings('#2a0a30')], bg: BG_DARK },
+  ],
+  windSword: k => [
+    {},
+    { over: [GB.ninjaScarf('#c8e0f8', 1.6)], back: SW(52, 36, SILVER) },
+    { cloth: '#dce6f4', over: [GEAR.mantle('#7aa4d0', SILVER), GB.ninjaScarf('#c8e0f8', 2)], head: HG.circlet(SILVER, '#60c0ff'), back: [SW(52, 36, ICE, SILVER), GB.wisps('#a0e0ff', [[5, 40]])] },
+    { cloth: '#f0f4fa', over: [GEAR.mantle('#f0f4fa', SILVER), GEAR.pauldrons(SILVER, 'L', true), GB.ninjaScarf('#a0d0f8', 2.4)], head: HG.circlet(SILVER, '#60c0ff', true), back: [GEAR.aura('#a0e0ff'), SW(52, 36, ICE, GOLD)] },
+  ],
+  prayer: k => [
+    {},
+    { over: [GEAR.breast(SILVER, '#c02a4a'), GEAR.pauldrons(SILVER)], head: 'tiara' },
+    { body: 'highPriest', trim: '#c02a4a', over: [GEAR.mantle('#c02a4a', GOLD)], head: ['tiara', HG.circlet(GOLD, '#20b0a0')] },
+    { body: 'highPriest', trim: '#d0a030', over: [GEAR.mantle('#f4f2f8', GOLD), GEAR.stars('#fff4b8', [[6, 64], [14, 60.5], [50, 61.5], [57, 66]])], head: ['tiara', HG.circlet(GOLD, '#e02a5a', true)], back: [GEAR.aura('#fff0a0'), c => wings(c, '#f4f4fc', 0.9, 5)] },
+  ],
+  swordMad: k => [
+    {},
+    { over: [GEAR.mantle('#6a0e14', null, 'L'), GEAR.strap('#3a0a0e')], head: 'headband', band: '#8a1a20', back: SW(53, 35, STEEL, METAL.black) },
+    { cloth: '#120e18', over: [GEAR.mantle('#4a0a10', BLOOD), GEAR.pauldrons(METAL.black, 'R', true)], head: 'headband', band: '#1a1a24', bandPlate: BLOOD, bandGem: '#ff3020', back: [GEAR.aura('#c01020'), SW(53, 35, BLOOD, GOLD)] },
+  ],
+  gushi: k => [
+    {},
+    { over: [GEAR.mantle('#2a4a1e', rp('#8a6a2a')), GB.beads('#c8a050'), GB2.beetle('#3a8a2a')], head: ['headband', HB.warpaint('#40a040')] },
+    { cloth: '#1e3a1a', over: [GEAR.mantle('#1e3a1a', GOLD), GB.beads('#f0c040', true), GB2.beetle('#60c030'), GB.wisps('#80ff60', [[57, 46], [5, 40]])], head: [HB.skullHelm(rp('#6a8a3a'), '#c8d890'), HB.warpaint('#40a040')], back: GEAR.aura('#60e040') },
+  ],
+};
+// B 路线（一代职业沿用对应一代英雄的分支造型）
+const B_DONOR = { swordsman: 'oz', knight: 'yangtie', fighter: 'augustus', samurai: 'slade', archer: 'judy', priest: 'xueer', mage: 'lian', sorcerer: 'hao' };
+const CLASS_B = {
+  adventurer: {
+    2: { body: 'plate', metal: IVORY, cape: '#f4f2f8', over: [GEAR.mantle('#f4f2f8', GOLD, 'R'), GEAR.pauldrons(GOLD, 'R', true), GB.shield(rp('#f4f2f8'), GOLD, 'cross')], head: HG.circlet(GOLD, '#3a8ae0'), back: GEAR.cape(BLUE, GOLD) },
+    3: { body: 'plate', metal: DRAGON_M, cape: BLUE, over: [GEAR.pauldrons(GOLD, null, true), GEAR.emblem('#ff6020', 31.5, 66, 2.8)], head: 'plumeHelm', helmMetal: DRAGON_M, helmBand: GOLD, helmRidge: GOLD, helmHorns: '#f4ecd8', helmGem: '#ff6020', plume: '#f0c040', back: [GEAR.aura('#ff8030'), c => wings(c, '#8a2418', 1.1, 6), GEAR.cape(BLUE, GOLD)] },
+  },
+};
+// 二代英雄：base = 第 0 阶造型；cls = 初始职业；k = 配色；a / b = 个人覆盖（按职业）
+const G2_HEROES = {
+  qingfeng: { cls: 'adventurer', lv: 3, k: {},
+    base: { face: 'm', skin: 'fair', hair: '#6a3a1a', hairStyle: 'swept', iris: '#3a6ab0', eyes: 'hero', brow: 'normal', mouth: 'smile', body: 'tunic', cloth: '#a8784a', over: [GEAR.strap('#5a3418'), GEAR.mantle(BLUE, null, 'L')], back: [GEAR.cape(BLUE), SW(52, 36)] } },
+  bai: { cls: 'swordsman', lv: 4, k: { c: '#2a4a8a', d: '#1a2a5a', g: '#3a8ae0' },
+    base: { face: 'man', skin: 'warm', hair: '#2a2430', hairStyle: 'neat', iris: '#3a3a5a', eyes: 'sharp', brow: 'stern', mouth: 'neutral', body: 'strap', cloth: '#2a4a8a', trim: '#e8e4dc', back: SW(52, 36) } },
+  eva: { cls: 'whiteKnight', lv: 4, k: {},
+    base: { face: 'f', skin: 'fair', hair: '#c83a2a', hairStyle: 'wavy', iris: '#2a7a5a', eyes: 'girl', brow: 'stern', mouth: 'small', body: 'plate', metal: SILVER, cape: '#f4f2f8', head: HG.circlet(SILVER, '#d02a3a'), back: GEAR.cape('#f4f2f8') } },
+  nuolu: { cls: 'fighter', lv: 3, k: { c: '#8a3a1a', g: '#d02030', w: GB.bigBlade(STEEL, 'axe') },
+    base: { face: 'broad', skin: 'tan', hair: '#8a5a2a', hairStyle: 'shaggy', iris: '#4a2a1a', eyes: 'sharp', brow: 'stern', thickBrow: true, mouth: 'grin', nose: 'big', beard: 'full', body: 'vest', cloth: '#5a3a24', back: GB.bigBlade(STEEL, 'axe') } },
+  sonia: { cls: 'archer', lv: 3, k: { c: '#6a5a2a', d: '#4a3a1a', t: '#e8c040', g: '#2ab0a0' },
+    base: { face: 'f', skin: 'warm', hair: '#d8a040', hairStyle: 'ponytail', iris: '#2a7a6a', eyes: 'girl', brow: 'normal', mouth: 'smile', blush: true, body: 'archer', cloth: '#6a5a2a', back: bow } },
+  shamanshan: { cls: 'mage', lv: 2, k: { c: '#6a3aa0', d: '#3a1e6a', t: '#f0e8f8', c0: '#8a6ab8', g: '#c080ff' },
+    base: { face: 'f', skin: 'fair', hair: '#4a3a8a', hairStyle: 'bob', iris: '#8a4ad0', eyes: 'girl', brow: 'soft', mouth: 'small', blush: true, body: 'mageRobe', cloth: '#6a3aa0', trim: '#f0e8f8' } },
+  furong: { cls: 'illusionist', lv: 4, k: {},
+    base: { face: 'f', skin: 'pale', hair: '#1e1a2a', hairStyle: 'wavy', iris: '#a02a6a', eyes: 'girl', brow: 'soft', mouth: 'lips', body: 'princess', cloth: '#5a1a3a', trim: '#1a1028', earring: true, head: HG2.flower('#f070a0') } },
+  qili: { cls: 'sorcerer', lv: 9, k: { d: '#2a1e4a', t: '#8a6ab8', g: '#a060f0' },
+    base: { face: 'old', skin: 'old', hair: '#d8d8e8', hairStyle: 'sides', iris: '#5a4a7a', eyes: 'kind', brow: 'worried', thickBrow: true, mouth: 'neutral', nose: 'big', beard: 'long', body: 'sorcerer', cloth: '#3a2a5a', headBack: 'hood', head: 'hoodShadow', hood: '#3e2e62', lines: c => oldLines(c, true) } },
+  qiuyue: { cls: 'windSword', lv: 8, k: {},
+    base: { face: 'f', skin: 'pale', hair: '#d8d0f0', hairStyle: 'hime', iris: '#5a6ac0', eyes: 'sharp', brow: 'stern', mouth: 'neutral', body: 'master', cloth: '#4a6a9a', back: SW(52, 36) } },
+  aifulin: { cls: 'priest', lv: 9, k: { t: '#3a3456', g: '#8a6ae0' },
+    base: { face: 'f', skin: 'fair', hair: '#e8c8a0', hairStyle: 'bob', iris: '#6a8ac0', eyes: 'girl', brow: 'soft', mouth: 'small', blush: true, body: 'priestRobe', cloth: '#2a2630', trim: '#e8e4f0', headBack: 'hood', head: 'hood', hood: '#2a2632' } },
+  laweisi: { cls: 'gushi', lv: 9, k: {},
+    base: { face: 'm', skin: 'tan', hair: '#3a5a3a', hairStyle: 'wild', iris: '#8ac040', eyes: 'sharp', brow: 'normal', mouth: 'smirk', body: 'tunic', cloth: '#3a6a2a', over: [GB.beads('#c8a050')], head: 'headband', band: '#2a5a2a', bandGem: '#c0e040' } },
+  jienuo: { cls: 'knight', lv: 14, k: { c: '#a82a3a', d: '#8a1a28', t: '#e03040', g: '#2a6ae0' },
+    base: { face: 'man', skin: 'warm', hair: '#3a3a5a', hairStyle: 'neat', iris: '#3a4a6a', eyes: 'sharp', brow: 'stern', mouth: 'neutral', body: 'lightArmor', cloth: '#a82a3a' } },
+  xiaoling: { cls: 'sorcerer', lv: 13, k: {},
+    base: { face: 'f', skin: 'fair', hair: '#7ad87a', hairStyle: 'ponytail', iris: '#2a9a5a', eyes: 'girl', brow: 'soft', mouth: 'smile', blush: true, elfEar: true, body: 'mageRobe', cloth: '#3a8a4a', trim: '#e8f4d8', head: HG2.leafCrown('#4aa04a') },
+    a: { sorcerer: [
+      {},
+      { over: [GEAR.mantle('#2a6a3a', rp('#c8e8a0'))], head: HG2.leafCrown('#4aa04a', '#f8a0c0') },
+      { cloth: '#2a6a3a', over: [GEAR.mantle('#1e5a2e', GOLD), GB.wisps('#a0ff80', [[57, 46], [5, 40]])], head: HG2.leafCrown('#5ab05a', '#f8a0c0', true), back: GEAR.aura('#a0ff80') },
+    ] },
+    b: { sorcerer: { 1: { headBack: 'hood', elfEar: false }, 2: { headBack: 'hood', elfEar: false } } } },
+  yilinna: { cls: 'prayer', lv: 14, k: {},
+    base: { face: 'f', skin: 'fair', hair: '#f4d474', hairStyle: 'hime', iris: '#3a7ad8', eyes: 'girl', brow: 'soft', mouth: 'small', blush: true, body: 'priestRobe', cloth: '#f4f2f8', trim: '#c02a4a', head: 'tiara', earring: true } },
+  aiwen: { cls: 'samurai', lv: 17, k: { c: '#4a3a2a', w: SW(52, 36) },
+    base: { face: 'man', skin: 'warm', hair: '#2a2a2a', hairStyle: 'shaggy', iris: '#3a3030', eyes: 'stern', brow: 'stern', mouth: 'neutral', nose: 'long', beard: 'stubble', body: 'samurai', cloth: '#4a3a2a', armor: '#5a4a3a', back: SW(52, 36) } },
+  rentian: { cls: 'mage', lv: 18, k: { c: '#2a3a6a', d: '#1a2448', t: '#c8c0d8', c0: '#4a5a8a', g: '#80a0ff' },
+    base: { face: 'man', skin: 'fair', hair: '#5a6a8a', hairStyle: 'short', iris: '#3a5ab0', eyes: 'sharp', brow: 'normal', mouth: 'neutral', body: 'mageRobe', cloth: '#2a3a6a', trim: '#c8c0d8' } },
+  xingtian: { cls: 'swordMad', lv: 22, k: {},
+    base: { face: 'man', skin: 'pale', hair: '#1a1a24', hairStyle: 'wildLong', iris: '#8a1a2a', eyes: 'sharp', brow: 'stern', mouth: 'neutral', body: 'cloak', cloth: '#1a1a26', back: SW(53, 35, STEEL) } },
+};
+// 二代回归角色：略显成熟（仅二代进行中）
+const G2_OLDER = {
+  judy: { eyes: 'adult', blush: false, mouth: 'small' },
+  dvra: { eyes: 'adult', mouth: 'neutral' },
+  wushuang: { eyes: 'adult', mouth: 'small' },
+  kaidi: { eyes: 'adult', mouth: 'smirk' },
+  yangtie: { eyes: 'stern', brow: 'stern', beard: 'stubble', mouth: 'neutral' },
+};
+function g2Cls(id) {
+  const h = G2_HEROES[id];
+  // 自由转职后以存档里的职业为准
+  const ros = typeof S !== 'undefined' && S && S.roster && S.roster[id];
+  const cur = (ros && ros.cls) || (typeof HEROES !== 'undefined' && HEROES[id] && HEROES[id].cls);
+  return (cur && (CLASS_A[cur] || (h.a && h.a[cur]))) ? cur : h.cls;
+}
+function g2Native(cls, lv) {
+  try { const T = CLASSES[cls].tiers; let t = 0; T.forEach((x, i) => { if (lv >= x.lv) t = i; }); return t; } catch (e) { return 0; }
+}
+function g2Spec(id, tier, path) {
+  const h = G2_HEROES[id], cls = g2Cls(id);
+  const A = (h.a && h.a[cls]) || (CLASS_A[cls] ? CLASS_A[cls](h.k) : [{}]);
+  let lv = h.lv; try { if (HEROES[id] && HEROES[id].lv) lv = HEROES[id].lv; } catch (e) { /* 无 HEROES */ }
+  const t = clamp(tier == null ? g2Native(cls, lv) : tier | 0, 0, A.length - 1);
+  if (path === 'b') {
+    const donor = B_DONOR[cls], bo = CLASS_B[cls] ? CLASS_B[cls][t] : donor && BRANCH_LOOK[donor] && BRANCH_LOOK[donor][t];
+    const bx = h.b && h.b[cls] && h.b[cls][t];
+    if (bo) return Object.assign({}, h.base, bo, bx || {});
+  }
+  return Object.assign({}, h.base, A[t]);
+}
+
+// —— 二代敌人 ——
+function treantHead(v) {
+  const p = mpic();
+  const bark = ramp(vcol(v, '#6a4a2a'), { shift: 8 }), leaf = ramp('#2a6a2a', { lit: 0.3 });
+  // 树冠（簇叶）
+  const blobs = [];
+  for (const [x, y, r] of [[6, 18, 8], [14, 9, 9], [26, 5, 9], [39, 5, 9], [51, 9, 9], [58, 18, 8], [20, 20, 9], [44, 20, 9], [32, 14, 11]]) blobs.push(ell(x, y, r, r * 0.85));
+  mp(p, union(...blobs), leaf, 'leaf', { s: 2, d: 1, hl: 1 });
+  for (const [x, y, r] of [[14, 9, 9], [26, 5, 9], [39, 5, 9], [51, 9, 9], [32, 14, 11]]) p.shade(ell(x - r * 0.3, y - r * 0.35, r * 0.45, r * 0.3), 'leaf', 4);
+  texture(p, ['leaf'], 'scale', 'tl', 0.05);
+  // 枝臂
+  mp(p, union(lock(14, 58, 1, 40, 4, 2, 2), lock(50, 58, 63, 40, 4, -2, 2), lock(4, 44, -1, 36, 2, 0, 1), lock(60, 44, 65, 36, 2, 0, 1)), bark, 'bark', { s: 1, hl: 1 });
+  // 树干（脸）
+  const t = mp(p, blob([10, 74, 13, 50, 14, 30, 20, 20, 32, 17, 44, 20, 50, 30, 51, 50, 54, 74]), bark, 'bark', { s: 3, d: 1, hl: 1, dx: 1, dy: 0.3 });
+  for (const l of [[18, 32, 17, 48, 19, 70], [26, 54, 25, 72], [40, 54, 41, 72], [46, 30, 47, 48, 45, 70]]) p.line(l, t, 1, true);
+  // 眼洞 + 嘴
+  const hole = p.add(rect(0, 0, 0, 0), ['#000000', '#0a0604', '#140c06', '#1e1208', '#3a2810', '#5a4020'], 'hole');
+  p.fill(union(ell(24, 36, 4, 3.6), ell(40, 35.5, 4, 3.6)), hole, 2);
+  p.fill(blob([22, 48, 32, 46, 42, 48, 39, 54, 32, 56, 25, 54]), hole, 1);
+  const g = p.obj(['#203000', '#80c020', '#c0f040', '#f0ff80', '#ffffd0', '#ffffff'], 'glow', { ol: false });
+  for (const [x, y] of [[24, 36], [40, 35.5]]) { p.px(x, y, g, 4); p.px(x + 1, y, g, 3); p.px(x, y + 1, g, 3); p.px(x - 1, y, g, 2); }
+  mp(p, union(ell(10, 20, 3, 2), ell(52, 22, 3, 2)), ramp('#e05a8a'), 'flower', { s: 0, hl: 1 });
+  return p.render(BG);
+}
+MONSTERS.treant = (v) => treantHead(v);
+MONSTERS.silverWolf = (v) => wolfHead(v && v !== 'silver' ? v : '#b8bcd0');
+
+// =====================================================================
 // 对外接口
 // =====================================================================
 const CACHE = {};
@@ -2801,8 +3090,11 @@ function build(id, variant, tier, path) {
     if (hs) return drawHuman(hs);
     return null;
   }
+  if (G2_HEROES[id] && !HERO_SPECS[id]) return drawHuman(g2Spec(id, tier, path));
   const s = heroSpec(id);
   if (!s) return null;
+  const old2 = g2Active() && G2_OLDER[id];
+  if (old2) { const b0 = path === 'b' && branchSpec(id, tier) || tierSpec(id, tier) || s; return drawHuman(Object.assign({}, b0, old2)); }
   if (s.special) return MONSTERS[s.special](variant, true, heroTier(id, tier), path);
   if (path === 'b') { const b = branchSpec(id, tier); if (b) return drawHuman(b); }
   return drawHuman(tierSpec(id, tier) || s);
@@ -2812,7 +3104,9 @@ function build(id, variant, tier, path) {
 function getPortrait(id, variant, tier, path) {
   if (typeof id === 'string' && id.startsWith('enemy:')) tier = null;
   if (path !== 'b' || tier == null || !(tier >= (branchAt(id) == null ? Infinity : branchAt(id)))) path = null;
-  const key = id + '|' + (variant || '') + (tier == null ? '' : '|' + tier) + (path ? '|b' : '');
+  let key = id + '|' + (variant || '') + (tier == null ? '' : '|' + tier) + (path ? '|b' : '');
+  if (g2Active() && G2_OLDER[id]) key += '|g2';
+  if (G2_HEROES[id] && !HERO_SPECS[id]) { key += '|' + g2Cls(id); if (tier == null) { try { key += '|lv' + HEROES[id].lv; } catch (e) { /* 无 HEROES */ } } }
   if (CACHE[key]) return CACHE[key];
   let c = null;
   try { c = build(id, variant, tier, path); } catch (e) { TF = null; if (G.console) console.warn('portrait', id, e); c = null; }
