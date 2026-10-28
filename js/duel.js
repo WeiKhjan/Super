@@ -236,7 +236,7 @@ function duelRender() {
   const order = DUEL.actor === DUEL.left ? [DUEL.right, DUEL.left] : [DUEL.left, DUEL.right];
   const drawn = [];
   for (const u of order) {
-    const st = duelFig(u), isLeft = u === DUEL.left, fB = isLeft ? 1 : -1, s = st.spec.mount ? DUEL.sm : s0;
+    const st = duelFig(u), isLeft = u === DUEL.left, fB = isLeft ? 1 : -1, s = st.spec.scaleK ? Math.max(1, Math.round(s0 * dpr * st.spec.scaleK)) / dpr : st.spec.mount ? DUEL.sm : s0;
     if (st.anim && !st.anim.hold && (now - st.anim.t0) / st.anim.k >= st.anim.dur) st.anim = null;
     const P = duelPose(st, now), f = fB * (P.fl > 0.5 ? -1 : 1);
     const foe = isLeft ? DUEL.right : DUEL.left;
@@ -411,6 +411,15 @@ function duelDrawFx(g, f, p, now, anc, s) {
       g.fillRect(Math.round((x - r) / z) * z, Math.round((y - r) / z) * z, Math.round(2 * r / z) * z, Math.round(2 * r / z) * z);
     }
     g.globalAlpha = 1;
+  } else if (f.type === 'swarm') {
+    // 蛊虫群：一团抖动的小黑虫沿弧线飞向目标
+    if (!f.a) { f.a = anc(f.from, 'tip').slice(); f.b = anc(f.to, 'chest').slice(); f.bugs = Array.from({ length: 22 }, () => [Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 6]); }
+    const x = lerp(f.a[0], f.b[0], p), y = lerp(f.a[1], f.b[1], p) - Math.sin(p * Math.PI) * 14 * s, z = Math.max(1, Math.round(s * 1.2));
+    for (const [bx, by, ph] of f.bugs) {
+      const r = (6 + 4 * Math.sin(now * 0.02 + ph)) * s;
+      g.fillStyle = ph < 1 ? '#7aff7a' : '#1a2414';
+      g.fillRect(Math.round(x + bx * r + Math.sin(now * 0.05 + ph * 3) * 2 * s), Math.round(y + by * r * 0.7 + Math.cos(now * 0.05 + ph) * 2 * s), z, z);
+    }
   } else if (f.type === 'shuriken' || f.type === 'marrow' || f.type === 'clock') {
     if (!f.a) { f.a = anc(f.from, f.type === 'clock' ? 'tip' : f.type === 'marrow' ? 'shot' : 'hand').slice(); f.b = anc(f.to, 'chest').slice(); if (f.dy) { f.a[1] += f.dy * s; f.b[1] += f.dy * s; } }
     const x = lerp(f.a[0], f.b[0], p), y = lerp(f.a[1], f.b[1], p) - (f.type === 'shuriken' ? Math.sin(p * Math.PI) * 6 * s : 0);
@@ -440,7 +449,7 @@ function duelDrawFx(g, f, p, now, anc, s) {
   } else if (f.type === 'shatter') {
     // 击杀：身体碎成像素粒子向上飘散
     if (!f.parts) {
-      const st = duelFig(f.u), sp = st.spec, ft = anc(f.u, 'feet'), tp = anc(f.u, 'top'), s2 = st.spec.mount ? DUEL.sm : s;
+      const st = duelFig(f.u), sp = st.spec, ft = anc(f.u, 'feet'), tp = anc(f.u, 'top'), s2 = (st.spec.mount ? DUEL.sm : s) * (st.spec.scaleK || 1);
       const cols = sp.kind === 'doll' ? [sp.p, sp.skin, (sp.armor && sp.armor.c) || sp.shirt, sp.hair, '#ffffff'] : ['#ffffff', '#c8c8d8', '#8a8a9a'];
       const top = Math.min(tp[1], ft[1] - 20 * s2);
       f.parts = Array.from({ length: 40 }, () => ({ x: ft[0] + (Math.random() * 2 - 1) * 14 * s2, y: top + Math.random() * (ft[1] - top), vx: (Math.random() * 2 - 1) * 40 * s2, vy: -(20 + Math.random() * 70) * s2, c: cols[Math.floor(Math.random() * cols.length)] || '#fff', z: Math.max(2, Math.round(s2 * (1.5 + Math.random() * 1.5))) }));

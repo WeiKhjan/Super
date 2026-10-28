@@ -127,6 +127,9 @@ const DFIG = (() => {
   const HAIR_STYLE = { mengqi: 'spiky', yangtie: 'short', klein: 'spiky', slade: 'topknot', oz: 'short', xueer: 'pony', judy: 'pony', wushuang: 'long', qu: 'bald',
     hao: 'long', lian: 'long', dvra: 'long', liu: 'short', kaidi: 'long', hake: 'short', augustus: 'short', zhangqing: 'long' };
   const BEARD = { qu: 1, hake: 1, augustus: 1, zhangqing: 1 };
+  // 超时空英雄传说2 的英雄发型
+  Object.assign(HAIR_STYLE, { qingfeng: 'spiky', bai: 'short', eva: 'pony', nuolu: 'spiky', sonia: 'pony', shamanshan: 'long', furong: 'long', qili: 'short',
+    qiuyue: 'pony', aifulin: 'long', laweisi: 'short', jienuo: 'short', xiaoling: 'pony', yilinna: 'long', aiwen: 'topknot', rentian: 'short', xingtian: 'long' });
 
   // ---------------- 外观规格：职业系 × 阶级 ----------------
   const SW = (len, c, g, o) => Object.assign({ k: 'sword', len, c, g, grip: C.dLeather }, o);
@@ -242,9 +245,75 @@ const DFIG = (() => {
   };
   LINES.emperor = LINES.king;
 
+  // ---------------- 超时空英雄传说2：新职业系 ----------------
+  Object.assign(LINES, {
+    // 冒险者系（彦清风）：皮背心 → 头带圆盾 → 钢甲阔剑 → 白金英雄铠 + 光剑
+    adventurer: (t, p, q) => [
+      { armor: { t: 'vest', c: C.leather }, cape: { c: '#7a5a2a', c2: '#4a3418', len: 22 }, skirt: { t: 'tunic', c: p }, wpn: SW(17, C.steel, C.dLeather) },
+      { head: { t: 'band', c: p, tail: 1 }, armor: { t: 'leather', c: C.leather, c2: C.dLeather }, pads: { c: C.steel }, cape: { c: p, c2: q, len: 26 }, skirt: { t: 'tunic', c: p }, shield: { s: 'round', c: C.wood, c2: C.iron, e: p }, wpn: SW(19, C.steel, C.dSteel) },
+      { head: { t: 'circlet', c: C.silver, gem: C.cyan }, armor: { t: 'plate', c: C.steel, c2: C.dSteel }, emblem: p, pads: { c: C.steel, big: 1 }, cape: { c: p, c2: q, trim: C.silver }, skirt: { t: 'tassets', c: C.steel, c2: p }, wpn: SW(22, C.blade, C.gold, { big: 1 }) },
+      { head: { t: 'crown', c: C.gold, gem: C.cyan }, armor: { t: 'plate', c: C.white, c2: C.pearl, trim: C.gold }, emblem: p, pads: { c: C.gold, big: 1 }, cape: { c: p, c2: q, trim: C.gold, len: 34 }, skirt: { t: 'tassets', c: C.gold, c2: p }, wpn: SW(25, '#ffffff', C.gold, { big: 1, glow: '#bff0ff' }), aura: '#fff0a0', sparkle: 1 },
+    ][t],
+    // 施法者系：法袍宝石杖 → 领主貂皮披风与王冠 → 白金圣者 + 日轮杖
+    lordmage: (t, p, q) => [
+      { head: { t: 'circlet', c: C.silver, gem: C.cyan }, robe: { c: p, trim: C.silver }, belt: C.brown, wpn: STAFF(30, 'gem', { gem: C.cyan, tc: C.silver }) },
+      { head: { t: 'crown', c: C.gold, gem: C.red }, robe: { c: p, trim: C.gold }, cape: { c: C.dRed, c2: '#5a1018', trim: C.white, ermine: 1, len: 32 }, pads: { c: C.white, ermine: 1 }, belt: C.gold, wpn: STAFF(34, 'orb', { gem: '#ff9a7a', glow: '#ffd8c8', tc: C.gold }) },
+      { head: { t: 'crown', c: C.gold, gem: C.cyan, big: 1 }, robe: { c: C.white, trim: C.gold, sash: p }, mantle: { c: p, trim: C.gold }, cape: { c: C.white, c2: C.pearl, trim: C.gold, len: 36 }, belt: C.gold, halo: 'ring', wpn: STAFF(40, 'sun', { tc: C.gold, wood: C.gold, glow: '#fff6b0' }), aura: '#fff4c0', sparkle: 1 },
+    ][t],
+    // 白骑士系（伊娃，女骑士）：白马枪兵 → 圣殿骑士 → 皇家骑士（旗枪）→ 魔法骑士（紫光魔枪）
+    whiteKnight: (t, p, q) => [
+      { armor: { t: 'leather', c: C.white, c2: C.pearl }, pads: { c: C.silver }, skirt: { t: 'tunic', c: p }, wpn: { k: 'lance', len: 34, c: C.silver }, mount: { t: 'horse', c: '#f4f4f8', m: '#e8dcc0', blanket: p } },
+      { head: { t: 'circlet', c: C.gold, gem: p }, armor: { t: 'plate', c: C.white, c2: C.pearl, trim: C.gold }, emblem: p, pads: { c: C.white, big: 1 }, cape: { c: p, c2: q, len: 24 }, wpn: { k: 'lance', len: 38, c: C.blade, flag: p }, mount: { t: 'horse', c: '#f4f4f8', m: '#e8dcc0', bard: C.white, trim: C.gold, plate: C.silver } },
+      { head: { t: 'crown', c: C.gold, gem: C.cyan }, armor: { t: 'plate', c: C.silver, c2: C.dSteel, trim: C.gold }, emblem: p, pads: { c: C.gold, big: 1 }, cape: { c: p, c2: q, trim: C.gold, len: 26 }, wpn: { k: 'lance', len: 42, c: C.blade, flag: p, banner: 1, gold: 1 }, mount: { t: 'horse', c: '#f6f6fa', m: '#f4c542', bard: p, trim: C.gold, plate: C.gold } },
+      { head: { t: 'crown', c: C.gold, gem: '#c890ff', big: 1 }, armor: { t: 'plate', c: C.white, c2: '#b8a0e0', trim: '#8a5ad8' }, emblem: p, pads: { c: '#8a5ad8', big: 1 }, cape: { c: '#6a3aa8', c2: '#3a1a6a', trim: C.gold, len: 28 }, wpn: { k: 'lance', len: 44, c: '#f0e0ff', flag: p, gold: 1, glow: '#c890ff' }, mount: { t: 'horse', c: '#f6f6fa', m: '#c8a0ff', bard: '#6a3aa8', trim: C.gold, plate: C.silver }, aura: '#c890ff', sparkle: 1 },
+    ][t],
+    // 幻术师系（芙蓉）：紫袍水晶杖 → 高领斗篷 → 小角黑袍 → 幻魔（大角、蝠翼、红光）
+    illusionist: (t, p, q) => [
+      { head: { t: 'circlet', c: C.silver, gem: '#ff70c0' }, robe: { c: '#6a3a8a', trim: p }, belt: p, wpn: STAFF(30, 'crystal', { gem: '#ff90d0' }) },
+      { head: { t: 'circlet', c: C.gold, gem: '#ff70c0' }, robe: { c: '#4a2a6a', trim: C.gold, sash: p }, mantle: { c: '#2a1a40', trim: '#ff70c0', collar: 1 }, belt: C.gold, wpn: STAFF(34, 'orb', { gem: '#ff70c0', glow: '#ffc0e8', tc: C.gold }) },
+      { head: { t: 'horns', c: '#3a2a4a', gem: '#ff3060' }, robe: { c: '#24182e', trim: C.gold, sash: p }, cape: { c: '#5a1028', c2: '#24182e', trim: C.gold, len: 34 }, belt: C.gold, wpn: STAFF(36, 'orb', { gem: '#c040ff', glow: '#e0a0ff', tc: C.gold, wood: '#2a2030' }), aura: '#c060ff', sparkle: 1 },
+      { head: { t: 'horns', c: '#1a1018', big: 1, gem: '#ff2040' }, robe: { c: '#1a0e20', trim: '#ff3060', sash: p }, cape: { c: '#3a0a18', c2: '#14080e', trim: '#ff3060', len: 36 }, bwings: { c: '#2a1430', c2: '#6a1a3a' }, belt: '#ff3060', wpn: STAFF(40, 'orb', { gem: '#ff2040', glow: '#ff90a0', tc: '#ff3060', wood: '#1a1018', big: 1 }), aura: '#ff3080', sparkle: 1 },
+    ][t],
+    // 御风剑士系（秋月，女剑客）：长围巾随风飘动；疾风突进斩
+    windSword: (t, p, q) => [
+      { shirt: '#5aa078', sleeve: '#5aa078', skirt: { t: 'tunic', c: p }, belt: C.brown, scarf: '#d8f4e8', scarfLen: 1.2, wpn: SW(18, C.steel, C.dLeather), style: 'dash' },
+      { head: { t: 'band', c: '#d8f4e8', tail: 1 }, armor: { t: 'leather', c: '#3a7a5a', c2: '#2a5a40' }, shirt: '#5aa078', pads: { c: C.silver }, skirt: { t: 'tunic', c: p }, scarf: '#d8f4e8', scarfLen: 1.6, wpn: SW(20, C.blade, C.silver), style: 'dash' },
+      { head: { t: 'circlet', c: C.silver, gem: '#6af0b0' }, armor: { t: 'tunic', c: C.white }, shirt: C.white, sleeve: C.white, mantle: { c: '#3a8a6a', trim: C.silver }, skirt: { t: 'tunic', c: p }, belt: '#3a8a6a', scarf: '#a8f0d0', scarfLen: 2, wpn: SW(22, '#e8fff4', C.silver, { glow: '#8af0c0' }), trail: '#8af0c0', style: 'dash', sparkle: 1 },
+      { head: { t: 'crown', c: C.gold, gem: '#6af0b0' }, armor: { t: 'plate', c: C.white, c2: C.pearl, trim: C.gold }, emblem: '#3a8a6a', pads: { c: C.gold, big: 1 }, skirt: { t: 'tassets', c: C.white, c2: p }, scarf: '#a8f0d0', scarfLen: 2.6, wpn: SW(25, '#ffffff', C.gold, { glow: '#8af0c0', big: 1 }), trail: '#8af0c0', style: 'dash', aura: '#a0ffd0', sparkle: 1 },
+    ][t],
+    // 祈祷师系（依琳娜，公主祭司）：白袍十字杖 → 神官战士（持枪）→ 大祭司 → 圣女（光环、日轮杖）
+    prayer: (t, p, q) => [
+      { head: { t: 'crown', c: C.gold, gem: C.cyan }, robe: { c: C.white, trim: p }, belt: p, wpn: STAFF(32, 'cross', { tc: C.gold }) },
+      { head: { t: 'circlet', c: C.gold, gem: p }, robe: { c: C.white, trim: C.gold, short: 1 }, pads: { c: C.silver }, pants: C.white, belt: p, wpn: { k: 'lance', len: 34, c: C.blade, flag: p, gold: 1 } },
+      { head: { t: 'crown', c: C.gold, gem: C.cyan, big: 1 }, robe: { c: C.white, trim: C.gold }, mantle: { c: p, trim: C.gold }, cape: { c: C.white, c2: C.pearl, trim: C.gold, len: 34 }, belt: C.gold, wpn: STAFF(36, 'ring', { tc: C.gold, gem: C.cyan }) },
+      { head: { t: 'crown', c: C.gold, gem: C.red, big: 1 }, robe: { c: C.white, trim: C.gold, c2: '#fff4d0', sash: p }, mantle: { c: C.gold, trim: C.white }, cape: { c: C.white, c2: '#fff4d0', trim: C.gold, len: 38 }, wings: { c: C.white, c2: '#fff0b0' }, halo: 'ring', belt: C.gold, wpn: STAFF(40, 'sun', { tc: C.gold, wood: C.gold, glow: '#fff6b0' }), aura: '#fff6c0', sparkle: 1 },
+    ][t],
+    // 剑客系（刑天）：长外套 → 深红外套 → 黑金外套 + 长披风；挥剑放出剑气
+    swordMad: (t, p, q) => [
+      { armor: { t: 'coat', c: '#4a4a5a' }, shirt: p, pants: '#2a2a34', wpn: SW(21, C.steel, C.dIron), style: 'qi' },
+      { armor: { t: 'coat', c: '#7a1a24' }, shirt: p, pads: { c: C.dSteel }, pants: '#2a2a34', wpn: SW(23, C.blade, C.dSteel, { big: 1 }), style: 'qi' },
+      { armor: { t: 'coat', c: '#1e1a24' }, shirt: p, pads: { c: C.gold }, cape: { c: '#1e1a24', c2: p, trim: C.gold, len: 34 }, pants: '#1e1a24', wpn: SW(26, '#ffffff', C.gold, { big: 1, glow: '#a8d8ff' }), style: 'qi', aura: '#a8d8ff', sparkle: 1 },
+    ][t],
+    // 蛊师系（拉维司，部族术士）：羽冠骷髅杖 → 兽皮披肩 → 骨角王冠 + 绿光杖；远程放出蛊虫群
+    gushi: (t, p, q) => [
+      { head: { t: 'headdress', c: '#3a6a3a', c2: '#e8dcc0' }, armor: { t: 'vest', c: '#3a5a3a', bare: 1 }, beads: 1, skirt: { t: 'tunic', c: p }, pants: '#5a4a2a', wpn: STAFF(30, 'skull', { wood: '#6a5a3a', gem: '#7aff7a' }), style: 'gu' },
+      { head: { t: 'headdress', c: '#2a5a2a', c2: '#c8f0a0' }, armor: { t: 'vest', c: '#2a4a2a', bare: 1 }, mantle: { c: '#6a5a3a', trim: '#c8f0a0', fur: 1 }, beads: 1, bracer: C.bone, skirt: { t: 'tunic', c: p }, pants: '#4a3a24', wpn: STAFF(34, 'skull', { wood: '#e8dcc0', gem: '#7aff7a' }), style: 'gu' },
+      { head: { t: 'horns', c: C.bone, gem: '#7aff7a' }, robe: { c: '#1e3a1e', trim: '#7aff7a', sash: p }, cape: { c: '#2a4a1a', c2: '#14240e', trim: C.bone, len: 34 }, beads: 1, wpn: STAFF(38, 'orb', { gem: '#5aff5a', glow: '#b0ffb0', tc: C.bone, wood: '#3a2a1a' }), style: 'gu', aura: '#7aff7a', sparkle: 1 },
+    ][t],
+    // ---- 敌方 ----
+    assassin: (t, p, q) => Object.assign({}, LINES_B.samurai(t ? 3 : 2, p, q), { scarf: p }),
+    treant: (t, p) => ({ skin: '#9a7a4e', hair: '#4a9a3a', hs: 'short', eyeC: '#2a6a1a', shirt: '#6a4a2a', sleeve: '#7a5a3a', belt: p, pants: '#5a3a1a', boots: '#3a2410', wpn: { k: 'claw', c: '#5a3a1a', big: 1 }, scaleK: 1.15 }),
+    goblin: (t, p) => ({ skin: '#7ab04a', hs: 'bald', head: { t: 'cap', c: C.leather }, armor: { t: 'vest', c: '#6a4a2a', bare: 1 }, belt: p, pants: '#5a4a2a', wpn: SW(11, C.iron, C.dLeather) }),
+    silverWolf: (t, p) => ({ beast: 'wolf', fur: '#c8d0dc', armor: { t: 'harness', c: C.leather }, skirt: { t: 'tunic', c: p }, wpn: { k: 'claw', c: C.bone }, fast: 1 }),
+    // 兽王（被魔化的杨铁）：巨大兽首、红眼、残破黑甲与红披风
+    beastKing: (t, p) => ({ beast: 'wolf', fur: '#5a3a2a', armor: { t: 'plate', c: '#3a2a2a', c2: '#1a1010', trim: C.red }, emblem: p, pads: { c: '#3a2a2a', big: 1 }, cape: { c: C.dRed, c2: '#3a0a10', trim: '#1a1010', len: 32 }, skirt: { t: 'tassets', c: '#3a2a2a', c2: p }, wpn: { k: 'claw', c: '#ffe0d0', big: 1, glow: '#ff5040' }, aura: '#ff3020', scaleK: 1.45, sparkle: 1 }),
+    // 复仇魔神（芙蓉）：大角、蝠翼、暗紫长袍的魔神女王
+    revengeDemon: (t, p) => ({ hs: 'long', hair: '#1e1a2a', head: { t: 'horns', c: '#1a1018', big: 1, gem: '#ff2040', crown: 1 }, robe: { c: '#2a0e30', trim: '#c040ff', c2: '#14081a', sash: p }, cape: { c: '#3a0a28', c2: '#14080e', trim: '#ff3060', len: 38 }, bwings: { c: '#2a1430', c2: '#8a1a4a', big: 1 }, belt: '#c040ff', wpn: STAFF(42, 'orb', { gem: '#ff2040', glow: '#ff90c0', tc: '#c040ff', wood: '#1a1018', big: 1 }), aura: '#c040ff', scaleK: 1.4, sparkle: 1 }),
+  });
+
   // ---------------- 转职 B 路线（u.path === 'b' 且 tier >= at）----------------
   // at 以 CLASSES[cls].alt.at 为准；data.js 尚未提供时使用此后备表
-  const ALT_AT = { swordsman: 2, knight: 2, fighter: 2, samurai: 2, archer: 2, priest: 2, mage: 2, sorcerer: 1, hawk: 1, wolf: 1, babyDragon: 2 };
+  const ALT_AT = { adventurer: 2, swordsman: 2, knight: 2, fighter: 2, samurai: 2, archer: 2, priest: 2, mage: 2, sorcerer: 1, hawk: 1, wolf: 1, babyDragon: 2 };
   const NINJATO = (c, o) => Object.assign({ k: 'katana', len: 20, c, g: '#2a2434', straight: 1, grip: '#2a2434' }, o);
   const LINES_B = {
     // 魔法剑士 → 魔导剑士 → 圣魔剑士：法师披肩 + 符文光剑（魔法拖影）
@@ -299,6 +368,11 @@ const DFIG = (() => {
       { beast: 'hawk', hair: '#3a9a9a', armor: { t: 'harness', c: C.leather }, mantle: { c: '#2a6a6a', trim: C.silver }, skirt: { t: 'tunic', c: p }, wings: { c: '#3a9a9a', c2: '#e8fff8' }, wpn: STAFF(30, 'gem', { gem: C.cyan, tc: C.silver }) },
       { beast: 'hawk', hair: '#2a7a8a', head: { t: 'beakhelm', c: C.silver, crest: C.cyan }, armor: { t: 'plate', c: C.silver, c2: '#5a7a8a', trim: C.cyan }, emblem: p, mantle: { c: '#1a4a5a', trim: C.cyan }, skirt: { t: 'tunic', c: p }, wings: { c: '#1a5a6a', c2: '#7af0ff', big: 1 }, storm: 1, wpn: STAFF(34, 'orb', { gem: C.cyan, glow: '#c8f8ff', tc: C.silver }), aura: '#7af0ff', sparkle: 1 },
     ][t - 1],
+    // 冒险者 B：圣骑士（白马、塔盾、骑枪）→ 龙领主（骑红龙）
+    adventurer: (t, p, q) => [
+      { head: { t: 'helm', c: C.white, visor: 1, plume: C.gold }, armor: { t: 'plate', c: C.white, c2: C.pearl, trim: C.gold }, emblem: p, pads: { c: C.gold, big: 1 }, cape: { c: p, c2: q, trim: C.gold, len: 24 }, shield: { s: 'tower', c: C.white, c2: C.gold, e: C.gold, cross: 1 }, wpn: { k: 'lance', len: 40, c: C.blade, flag: p, gold: 1 }, mount: { t: 'horse', c: '#f2f2f6', m: '#e0d0a0', bard: p, trim: C.gold, plate: C.silver } },
+      { head: { t: 'helm', c: '#7a1a1a', visor: 1, horns: C.gold, plume: C.gold }, armor: { t: 'plate', c: '#8a2020', c2: '#4a0a0a', trim: C.gold }, emblem: p, pads: { c: C.gold, big: 1 }, cape: { c: p, c2: q, trim: C.gold, len: 24 }, wpn: { k: 'lance', len: 46, c: '#ffffff', flag: p, gold: 1, glow: '#ffb070' }, mount: { t: 'wyvern', c: '#c83a2a', c2: '#7a1a1a', belly: '#f4c542', blanket: p, trim: C.gold }, aura: '#ffb060', sparkle: 1 },
+    ][t - 2],
     // 月影狼 → 月神狼：银蓝毛皮、额上新月 → 发光白狼、月轮光环；扑击更快
     wolf: (t, p, q) => [
       { beast: 'wolf', fur: '#9aaccc', mark: C.gold, armor: { t: 'harness', c: '#c8d0e0' }, skirt: { t: 'tunic', c: p }, wpn: { k: 'claw', c: '#e8eef8' }, fast: 1 },
@@ -331,7 +405,7 @@ const DFIG = (() => {
     const n = Math.max(CL ? CL.tiers.length : 1, alt && alt.tiers ? at + alt.tiers.length : 0), t = clamp(u.tier | 0, 0, n - 1);
     const isB = u.path === 'b' && at != null && t >= at;
     const wk = (typeof ITEMS !== 'undefined' && u.weapon && ITEMS[u.weapon] && ITEMS[u.weapon].kind) || '';
-    const key = [cls, t, team, u.hair || '', u.id || '', wk, u.element || '', u.color || '', isB ? 'b' : 'a'].join('|');
+    const key = [cls, t, team, u.hair || '', u.id || '', wk, u.element || '', u.color || '', isB ? 'b' : 'a', u.sex || ''].join('|');
     if (SPEC_CACHE[key]) return SPEC_CACHE[key];
     const fn = (isB && LINES_B[cls]) || LINES[cls] || (CL && LINES[CL.sprite]);
     let S;
@@ -342,11 +416,13 @@ const DFIG = (() => {
       if (isB && cls === 'babyDragon') { S.ice = 1; S.skB = ((alt && alt.sprite) || 'dragon_b'); S.breath = 'blue'; S.scale += 0.2 * (t - at + 1); }
     } else {
       const base = fn(t, p, q, u) || {};
-      S = Object.assign({ kind: 'doll', p, q, t, path: isB ? 'b' : 'a', skin: C.skin, hair: u.hair || '#3a2a1a', hs: HAIR_STYLE[u.id] || 'short', beard: !!BEARD[u.id] }, base);
+      const hdef = (typeof HEROES !== 'undefined' && HEROES[u.id]) || (typeof CAMPAIGN_HEROES !== 'undefined' && CAMPAIGN_HEROES.g2 && CAMPAIGN_HEROES.g2[u.id]) || null;
+      const sex = u.sex || (hdef && hdef.sex) || (CL && CL.sex) || 'm';
+      S = Object.assign({ kind: 'doll', p, q, t, path: isB ? 'b' : 'a', skin: C.skin, hair: u.hair || '#3a2a1a', hs: HAIR_STYLE[u.id] || (sex === 'f' ? 'long' : 'short'), beard: !!BEARD[u.id] }, base);
       if (isB && cls === 'hawk' && base.hair) S.hair = base.hair;
       S.wpn = Object.assign({}, S.wpn || { k: 'none' });
       // 装备的武器种类可覆盖默认（如武士改拿剑、鹰族拿爪）
-      if (!isB && wk && wk !== S.wpn.k && !(S.wpn.k === 'xbow' && wk === 'bow')) {
+      if (!isB && !base.scaleK && wk && wk !== S.wpn.k && !(S.wpn.k === 'xbow' && wk === 'bow') && !(cls === 'prayer' && wk === 'staff')) {
         if (wk === 'sword') S.wpn = SW(19, C.steel, C.dSteel);
         else if (wk === 'blade') S.wpn = { k: 'katana', len: 24, c: C.blade, g: C.dIron };
         else if (wk === 'claw') S.wpn = { k: 'claw', c: C.steel };
@@ -568,7 +644,7 @@ const DFIG = (() => {
     const w1 = Math.sin(NOW * 0.011) * 9, w2 = Math.sin(NOW * 0.011 - 1.2) * 12;
     const base = -58 - spd * 28 - (P.lean < -8 ? 15 : 0);
     const l = (S.scarfLong ? 5.5 : 4.2) * (S.scarfLen || 1);
-    const a = add(n, dv(base + w1 - 8, l)), b = add(a, dv(base + w2 - 4, l)), c = add(b, dv(base + w2 * 1.3, l * 0.8));
+    const dr = S.scarfLen ? 22 : 0, a = add(n, dv(base + w1 - 8, l)), b = add(a, dv(base + w2 - 4 + dr, l)), c = add(b, dv(base + w2 * 1.3 + dr * 2, l * 0.8));
     const rc = pc(S.scarf), rd = pc(C.dRed);
     chain(S.scarfLong || S.scarfLen ? [n, a, b, c] : [n, a, b], 3.3, 2.6, (px, py, t) => rc);
     if (S.scarfLong) cap(add(n, [0, 1]), add(a, dv(base + 30, 3)), 2.1, 1.6, rd);
@@ -774,6 +850,13 @@ const DFIG = (() => {
       if (hd.horns) { part(NF); const hc2 = pc(hd.horns); chainK([W(-1.5, -6), W(-4.5, -8.5), W(-4, -11)], 1.8, 0.6, hc2); chainK([W(2, -6), W(4.8, -8), W(4.6, -10.5)], 1.6, 0.5, hc2); }
       if (hd.crownTop) { part(NF); const cc = pc(hd.crownTop); for (const x of [-4.5, -1.8, 0.9, 3.6]) poly([W(x - 1.2, -6.2), W(x + 1.2, -6.2), W(x, -9.8)], cc); poly([W(-5.5, -6.4), W(4.8, -6.4), W(4.6, -5.4), W(-5.4, -5.4)], cc); dotK(W(-0.4, -5.9), pc(C.red)); }
       if (hd.plume) { part(NF); const pl = pc(hd.plume), s = Math.sin(NOW * 0.008) * 1.5 - (P.ra || 0) * 2; chainK([W(0, -8), W(-4, -11), W(-9, -10 + s), W(-13, -6 + s * 1.4)], 2.6, 1.2, pl); }
+    } else if (t === 'horns') {
+      // 魔角（可带额饰宝石 / 王冠）
+      const b = hd.big ? 1.3 : 1;
+      chainK([W(-1, -5.5), W(-4.5, -8.5 * b), W(-8.5, -9 * b), W(-10.5, -6.5 * b)], 2, 0.6, c1);
+      chainK([W(2.5, -6), W(4.5, -10 * b), W(2.5, -13 * b)], 1.9, 0.5, c1);
+      if (hd.crown) { part(NF); const cc = pc(C.gold); for (const x of [-3.5, -1, 1.5]) poly([W(x - 1.1, -5.6), W(x + 1.1, -5.6), W(x, -8.6)], cc); }
+      if (hd.gem) { part(FLAT); dotK(W(4.4, -3.3), pc(hd.gem)); }
     } else if (t === 'ninja') {
       // 忍者头巾：只露出眼睛一条缝，脑后打结
       discK(hc, r + 1.4, (px, py) => { const [x, y] = L(px, py); if (x > -0.4 && y > -1.9 && y < 1.6) return 0; return c1; });
@@ -1109,6 +1192,7 @@ const DFIG = (() => {
     if (!S.halo) return;
     part(FLAT);
     const c0 = add(J.hc, [-3, -2]), R = HR + 4;
+    if (S.halo === 'ring') { const rc = add(J.hc, [-1, -HR - 4 + Math.sin(NOW * 0.004)]); ell(rc, 8, 2.2, 0, (px, py) => { const dx = (px - rc[0]) / 8, dy = (py - rc[1]) / 2.2; return dx * dx + dy * dy > 0.42 ? pc('#ffe680') : 0; }); return; }
     if (S.halo === 'moon') { const mc = pc('#e8f0ff'); disc(c0, R, (px, py) => (Math.hypot(px - c0[0] - 4, py - c0[1] + 3) > R - 2.5 ? mc : 0)); return; }
     ring(c0, R - 1.4, R, pc(C.gold));
     for (let i = 0; i < 12; i++) dot(add(c0, dv(i * 30, R - 2.6)), pc('#fff6c0'));
@@ -1130,6 +1214,7 @@ const DFIG = (() => {
     const M = S.mount;
     if (M) { drawMountBack(R, M, P); drawMountBody(R, M, P); drawMountHead(R, M, P); drawMountWingFront(R, M, P); }
     drawBanner(J, S);
+    if (S.bwings) { const bw = S.bwings, sc = bw.big ? 1.15 : 0.95, fl = Math.sin(NOW * 0.006) * 14; batWing(T(J, -3.5, 13), 205 + fl, sc, bw.c, bw.c2, BF, T(J, -7, 2)); batWing(T(J, -2.5, 14), 195 + fl * 1.2, sc * 1.1, bw.c, bw.c2, NF, T(J, -6, 3)); }
     if (S.wings) featherWing(T(J, -3.5, 13), 205 + Math.sin(NOW * (P.wf > 0.5 ? 0.03 : 0.006)) * (P.wf > 0.5 ? 50 : 12) + 6, S.wings.big ? 1.3 : 1.1, S.wings.c, S.wings.c2, BF);
     if (S.scarf) drawScarfTail(J, S, P);
     drawCape(J, S, P, !!M);
@@ -1305,7 +1390,7 @@ const DFIG = (() => {
     if (k === 'xbow') return { style: S.wpn.big ? 'bolt3' : 'bolt', keys: mkKeys([[0, {}], [200, { fa: 80, fe: 92, w: 90, lean: 6, hd: 4 }], [340, { fa: 80, fe: 92, w: 90, lean: 6, hd: 4 }], [370, { fa: 70, fe: 82, w: 100, lean: -6, dx: -3, ld: 0 }, 'out'], [520, { fa: 80, fe: 92, w: 90, ld: 0 }], [760, { ld: 0 }], [800, { ld: 1 }]]), dur: 800, release: 350, fly: 170 };
     // 近战武器隔空攻击：原地挥砍送出剑气
     if (ranged) {
-      if (k === 'staff') return { style: S.wpn.top === 'clock' || S.wpn.top === 'hourglass' ? 'clock' : 'orb', keys: mkKeys([[0, {}], [220, { fa: 150, fe: 160, w: 175, lean: -6, glw: 1 }], [300, { fa: 95, fe: 95, w: 110, lean: 10 }, 'out'], [520, { fa: 90, fe: 95, w: 110 }], [760, {}]]), dur: 760, release: 300, fly: 240 };
+      if (k === 'staff') return { style: S.style === 'gu' ? 'swarm' : S.wpn.top === 'clock' || S.wpn.top === 'hourglass' ? 'clock' : 'orb', keys: mkKeys([[0, {}], [220, { fa: 150, fe: 160, w: 175, lean: -6, glw: 1 }], [300, { fa: 95, fe: 95, w: 110, lean: 10 }, 'out'], [520, { fa: 90, fe: 95, w: 110 }], [760, {}]]), dur: 760, release: 300, fly: 240 };
       return { style: 'wave', keys: mkKeys([[0, {}], [220, { fa: 200, fe: 215, w: 240, lean: -4 }], [320, { fa: 70, fe: 80, w: 65, lean: 22, tr: 1 }, 'in'], [360, { fa: 45, fe: 55, w: 35, lean: 24, tr: 1 }], [560, { fa: 45, fe: 55, w: 35, lean: 20 }], [800, {}]]), dur: 800, release: 330, fly: 220 };
     }
     if (S.mount) {
@@ -1320,7 +1405,8 @@ const DFIG = (() => {
       if (k === 'none') return { style: 'punch', keys: mkKeys([[0, {}], [80, { ra: 0.8, X: 0.25, lean: 12 }], [260, { ra: 0.8, X: 0.95, lean: 12 }], [330, { X: 1, fa: -30, fe: 60, lean: -4 }], [400, { X: 1, fa: 92, fe: 92, lean: 18, tr: 1 }, 'in'], [560, { X: 1, fa: 88, fe: 90, lean: 14 }], [760, { X: 0.35, Y: -6 }], [880, {}]]), dur: 880, impact: 390 };
       return { style: 'claw', keys: mkKeys([[0, {}], [120, { lean: 32, lt: 60, ls: -40, bt: -30, bs: -80, fa: 40, fe: 140, ba: 30, be: 140 }], [310, { X: 0.88, Y: -22, lean: 38, lt: 80, ls: 20, bt: -20, bs: -60, fa: 190, fe: 205, ba: 170, be: 190, mo: 1 }], [390, { X: 1, Y: 0, lean: 34, fa: 60, fe: 30, ba: 85, be: 60, tr: 1, mo: 1, lt: 40, ls: -10, bt: -40, bs: -50 }, 'in'], [560, { X: 1, lean: 30, fa: 50, fe: 25, ba: 80, be: 55 }], [760, { X: 0.35, Y: -10 }], [900, {}]]), dur: 900, impact: 380 };
     }
-    if (k === 'katana') return { style: 'iai', keys: mkKeys([[0, {}], [150, { lean: 22, lt: 45, ls: -25, bt: -45, bs: -70, fa: -15, fe: 30, w: -60, two: 0, ba: 60, be: 40 }], [250, { lean: 24, lt: 48, ls: -28, bt: -48, bs: -72, fa: -15, fe: 30, w: -62, two: 0, ba: 60, be: 40 }], [330, { P: 1, dx: 30, lean: 30, lt: 70, ls: 25, bt: -50, bs: -35, fa: 100, fe: 100, w: 96, two: 0, ba: -30, be: -10, tr: 1 }, 'out'], [560, { P: 1, dx: 32, lean: 26, lt: 60, ls: -20, bt: -55, bs: -70, fa: 100, fe: 100, w: 96, two: 0, ba: -30, be: -10 }], [640, { P: 1, dx: 32, lean: 12, fa: 20, fe: 90, w: -70, two: 0, ba: 50, be: 80 }], [840, { P: 0.45, dx: 14, Y: -26, lean: -10, two: 0 }], [1000, {}]]), dur: 1000, impact: 600, streak: [250, 330] };
+    if (S.style === 'qi' && !ranged) return { style: 'wave', keys: mkKeys([[0, {}], [220, { fa: 200, fe: 215, w: 240, lean: -4, lt: 22, ls: 0, bt: -22, bs: -24 }], [320, { fa: 70, fe: 80, w: 65, lean: 22, tr: 1, lt: 34, ls: -8, bt: -34, bs: -40 }, 'in'], [360, { fa: 45, fe: 55, w: 35, lean: 24, tr: 1 }], [560, { fa: 45, fe: 55, w: 35, lean: 20 }], [800, {}]]), dur: 800, release: 330, fly: 200 };
+    if (k === 'katana' || (S.style === 'dash' && k === 'sword')) return { style: 'iai', keys: mkKeys([[0, {}], [150, { lean: 22, lt: 45, ls: -25, bt: -45, bs: -70, fa: -15, fe: 30, w: -60, two: 0, ba: 60, be: 40 }], [250, { lean: 24, lt: 48, ls: -28, bt: -48, bs: -72, fa: -15, fe: 30, w: -62, two: 0, ba: 60, be: 40 }], [330, { P: 1, dx: 30, lean: 30, lt: 70, ls: 25, bt: -50, bs: -35, fa: 100, fe: 100, w: 96, two: 0, ba: -30, be: -10, tr: 1 }, 'out'], [560, { P: 1, dx: 32, lean: 26, lt: 60, ls: -20, bt: -55, bs: -70, fa: 100, fe: 100, w: 96, two: 0, ba: -30, be: -10 }], [640, { P: 1, dx: 32, lean: 12, fa: 20, fe: 90, w: -70, two: 0, ba: 50, be: 80 }], [840, { P: 0.45, dx: 14, Y: -26, lean: -10, two: 0 }], [1000, {}]]), dur: 1000, impact: 600, streak: [250, 330] };
     if (k === 'axe') return { style: 'chop', keys: mkKeys([[0, {}], [80, { ra: 1, lean: 15, X: 0.25 }], [230, { ra: 1, lean: 15, X: 0.78 }], [330, { X: 0.95, Y: -16, fa: 195, fe: 200, w: 220, lean: -10, lt: 45, ls: -30, bt: -10, bs: -60 }], [420, { X: 1, Y: 0, fa: 85, fe: 70, w: 60, lean: 32, tr: 1, lt: 35, ls: -5, bt: -38, bs: -45 }, 'in'], [460, { X: 1, fa: 75, fe: 55, w: 40, lean: 36, tr: 1, lt: 35, ls: -5, bt: -38, bs: -45 }], [620, { X: 1, fa: 75, fe: 55, w: 40, lean: 32 }], [800, { X: 0.35, Y: -8 }], [950, {}]]), dur: 950, impact: 425, heavy: 1 };
     if (k === 'staff' || k === 'fork') {
       if (k === 'fork') return { style: 'thrust', keys: mkKeys([[0, {}], [80, { ra: 0.8, X: 0.25 }], [260, { ra: 0.8, X: 0.9, fa: 0, fe: 70, w: 95 }], [380, { X: 1, fa: 85, fe: 92, w: 92, lean: 20, tr: 0.8 }, 'out'], [540, { X: 1, fa: 85, fe: 92, w: 92, lean: 16 }], [760, { X: 0.35, Y: -6 }], [880, {}]]), dur: 880, impact: 370 };
