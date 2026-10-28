@@ -54,4 +54,10 @@ function useCampaign(id) {
   return true;
 }
 function curCampaign() { return CAMPAIGNS[CUR_CAMPAIGN]; }
-function campaignReady(id) { const c = CAMPAIGNS[id]; return !!c && !c.soon && (id === 'g1' || (CAMPAIGN_STAGES[id] || []).length > 0); }
+function campaignReady(id) {
+  const c = CAMPAIGNS[id], st = CAMPAIGN_STAGES[id] || [];
+  if (!c || c.soon) return false;
+  if (id === 'g1') return true;
+  // 双主角作品：每条路线的第一关都写好了才开放
+  return st.length > 0 && (c.starts || []).every(o => st.some(s => s.id === o.to));
+}
