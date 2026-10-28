@@ -99,7 +99,7 @@ CAMPAIGN_STAGES.g3.push({
         ['苏', '核心……？他们在守护什么东西。', 'su'],
       ] },
     { turn: 8, if: { not: { has: 'xingtian' } },
-      effects: { join: ['xingtian', 'qiuyue'], set: { xtBack: true }, rel: { qiuyue: 20 }, item: { tianqing: 1, yinSwordItem: 1 } },
+      effects: { join: ['xingtian', 'qiuyue'], catchUp: ['xingtian', 'qiuyue'], set: { xtBack: true }, rel: { qiuyue: 20 }, item: { tianqing: 1, yinSwordItem: 1 } },
       spawn: [
         ['hero:xingtian', 27, 0, 11, { team: 'ally', name: '刑天' }],
         ['hero:qiuyue', 27, 0, 12, { team: 'ally', name: '秋月' }],

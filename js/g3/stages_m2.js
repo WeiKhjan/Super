@@ -787,7 +787,7 @@ CAMPAIGN_STAGES.g3.push({
         ['hero:xingtian', 16, 0, 13, { team: 'ally', name: '刑天' }],
         ['hero:qiuyue', 16, 12, 13, { team: 'ally', name: '秋月' }],
       ],
-      effects: { join: ['xingtian', 'qiuyue'] },
+      effects: { join: ['xingtian', 'qiuyue'], catchUp: ['xingtian', 'qiuyue'] },
       dialog: [
         ['刑天', '远远就看见一群人在屋顶上蹦来蹦去。白志超，又在抓贼？', 'xingtian'],
         ['秋月', '我们查到的线索，也指向这个偷儿。他背后的主顾，就是那位顾问。', 'qiuyue'],

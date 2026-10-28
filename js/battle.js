@@ -103,14 +103,18 @@ function heroData(id, minLv) {
     mhp: h.stats.hp, mmp: h.stats.mp, atk: h.stats.atk, def: h.stats.def, mag: h.stats.mag, spd: h.stats.spd,
     weapon: h.weapon || null, armor: h.armor || null, acc: null,
   };
-  // 入队时追上队伍等级：按成长率平均值补足
+  catchUpData(d, minLv);
+  return d;
+}
+// 入队 / 归队时追上队伍等级：按成长率平均值补足
+function catchUpData(d, minLv) {
+  const C = CLASSES[d.cls];
   while (minLv && d.lv < Math.min(minLv, LEVEL_CAP)) {
     d.lv++;
     for (const k of STATS) { const f = k === 'hp' ? 'mhp' : k === 'mp' ? 'mmp' : k; d[f] += Math.round(C.growth[k]); }
     const nt = tierForLevel(d.cls, d.lv);
     if (nt > d.tier) { d.tier = nt; for (const k of STATS) { const f = k === 'hp' ? 'mhp' : k === 'mp' ? 'mmp' : k; d[f] += (C.promo && C.promo[k]) || 0; } }
   }
-  return d;
 }
 function battleUnitFromHero(data, team, x, y) {
   return Object.assign({}, data, { uid: UID++, team, x, y, hp: data.mhp, mp: data.mmp, acted: false, ai: 'aggr', status: {}, buffs: [] });
@@ -815,6 +819,7 @@ function applyEffects(e) {
   if (!e) return;
   for (const [k, v] of Object.entries(e.set || {})) flags()[k] = v;
   for (const [id, v] of Object.entries(e.rel || {})) { rels()[id] = clamp((rels()[id] || 0) + v, 0, 100); if (!AUTO && v) toast(`${(HEROES[id] || {}).name || id} ${curCampaign().relLabel || '好感度'} ${v > 0 ? '↑' : '↓'}`); }
+  for (const id of e.catchUp || []) { const d = ensureHero(id), to = partyLevel(); if (d.lv < to) { catchUpData(d, to); if (!AUTO) toast(`${d.name} 追上了队伍（Lv ${d.lv}）`); } } // 归队补经验
   for (const [id, list] of Object.entries(e.learn || {})) { const d = ensureHero(id); d.learned = [...new Set([...(d.learned || []), ...[].concat(list)])]; if (B) { const u = B.units.find(o => o.id === id && o.team === 'player'); if (u) u.learned = d.learned; } if (!AUTO) toast(`${d.name} 习得「${[].concat(list).map(k => SPELLS[k].name).join('、')}」！`); }
   for (const id of e.join || []) { S.left = S.left || {}; delete S.left[id]; ensureHero(id); }
   for (const id of e.leave || []) { S.left = S.left || {}; S.left[id] = true; if (B) { const u = B.units.find(o => o.id === id && o.team === 'player'); if (u) { u.hp = 0; floatText(u.x, u.y, '离队', '#cccccc'); } } }
