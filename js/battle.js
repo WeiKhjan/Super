@@ -1628,7 +1628,8 @@ async function runAI(team) {
 }
 async function aiUnit(u) {
   const foes = alive().filter(o => hostile(u, o));
-  if (!foes.length || u.cls === 'villager') return;
+  const reachGoal = u.team === 'player' && B.def.win.type === 'reach';
+  if ((!foes.length && !reachGoal) || u.cls === 'villager') return; // 「抵达」类关卡：敌人清光后仍要走向目标
   const careful = (u.team === 'player' || u.team === 'ally') && (u.lord || B.turn <= 6);
   const danger = careful ? dangerMap(u, foes) : null;
   const risk = (st, hpLeft) => { if (!danger) return 0; const d = danger.get(key(st.x, st.y)) || 0; return d >= hpLeft ? (u.lord ? 300 : 60) + d : d * 0.4; };
@@ -1721,7 +1722,7 @@ async function aiUnit(u) {
   if (u.team === 'player' && B.def.win.type === 'reach') {
     const [gx, gy] = B.def.win.at;
     const mine = alive().filter(o => o.team === 'player' && !o.lord).sort((a, b) => mdist(a.x, a.y, gx, gy) - mdist(b.x, b.y, gx, gy));
-    if (mine.slice(0, 2).includes(u)) goal = [{ x: gx, y: gy }];
+    if (mine.slice(0, 2).includes(u) || !foes.length) goal = [{ x: gx, y: gy }];
   }
   const D = distField(u, goal);
   let pick = null;
