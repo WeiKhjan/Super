@@ -411,6 +411,25 @@ function duelDrawFx(g, f, p, now, anc, s) {
       g.fillRect(Math.round((x - r) / z) * z, Math.round((y - r) / z) * z, Math.round(2 * r / z) * z, Math.round(2 * r / z) * z);
     }
     g.globalAlpha = 1;
+  } else if (f.type === 'flask') {
+    // 炼金药瓶：旋转着抛物线飞出，命中时炸开一团彩色药雾
+    if (!f.a) { f.a = anc(f.from, 'hand').slice(); f.b = anc(f.to, 'chest').slice(); f.c = ['#9aff4a', '#ff7a9a', '#7ad8ff'][Math.floor(Math.random() * 3)]; }
+    const x = lerp(f.a[0], f.b[0], p), y = lerp(f.a[1], f.b[1], p) - Math.sin(p * Math.PI) * 26 * s;
+    g.save(); g.translate(Math.round(x), Math.round(y)); g.rotate(now * 0.02);
+    g.fillStyle = '#140a1e'; g.fillRect(-3.4 * s, -2.6 * s, 6.8 * s, 6.8 * s); g.fillRect(-1.6 * s, -5.6 * s, 3.2 * s, 3.6 * s);
+    g.fillStyle = f.c; g.fillRect(-2.6 * s, -1.8 * s, 5.2 * s, 5.2 * s); g.fillStyle = '#e8f4ff'; g.fillRect(-0.8 * s, -4.8 * s, 1.6 * s, 3 * s);
+    g.fillStyle = '#ffffff'; g.fillRect(-2 * s, -1.2 * s, 1.4 * s, 1.4 * s); g.restore();
+    if (p > 0.92) { g.globalAlpha = 0.8; g.fillStyle = f.c; for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4; g.beginPath(); g.arc(f.b[0] + Math.cos(a) * 8 * s, f.b[1] + Math.sin(a) * 6 * s, 5 * s, 0, 7); g.fill(); } g.globalAlpha = 1; }
+  } else if (f.type === 'elem') {
+    // 元素使：地水火风四色光球螺旋飞向目标
+    if (!f.a) { f.a = anc(f.from, 'tip').slice(); f.b = anc(f.to, 'chest').slice(); }
+    const cols = ['#ff7a3a', '#7ad0ff', '#8ae8a0', '#e0c090'];
+    cols.forEach((c, k) => {
+      const q = Math.max(0, Math.min(1, p * 1.15 - k * 0.05)), a = q * 12 + k * Math.PI / 2, r = 7 * s * (1 - q);
+      const x = lerp(f.a[0], f.b[0], q) + Math.cos(a) * r, y = lerp(f.a[1], f.b[1], q) + Math.sin(a) * r;
+      const rg = g.createRadialGradient(x, y, 0.5, x, y, 6 * s); rg.addColorStop(0, '#ffffff'); rg.addColorStop(0.45, c); rg.addColorStop(1, c + '00');
+      g.fillStyle = rg; g.beginPath(); g.arc(x, y, 6 * s, 0, 7); g.fill();
+    });
   } else if (f.type === 'laser') {
     // 机甲 / 高科技战士的光炮：瞬间贯通的光束
     if (!f.a) { f.a = anc(f.from, 'tip').slice(); f.b = anc(f.to, 'chest').slice(); }

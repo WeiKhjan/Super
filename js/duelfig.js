@@ -129,6 +129,7 @@ const DFIG = (() => {
   const BEARD = { qu: 1, hake: 1, augustus: 1, zhangqing: 1 };
   // 超时空英雄传说2 的英雄发型
   Object.assign(HAIR_STYLE, { qingfeng: 'spiky', bai: 'short', eva: 'pony', nuolu: 'spiky', sonia: 'pony', shamanshan: 'long', furong: 'long', qili: 'short',
+    kehelin: 'spiky', maisi: 'short', tao: 'short', bobi: 'spiky', kouqi: 'pony', lida: 'long', beiliqina: 'long', pulusi: 'long', baihe: 'pony', liqi: 'short', nushayi: 'long', xianniya: 'pony', tuoli: 'long', nafeiya: 'long', sisi: 'long', bailandi: 'long',
     qiuyue: 'pony', aifulin: 'long', feishuang: 'long', luosha: 'pony', aopaer: 'long', lan: 'short', natalia: 'pony', su: 'long', muer: 'spiky', taipu: 'short', daixi: 'pony', gusitafu: 'short', baoer: 'pony', kelite: 'long', crebtree: 'long', laweisi: 'short', jienuo: 'short', xiaoling: 'pony', yilinna: 'long', aiwen: 'topknot', rentian: 'short', xingtian: 'long' });
 
   // ---------------- 外观规格：职业系 × 阶级 ----------------
@@ -376,9 +377,123 @@ const DFIG = (() => {
   };
   for (const k in G3) LINES[k] = (t, p, q, u) => Object.assign({ fixW: 1 }, G3[k](t, p, q, u));
 
+  // ---------------- 狂神降世（g4）：新职业系、英雄专属隐藏职业与敌兵 ----------------
+  const HALB = (c, o) => Object.assign({ k: 'lance', len: 34, c, halberd: 1 }, o);
+  const ANCHOR = (c, o) => Object.assign({ k: 'axe', len: 22, h: 1, c, anchor: 1 }, o);
+  const EL4 = ['#ff7a3a', '#7ad0ff', '#8ae8a0', '#e0c090'];
+  const G4 = {
+    // 斗剑士系（克荷林，血狮鹫兵团团长）
+    duelist: (t, p, q) => [
+      { armor: { t: 'leather', c: C.leather, c2: C.dLeather }, cape: { c: C.dRed, c2: '#5a1018', len: 24 }, skirt: { t: 'tunic', c: p }, wpn: SW(18, C.steel, C.dLeather) },
+      { head: { t: 'band', c: C.dRed, tail: 1 }, armor: { t: 'coat', c: '#6a2a24' }, shirt: p, pads: { c: C.steel, big: 1 }, cape: { c: C.dRed, c2: '#5a1018', trim: C.silver, len: 28 }, wpn: SW(21, C.blade, C.dSteel, { big: 1 }) },
+      { head: { t: 'circlet', c: C.gold, gem: C.red }, armor: { t: 'plate', c: C.white, c2: C.pearl, trim: C.dRed }, emblem: C.dRed, pads: { c: C.gold, big: 1 }, cape: { c: C.dRed, c2: '#5a1018', trim: C.gold, len: 34 }, skirt: { t: 'tassets', c: C.white, c2: p }, wpn: SW(25, '#ffffff', C.gold, { big: 1, glow: '#ffd8a0' }), aura: '#ffd080', sparkle: 1 },
+    ][t],
+    longbowman: (t, p, q) => [
+      { head: { t: 'hood', c: '#4a6a3a' }, armor: { t: 'leather', c: C.leather, c2: C.dLeather }, skirt: { t: 'tunic', c: p }, quiver: 1, wpn: { k: 'bow', size: 17, c: C.wood } },
+      { head: { t: 'feather', c: '#3a5a2a', band: C.gold, plume: C.white }, armor: { t: 'leather', c: '#5a4a2a', c2: C.gold }, cape: { c: '#3a5a2a', c2: '#24361a', trim: C.gold, len: 26 }, skirt: { t: 'tunic', c: p }, quiver: 1, wpn: { k: 'bow', size: 18, c: C.gold, tip: C.white }, sparkle: 1 },
+    ][t],
+    // 长戟士系：步行长戟 → 游击骑士 → 飙风骑士
+    halberdier: (t, p, q) => [
+      { head: { t: 'kettle', c: C.steel }, armor: { t: 'chain', c: C.steel, c2: C.dSteel }, tabard: p, wpn: HALB(C.steel) },
+      { head: { t: 'helm', c: C.steel, nasal: 1, plume: p }, armor: { t: 'plate', c: C.steel, c2: C.dSteel }, emblem: p, pads: { c: C.steel }, cape: { c: p, c2: q, len: 22 }, wpn: HALB(C.blade, { len: 38, flag: p }), mount: { t: 'horse', c: '#8a5630', m: '#2a1a10', blanket: p } },
+      { head: { t: 'helm', c: C.silver, visor: 1, plume: '#8ae8c0' }, armor: { t: 'plate', c: C.silver, c2: '#5a7a8a', trim: '#8ae8c0' }, emblem: p, pads: { c: C.silver, big: 1 }, cape: { c: '#3a8a7a', c2: '#1a4a40', trim: C.silver, len: 26 }, wpn: HALB('#ffffff', { len: 42, flag: p, gold: 1, glow: '#a8f0d0' }), mount: { t: 'horse', c: '#d8dce8', m: '#8ae8c0', bard: '#3a8a7a', trim: C.silver, plate: C.silver }, aura: '#a8f0d0', sparkle: 1 },
+    ][t],
+    tribesman: (t, p, q) => [
+      { hs: 'spiky', armor: { t: 'bare', c: '#6a4a2a', paint: '#3a6ab8' }, pads: { c: '#c8b088', fur: 1 }, pants: p, bracer: C.leather, wpn: { k: 'axe', len: 19, h: 1, c: C.iron } },
+      { head: { t: 'helm', c: C.iron, nasal: 1 }, armor: { t: 'plate', c: C.iron, c2: C.dIron }, emblem: p, pads: { c: C.iron, big: 1 }, skirt: { t: 'tunic', c: p }, wpn: { k: 'axe', len: 22, h: 2, c: C.steel } },
+      { hs: 'spiky', head: { t: 'band', c: C.red, tail: 1 }, armor: { t: 'bare', c: C.dLeather, paint: '#c82020' }, mantle: { c: '#8a6a4a', trim: '#e8dcc0', fur: 1 }, pants: p, bracer: C.steel, wpn: { k: 'axe', len: 22, h: 2, c: C.steel }, wpn2: { k: 'axe', len: 19, h: 1, c: C.steel }, style: 'rage', aura: '#ff6040' },
+    ][t],
+    thief: (t, p, q) => [
+      { head: { t: 'bandana', c: '#3a3a4a' }, armor: { t: 'vest', c: '#4a3a2a' }, belt: p, pants: '#3a3428', scarf: p, scarfLen: 0.9, wpn: NINJATO(C.steel, { len: 13 }), style: 'ninja' },
+      { head: { t: 'hood', c: '#2a3a4a' }, armor: { t: 'leather', c: '#3a3a4a', c2: '#24242e' }, cape: { c: '#2a3a4a', c2: p, len: 26 }, belt: p, pants: '#24242e', wpn: NINJATO(C.blade, { len: 15 }), wpn2: NINJATO(C.blade, { len: 13 }), style: 'ninja', sparkle: 1 },
+    ][t],
+    // 炼金术士系：皮围裙与药瓶 → 巫师 → 降术师；远程投掷药瓶
+    alchemist: (t, p, q) => [
+      { head: { t: 'cap', c: '#6a4a2a' }, armor: { t: 'coat', c: '#7a6a4a' }, shirt: p, flasks: 1, pants: '#4a3a2a', wpn: STAFF(26, 'gem', { gem: '#9aff4a', tc: C.iron }), style: 'flask' },
+      { head: { t: 'wizhat', c: '#4a6a3a', band: C.gold }, robe: { c: '#3a5a2a', trim: C.gold, sash: p }, flasks: 1, belt: C.brown, wpn: STAFF(32, 'crystal', { gem: '#9aff4a' }), style: 'flask' },
+      { head: { t: 'hood', c: '#2a3a5a' }, robe: { c: '#2a3a5a', trim: C.gold, sash: p, runes: 1 }, mantle: { c: '#1a2440', trim: C.gold, collar: 1 }, flasks: 1, belt: C.gold, orbs: ['#9aff4a'], wpn: STAFF(36, 'orb', { gem: '#9aff4a', glow: '#d8ffb0', tc: C.gold }), style: 'flask', sparkle: 1 },
+    ][t],
+    monk: (t, p, q) => [
+      { head: { t: 'hood', c: '#7a5a3a' }, robe: { c: '#8a6a44', trim: p }, belt: C.brown, beads: 1, wpn: STAFF(30, 'knob') },
+      { head: { t: 'headdress', c: '#3a7a2a', c2: '#a8e070' }, robe: { c: '#3a6a2a', trim: '#a8e070', sash: p }, mantle: { c: '#6a4a24', trim: '#a8e070', fur: 1 }, beads: 1, orbs: ['#a8ff90'], wpn: STAFF(36, 'crystal', { gem: '#7aff6a', wood: '#5a3a1a' }), aura: '#a8ff90' },
+    ][t],
+    swordmaid: (t, p, q) => [
+      { armor: { t: 'leather', c: '#8a4a2a', c2: '#5a2a14' }, skirt: { t: 'tunic', c: p }, wpn: SW(17, C.steel, C.dLeather) },
+      { head: { t: 'circlet', c: C.silver, gem: p }, armor: { t: 'plate', c: C.steel, c2: C.dSteel }, emblem: p, pads: { c: C.steel }, cape: { c: p, c2: q, len: 24 }, skirt: { t: 'tunic', c: p }, wpn: SW(20, C.blade, C.silver) },
+      { head: { t: 'crown', c: C.gold, gem: C.red }, armor: { t: 'plate', c: C.white, c2: C.pearl, trim: C.red }, emblem: C.red, pads: { c: C.gold, big: 1 }, cape: { c: C.red, c2: C.dRed, trim: C.gold, len: 32 }, skirt: { t: 'tassets', c: C.white, c2: p }, wpn: SW(23, '#ffffff', C.gold, { big: 1, glow: '#ffc8c8' }), trail: '#ff9aa8', aura: '#ffb0c0', sparkle: 1 },
+    ][t],
+    shooter: (t, p, q) => [
+      { head: { t: 'band', c: p, tail: 1 }, armor: { t: 'leather', c: '#5a7a4a', c2: '#3a5a2a' }, skirt: { t: 'tunic', c: p }, quiver: 1, wpn: { k: 'bow', size: 15, c: C.wood } },
+      { head: { t: 'feather', c: '#3a6a3a', band: C.gold, plume: C.white }, armor: { t: 'leather', c: '#4a6a3a', c2: C.gold }, cape: { c: p, c2: q, trim: C.gold, len: 24 }, wpn: { k: 'bow', size: 16, c: C.gold, tip: C.white }, mount: { t: 'horse', c: '#c8a070', m: '#5a3a1a', blanket: p }, sparkle: 1 },
+    ][t],
+    // 长枪士 → 白羽骑士（骑天马）
+    pikemaid: (t, p, q) => [
+      { head: { t: 'helm', c: C.steel, nasal: 1 }, armor: { t: 'plate', c: C.steel, c2: C.dSteel }, emblem: p, pads: { c: C.steel }, skirt: { t: 'tunic', c: p }, wpn: { k: 'lance', len: 34, c: C.steel, flag: p } },
+      { head: { t: 'circlet', c: C.gold, wings: C.white, gem: C.cyan }, armor: { t: 'plate', c: C.white, c2: C.pearl, trim: C.gold }, emblem: p, pads: { c: C.white, big: 1 }, cape: { c: C.white, c2: '#d8e8ff', trim: C.gold, len: 24 }, wpn: { k: 'lance', len: 42, c: C.blade, flag: p, gold: 1 }, mount: { t: 'pegasus', c: '#f6f6fc', m: '#e8f0ff', bard: p, trim: C.gold, plate: C.silver, wing: '#ffffff', wing2: '#d8e8ff' }, sparkle: 1 },
+    ][t],
+    amazon: (t, p, q) => [
+      { armor: { t: 'vest', c: '#7a5a3a', bare: 1 }, head: { t: 'headdress', c: '#c84a2a', c2: '#f0d080' }, pads: { c: '#c8b088', fur: 1 }, skirt: { t: 'tunic', c: p }, bracer: C.gold, wpn: { k: 'axe', len: 19, h: 1, c: C.steel } },
+      { head: { t: 'helm', c: C.gold, crest: C.red }, armor: { t: 'plate', c: C.gold, c2: C.dGold }, emblem: p, pads: { c: C.gold, big: 1 }, skirt: { t: 'tassets', c: C.gold, c2: p }, wpn: { k: 'axe', len: 22, h: 2, c: C.blade, g: C.gold } },
+    ][t],
+    pickpocket: (t, p, q) => [
+      { head: { t: 'hood', c: '#4a3a5a' }, armor: { t: 'vest', c: '#3a2a3a' }, belt: p, pants: '#2a2434', wpn: NINJATO(C.steel, { len: 13 }), style: 'ninja' },
+      { head: { t: 'ninja', c: '#24182e', band: '#8a1a3a' }, armor: { t: 'harness', c: '#3a1a2a' }, shirt: '#24182e', sleeve: '#24182e', belt: p, pants: '#1e1428', boots: '#1e1428', scarf: '#8a1a3a', scarfLen: 1.6, wpn: NINJATO('#ffffff', { len: 16 }), wpn2: NINJATO('#ffffff', { len: 14 }), style: 'ninja', sparkle: 1 },
+    ][t],
+    sorceress: (t, p, q) => [
+      { head: { t: 'wizhat', c: p }, robe: { c: p, trim: q }, belt: C.brown, wpn: STAFF(28, 'gem', { gem: C.cyan }) },
+      { head: { t: 'wizhat', c: '#3a1a4a', band: C.gold, star: C.gold, big: 1 }, robe: { c: '#3a1a4a', trim: C.gold, sash: p }, cape: { c: '#5a2a6a', c2: '#2a1030', trim: C.gold, len: 32 }, belt: C.gold, wpn: STAFF(36, 'orb', { gem: '#c890ff', glow: '#e8d0ff', tc: C.gold }), aura: '#c890ff', sparkle: 1 },
+    ][t],
+    nun: (t, p, q) => [
+      { head: { t: 'hood', c: '#2a2434' }, robe: { c: '#2a2434', trim: C.white, sash: p }, collar: C.white, belt: C.white, wpn: STAFF(30, 'cross', { tc: C.silver }) },
+      { head: { t: 'mitre', c: C.white, c2: C.gold }, robe: { c: C.white, trim: C.gold, sash: p }, mantle: { c: p, trim: C.gold }, cape: { c: p, c2: q, trim: C.gold, len: 34 }, belt: C.gold, wpn: STAFF(36, 'ring', { tc: C.gold, gem: C.cyan }), sparkle: 1 },
+    ][t],
+    // 元素使系（贝里奇娜）：地水火风四色光球环绕
+    elementalist: (t, p, q) => [
+      { head: { t: 'circlet', c: C.silver, gem: '#ff7a3a' }, robe: { c: '#3a4a7a', trim: C.silver, sash: p, stars: 1 }, belt: C.silver, orbs: EL4.slice(0, 2), wpn: STAFF(32, 'crystal', { gem: C.cyan }), style: 'elem' },
+      { head: { t: 'crown', c: C.gold, gem: C.cyan }, robe: { c: '#24305a', trim: C.gold, sash: p, stars: 1 }, mantle: { c: p, trim: C.gold }, cape: { c: '#24305a', c2: '#14183a', trim: C.gold, dots: '#ffffff', len: 34 }, belt: C.gold, orbs: EL4, wpn: STAFF(38, 'orb', { gem: '#ffffff', glow: '#fff0c0', tc: C.gold }), style: 'elem', aura: '#fff0c0', sparkle: 1 },
+    ][t],
+    // 海贼系（力奇）：铁锚为武器
+    pirate: (t, p, q) => [
+      { head: { t: 'bandana', c: C.red }, armor: { t: 'vest', c: '#3a3a5a', bare: 1 }, belt: p, pants: '#4a4a6a', boots: C.dBrown, wpn: ANCHOR(C.iron) },
+      { head: { t: 'tricorne', c: '#2a2434', c2: C.gold, plume: C.red }, armor: { t: 'coat', c: '#8a1a24' }, shirt: C.white, belt: C.gold, buckle: C.gold, pads: { c: C.gold }, cape: { c: '#2a2434', c2: p, len: 26 }, pants: '#2a2434', wpn: ANCHOR(C.steel, { len: 25, h: 2 }) },
+    ][t],
+    summoner: (t, p, q) => [
+      { head: { t: 'hood', c: '#4a3a6a' }, robe: { c: '#4a3a6a', trim: C.cyan, sash: p, runes: 1 }, belt: p, orbs: ['#8af0ff'], wpn: STAFF(32, 'crystal', { gem: C.cyan }) },
+      { head: { t: 'crown', c: C.gold, gem: '#c890ff' }, robe: { c: '#2e2450', trim: C.gold, sash: p, runes: 1 }, cape: { c: p, c2: '#2a1a50', trim: C.gold, len: 34 }, belt: C.gold, book: '#6a2a8a', orbs: ['#8af0ff', '#ff90c0', '#ffe080'], wpn: STAFF(36, 'crystal', { gem: '#c890ff', tc: C.gold }), aura: '#b0a0ff', sparkle: 1 },
+    ][t],
+    // ---- 英雄专属隐藏职业 ----
+    gSwordSaint: (t, p, q) => ({ head: { t: 'circlet', c: C.gold, wings: C.white, gem: C.cyan }, armor: { t: 'coat', c: C.white }, shirt: p, mantle: { c: C.gold, trim: C.white }, cape: { c: C.white, c2: '#fff4d0', trim: C.gold, len: 36 }, pads: { c: C.gold, big: 1 }, pants: '#f4ecd8', wpn: SW(27, '#ffffff', C.gold, { big: 1, glow: '#fff4a0' }), trail: '#fff0a0', aura: '#fff0a0', sparkle: 1 }),
+    gSwordEvil: (t, p, q) => ({ head: { t: 'horns', c: '#1a1018', gem: C.red }, armor: { t: 'plate', c: '#2a1a24', c2: '#0e0810', trim: C.red }, emblem: C.red, pads: { c: '#2a1a24', big: 1 }, cape: { c: '#14080e', c2: C.dRed, trim: C.red, len: 36 }, skirt: { t: 'tassets', c: '#2a1a24', c2: p }, wpn: SW(26, '#ffd0d8', '#5a0a1a', { big: 1, glow: '#ff3050' }), trail: '#ff3050', aura: '#ff2040', sparkle: 1 }),
+    gGriffin: (t, p, q) => ({ head: { t: 'helm', c: C.gold, plume: C.red, nasal: 1 }, armor: { t: 'plate', c: '#8a3a24', c2: '#4a1a10', trim: C.gold }, emblem: p, pads: { c: C.gold, big: 1 }, cape: { c: C.dRed, c2: '#5a1018', trim: C.gold, len: 24 }, wpn: { k: 'lance', len: 42, c: C.blade, flag: p, gold: 1 }, mount: { t: 'pegasus', c: '#c89a5a', m: '#f4ecd8', bard: C.dRed, trim: C.gold, wing: '#8a5a2a', wing2: '#f4ecd8', beak: 1, eyes: '#ffd040' }, aura: '#ffb070', sparkle: 1 }),
+    gBowKing: (t, p, q) => ({ head: { t: 'crown', c: C.gold, gem: C.red, big: 1 }, armor: { t: 'plate', c: C.gold, c2: C.dGold, trim: C.red }, emblem: p, pads: { c: C.red, big: 1 }, cape: { c: C.red, c2: C.dRed, trim: C.gold, len: 32 }, quiver: 1, wpn: { k: 'bow', size: 19, c: C.gold, tip: C.white, str: '#fff6a0', arrow: '#ffd040' }, aura: '#ffd060', sparkle: 1 }),
+    gShadowSniper: (t, p, q) => ({ head: { t: 'hood', c: '#1a1424' }, armor: { t: 'leather', c: '#24182e', c2: '#8a3aff' }, mantle: { c: '#14101c', trim: '#8a3aff', collar: 1 }, cape: { c: '#14101c', c2: '#3a1a5a', trim: '#8a3aff', len: 30 }, quiver: 1, wpn: { k: 'bow', size: 18, c: '#2a2034', tip: '#8a3aff', str: '#c890ff', arrow: '#8a3aff' }, aura: '#7a3aff' }),
+    gLightMaiden: (t, p, q) => ({ head: { t: 'circlet', c: C.gold, wings: C.white, gem: '#fff0a0' }, robe: { c: C.white, trim: C.gold, c2: '#fff4d0', sash: p }, mantle: { c: C.gold, trim: C.white }, halo: 'ring', wings: { c: C.white, c2: '#fff0b0' }, belt: C.gold, wpn: STAFF(38, 'sun', { tc: C.gold, wood: C.gold, glow: '#fff6b0' }), aura: '#fff6c0', sparkle: 1 }),
+    gSpirit: (t, p, q) => ({ skin: '#e8f4ff', hair: '#c8e8ff', head: { t: 'circlet', c: '#a8e0ff', gem: '#ffffff' }, robe: { c: '#c8e8ff', trim: '#ffffff', c2: '#a8d0f0', sash: p }, wings: { c: '#e8f8ff', c2: '#a8d8ff', big: 1 }, halo: 'ring', hover: 1, orbs: ['#ffffff', '#a8e0ff'], belt: '#ffffff', wpn: STAFF(36, 'orb', { gem: '#ffffff', glow: '#c8f0ff', tc: '#a8e0ff', wood: '#e8f4ff' }), aura: '#c8f0ff', sparkle: 1 }),
+    gNetherAxe: (t, p, q) => ({ hs: 'spiky', head: { t: 'helm', c: C.bone, c2: '#5a4a6a', horns: '#5a3a8a', visor: 1, eyes: '#c060ff' }, armor: { t: 'plate', c: '#3a2a4a', c2: '#14101c', trim: '#a040ff' }, emblem: p, pads: { c: C.bone, big: 1 }, cape: { c: '#14101c', c2: '#5a1a8a', trim: '#a040ff', len: 32 }, skirt: { t: 'tassets', c: '#3a2a4a', c2: p }, wpn: { k: 'axe', len: 27, h: 3, c: '#e0c0ff', g: '#a040ff', cleaver: 1, glow: '#c060ff' }, style: 'rage', aura: '#a040ff', sparkle: 1 }),
+    gThunderAxe: (t, p, q) => ({ hs: 'spiky', head: { t: 'helm', c: '#3a5a9a', horns: C.gold, crest: '#ffe040' }, armor: { t: 'plate', c: '#3a5a9a', c2: '#1a2a5a', trim: '#ffe040' }, emblem: p, pads: { c: C.gold, big: 1 }, cape: { c: '#1a2a5a', c2: '#ffe040', trim: C.gold, len: 32 }, skirt: { t: 'tassets', c: '#3a5a9a', c2: p }, storm: 1, wpn: { k: 'axe', len: 26, h: 3, c: '#fff8c0', g: C.gold, glow: '#fff060' }, wpn2: { k: 'axe', len: 20, h: 2, c: '#fff8c0' }, style: 'rage', aura: '#fff060', sparkle: 1 }),
+    gMagicBlade: (t, p, q) => ({ head: { t: 'mask', c: '#3a3648', eyes: C.cyan }, armor: { t: 'chain', c: '#5a4a72', c2: '#3a2c50' }, tabard: '#2a1a4a', emblem: C.cyan, pads: { c: '#4a4060', big: 1 }, cape: { c: p, c2: q, trim: C.cyan, len: 32 }, wpn: SW(24, '#c8f4ff', C.dPurple, { glow: '#7ad8ff', runes: 1, big: 1 }), trail: '#7ad8ff', aura: '#7ad8ff', sparkle: 1 }),
+    gSpellSword: (t, p, q) => ({ head: { t: 'wizhat', c: '#6a3a8a', band: C.gold, star: C.gold }, armor: { t: 'leather', c: '#5a3a7a', c2: C.gold }, mantle: { c: p, trim: C.gold }, skirt: { t: 'tunic', c: p }, wpn: SW(22, '#ffe8ff', C.gold, { glow: '#ff90ff', runes: 1 }), trail: '#ff90ff', sparkle: 1 }),
+    gYama: (t, p, q) => ({ head: { t: 'horns', c: '#2a0a0a', big: 1, crown: 1, gem: '#ff5020' }, robe: { c: '#5a0a0a', trim: '#ff5020', c2: '#2a0606', sash: p, runes: 1 }, mantle: { c: '#1a0606', trim: C.gold, collar: 1 }, cape: { c: '#1a0606', c2: '#ff5020', trim: C.gold, len: 36 }, belt: C.gold, wpn: STAFF(38, 'orb', { gem: '#ff5020', glow: '#ffb070', tc: C.gold, wood: '#2a0a0a', big: 1 }), aura: '#ff5020', sparkle: 1 }),
+    gHolyDemon: (t, p, q) => ({ head: { t: 'horns', c: C.white, gem: '#c040ff' }, robe: { c: C.white, trim: '#c040ff', c2: '#2a1438', sash: p }, mantle: { c: '#2a1438', trim: C.gold }, halo: 'ring', bwings: { c: '#2a1438', c2: '#6a3a8a' }, belt: C.gold, wpn: STAFF(38, 'orb', { gem: '#ffffff', glow: '#e0a0ff', tc: C.gold, big: 1 }), aura: '#e0a0ff', sparkle: 1 }),
+    gSpecialOps: (t, p, q) => ({ head: { t: 'ninja', c: '#2a3a2a', band: C.red }, armor: { t: 'harness', c: '#3a4a3a' }, shirt: '#2a3a2a', sleeve: '#2a3a2a', belt: p, bracer: C.steel, pants: '#24302a', boots: '#1a1a1a', scarf: C.red, scarfLen: 1.8, wpn: NINJATO('#ffffff', { len: 18, glow: '#ff6060' }), style: 'ninja', sparkle: 1 }),
+    gShadowNinja: (t, p, q) => Object.assign({}, LINES_B.samurai(4, p, q), { scarf: '#6a3aa8' }),
+    gPirateKing: (t, p, q) => ({ head: { t: 'tricorne', c: '#8a1a24', c2: C.gold, plume: C.white, big: 1 }, armor: { t: 'coat', c: '#8a1a24' }, shirt: C.white, belt: C.gold, buckle: C.gold, pads: { c: C.gold, big: 1 }, cape: { c: '#2a2434', c2: C.gold, trim: C.gold, len: 34 }, pants: '#2a2434', wpn: ANCHOR(C.gold, { len: 27, h: 3, glow: '#fff0a0' }), aura: '#ffe080', sparkle: 1 }),
+    gSeaLord: (t, p, q) => ({ head: { t: 'tricorne', c: '#14202a', c2: '#3ac8c8', plume: '#3ac8c8', big: 1 }, armor: { t: 'coat', c: '#14202a' }, shirt: '#3a8a8a', belt: '#3ac8c8', pads: { c: '#2a4a5a', big: 1 }, cape: { c: '#14202a', c2: '#3ac8c8', trim: '#3ac8c8', len: 34 }, pants: '#14202a', wpn: ANCHOR('#a8f0f0', { len: 27, h: 3, glow: '#7af0f0' }), aura: '#3ac8c8', sparkle: 1 }),
+    gEvilSword: (t, p, q) => ({ head: { t: 'horns', c: '#1a1018', gem: C.red, crown: 1 }, armor: { t: 'plate', c: '#2a1424', c2: '#0e0810', trim: C.red }, emblem: C.red, pads: { c: '#2a1424', big: 1 }, cape: { c: '#14080e', c2: C.dRed, trim: C.red, len: 34 }, skirt: { t: 'tassets', c: '#2a1424', c2: p }, wpn: SW(24, '#ffd0d8', '#5a0a1a', { glow: '#ff3050', big: 1 }), trail: '#ff3050', aura: '#ff2040', sparkle: 1 }),
+    gHolySword: (t, p, q) => ({ head: { t: 'circlet', c: C.gold, wings: C.white, gem: C.cyan }, armor: { t: 'plate', c: C.white, c2: C.pearl, trim: C.gold }, emblem: C.gold, pads: { c: C.gold, big: 1 }, cape: { c: C.white, c2: '#fff4d0', trim: C.gold, len: 34 }, skirt: { t: 'tassets', c: C.white, c2: p }, wpn: SW(25, '#ffffff', C.gold, { glow: '#fff4a0', big: 1 }), trail: '#fff0a0', aura: '#fff0a0', sparkle: 1 }),
+    gLightKnight: (t, p, q) => ({ head: { t: 'helm', c: C.white, visor: 1, crest: C.gold, plume: C.gold }, armor: { t: 'plate', c: C.white, c2: C.pearl, trim: C.gold }, emblem: C.gold, pads: { c: C.gold, big: 1 }, cape: { c: C.white, c2: C.pearl, trim: C.gold, len: 24 }, shield: { s: 'tower', c: C.white, c2: C.gold, e: C.gold, cross: 1 }, wpn: { k: 'lance', len: 42, c: '#ffffff', flag: p, gold: 1, glow: '#fff0a0' }, mount: { t: 'horse', c: '#ffffff', m: '#f4c542', bard: p, trim: C.gold, plate: C.gold }, aura: '#fff0a0', sparkle: 1 }),
+    gHolyKnight: (t, p, q) => ({ head: { t: 'helm', c: C.gold, visor: 1, crownTop: C.gold, plume: C.white }, armor: { t: 'plate', c: C.gold, c2: C.dGold, trim: C.white }, emblem: p, pads: { c: C.white, big: 1 }, cape: { c: C.white, c2: '#fff4d0', trim: C.gold, len: 26 }, halo: 'ring', wpn: { k: 'lance', len: 46, c: '#ffffff', flag: p, banner: 1, gold: 1, glow: '#fff0a0' }, mount: { t: 'pegasus', c: '#ffffff', m: '#f4c542', bard: p, trim: C.gold, plate: C.gold, wing: '#ffffff', wing2: '#fff0b0' }, aura: '#fff6c0', sparkle: 1 }),
+    // ---- 敌方 ----
+    maskman: (t, p, q) => ({ head: { t: 'ninja', c: t ? '#5a1a1a' : '#2a2a34', band: t ? C.gold : C.white, eyes: '#ffffff' }, armor: { t: 'harness', c: '#3a3a44' }, shirt: '#2a2a34', sleeve: '#2a2a34', belt: p, pants: '#24242c', boots: '#1a1a1e', scarf: p, scarfLen: t ? 1.4 : 1, wpn: NINJATO(C.steel, { len: 16 }), style: 'ninja' }),
+    outsider: (t, p) => ({ skin: '#5a3a7a', hair: '#2a1a3a', hs: 'spiky', eyeC: '#ff3030', head: { t: 'horns', c: '#2a1a3a', gem: '#ff3030' }, armor: { t: 'bare', c: '#3a1a4a', paint: '#ff3030' }, sleeve: '#5a3a7a', pants: '#3a2a4a', boots: '#2a1a3a', talons: 1, bwings: { c: '#2a1a3a', c2: '#5a2a6a' }, wpn: { k: 'claw', c: '#ff9090', big: 1 }, scaleK: 1.1 }),
+    madGod: (t, p) => ({ skin: '#e0d0e4', hair: '#5a5a7a', hs: 'long', eyeC: '#ff2020', head: { t: 'horns', c: C.gold, big: 1, crown: 1, gem: '#ff2020' }, armor: { t: 'plate', c: '#2a2030', c2: '#100c14', trim: C.gold }, emblem: '#ff2020', pads: { c: C.gold, big: 1 }, cape: { c: '#3a0a14', c2: '#100c14', trim: C.gold, len: 40 }, skirt: { t: 'tassets', c: '#2a2030', c2: '#ff2020' }, bwings: { c: '#1a1420', c2: '#5a1a2a', big: 1 }, wpn: SW(30, '#ffe0e0', C.gold, { big: 1, glow: '#ff3040' }), trail: '#ff3040', aura: '#ff2040', sparkle: 1, scaleK: 1.3 }),
+    madGod2: (t, p) => ({ skin: '#c8b0d8', hair: '#3a0a1e', hs: 'long', eyeC: '#ff1010', head: { t: 'horns', c: '#1a0a10', big: 1, crown: 1, gem: '#ff1010' }, armor: { t: 'plate', c: '#14080e', c2: '#3a0a18', trim: '#ff3040' }, emblem: '#ffd040', pads: { c: '#3a0a18', big: 1 }, cape: { c: '#3a0a18', c2: '#14080e', trim: '#ff3040', len: 42 }, skirt: { t: 'tassets', c: '#14080e', c2: '#ff3040' }, bwings: { c: '#0e0610', c2: '#8a0a2a', big: 1 }, wings: { c: '#2a1a2a', c2: '#ff3040', big: 1 }, orbs: ['#ff3040', '#ffd040', '#c040ff'], wpn: SW(32, '#ffffff', '#ff3040', { big: 1, glow: '#ff5060', runes: 1, twin: '#ffd040' }), trail: '#ff3040', aura: '#ff1030', sparkle: 1, scaleK: 1.45 }),
+  };
+  for (const k in G4) LINES[k] = (t, p, q, u) => Object.assign({ fixW: 1 }, G4[k](t, p, q, u));
+
   // ---------------- 转职 B 路线（u.path === 'b' 且 tier >= at）----------------
   // at 以 CLASSES[cls].alt.at 为准；data.js 尚未提供时使用此后备表
-  const ALT_AT = { adventurer: 2, swordHand: 2, crossbowman: 2, medium: 2, swordsman: 2, knight: 2, fighter: 2, samurai: 2, archer: 2, priest: 2, mage: 2, sorcerer: 1, hawk: 1, wolf: 1, babyDragon: 2 };
+  const ALT_AT = { halberdier: 2, tribesman: 2, alchemist: 2, amazon: 1, nun: 1, adventurer: 2, swordHand: 2, crossbowman: 2, medium: 2, swordsman: 2, knight: 2, fighter: 2, samurai: 2, archer: 2, priest: 2, mage: 2, sorcerer: 1, hawk: 1, wolf: 1, babyDragon: 2 };
   const NINJATO = (c, o) => Object.assign({ k: 'katana', len: 20, c, g: '#2a2434', straight: 1, grip: '#2a2434' }, o);
   const LINES_B = {
     // 魔法剑士 → 魔导剑士 → 圣魔剑士：法师披肩 + 符文光剑（魔法拖影）
@@ -451,6 +566,12 @@ const DFIG = (() => {
     medium: (t, p, q) => [
       { fixW: 1, head: { t: 'horns', c: C.bone, gem: '#7aff7a' }, robe: { c: '#1a2a1e', trim: '#7aff7a', sash: p, runes: 1 }, mantle: { c: '#14200e', trim: '#7aff7a', collar: 1 }, cape: { c: '#14200e', c2: '#3a1a4a', trim: '#7aff7a', len: 34 }, orbs: ['#7aff7a', '#c060ff'], wpn: STAFF(36, 'skull', { wood: '#2a2a1e', gem: '#7aff7a' }), style: 'gu', aura: '#7aff7a', sparkle: 1 },
     ][t - 2],
+    // ---- 狂神降世 B 路线 ----
+    halberdier: (t, p, q) => [{ fixW: 1, head: { t: 'helm', c: C.steel, visor: 1, crest: p }, armor: { t: 'plate', c: C.steel, c2: C.dSteel }, emblem: p, pads: { c: C.steel, big: 1 }, shield: { s: 'tower', c: p, c2: C.steel, e: C.steel }, wpn: HALB(C.steel, { len: 38, flag: p }), mount: { t: 'horse', c: '#5a4a3a', m: '#1a1410', bard: '#8a8f9c', trim: p, plate: C.steel } }][t - 2],
+    tribesman: (t, p, q) => [{ fixW: 1, head: { t: 'band', c: '#f0a030', tail: 1 }, armor: { t: 'tunic', c: '#f0a030' }, shirt: '#f0a030', sleeve: '#f0a030', collar: '#c87818', belt: p, beads: 1, pants: '#e89028', wide: 1, glove: '#f4ecd8', bracer: C.steel, wpn: { k: 'fist', glow: '#ffd890' } }][t - 2],
+    alchemist: (t, p, q) => [{ fixW: 1, head: { t: 'horns', c: '#2a3a1a', gem: '#9aff4a' }, robe: { c: '#1e2a14', trim: '#9aff4a', sash: p, runes: 1 }, mantle: { c: '#14200e', trim: '#9aff4a', collar: 1 }, cape: { c: '#14200e', c2: '#4a1a5a', trim: '#9aff4a', len: 34 }, flasks: 1, orbs: ['#9aff4a', '#c040ff'], wpn: STAFF(36, 'skull', { wood: '#2a2a1e', gem: '#9aff4a' }), style: 'flask', aura: '#9aff4a', sparkle: 1 }][t - 2],
+    amazon: (t, p, q) => [{ fixW: 1, head: { t: 'band', c: C.red, tail: 1 }, armor: { t: 'tunic', c: C.red }, shirt: C.red, sleeve: C.red, collar: C.gold, belt: C.gold, pants: '#3a2a2a', wide: 1, glove: '#f4ecd8', bracer: C.gold, wpn: { k: 'fist', glow: '#ffb090' } }][t - 1],
+    nun: (t, p, q) => [{ fixW: 1, head: { t: 'circlet', c: '#a8e070', wings: '#e8ffe0', gem: '#7aff6a' }, robe: { c: '#3a7a3a', trim: '#e8ffe0', sash: p }, mantle: { c: '#e8ffe0', trim: '#7aff6a' }, belt: '#7aff6a', orbs: ['#a8ff90', '#a0f0ff', '#ffe080'], wpn: STAFF(34, 'crystal', { gem: '#a8ff90' }), aura: '#a8ff90', sparkle: 1 }][t - 1],
     // 月影狼 → 月神狼：银蓝毛皮、额上新月 → 发光白狼、月轮光环；扑击更快
     wolf: (t, p, q) => [
       { beast: 'wolf', fur: '#9aaccc', mark: C.gold, armor: { t: 'harness', c: '#c8d0e0' }, skirt: { t: 'tunic', c: p }, wpn: { k: 'claw', c: '#e8eef8' }, fast: 1 },
@@ -491,6 +612,7 @@ const DFIG = (() => {
       const sk = CL ? CL.sprite : cls;
       S = { kind: 'sprite', sk, dragon: /dragon/i.test(sk || '') || cls === 'babyDragon', fly: !!(CL && CL.tiers[t] && CL.tiers[t].move === 'fly'), big: ['giant', 'yeti', 'sphinx', 'kraken', 'hydra', 'demon', 'darkLord', 'dragon', 'console', 'turtle'].includes(sk) };
       S.scale = S.big ? 4.0 : cls === 'babyDragon' ? 3.0 + t * 0.3 : 3.3;
+      if (cls === 'gWhiteDragon' || cls === 'gBlackDragon') { S.tintM = cls === 'gWhiteDragon' ? 'white' : 'black'; S.breath = cls === 'gWhiteDragon' ? 'blue' : 'red'; S.scale = 4.2; }
       if (isB && cls === 'babyDragon') { S.ice = 1; S.skB = ((alt && alt.sprite) || 'dragon_b'); S.breath = 'blue'; S.scale += 0.2 * (t - at + 1); }
     } else {
       const base = fn(t, p, q, u) || {};
@@ -622,6 +744,7 @@ const DFIG = (() => {
   // 武器尖端（拖影与特效定位用）
   function weaponTip(J, S, P) {
     const w = S.wpn, k = w.k;
+    if (w.anchor) return [add(J.hF, J.wd, w.len * 0.5), add(J.hF, J.wd, w.len + 2)];
     if (k === 'sword' || k === 'katana') return [add(J.hF, J.wd, 3), add(J.hF, J.wd, w.len)];
     if (k === 'axe') return [add(J.hF, J.wd, w.len * 0.55), add(add(J.hF, J.wd, w.len - 2), dv(P.w - 90), 6)];
     if (k === 'lance' || k === 'fork') return [add(J.hF, J.wd, w.len * 0.5), add(J.hF, J.wd, w.len)];
@@ -942,6 +1065,14 @@ const DFIG = (() => {
       if (hd.horns) { part(NF); const hc2 = pc(hd.horns); chainK([W(-1.5, -6), W(-4.5, -8.5), W(-4, -11)], 1.8, 0.6, hc2); chainK([W(2, -6), W(4.8, -8), W(4.6, -10.5)], 1.6, 0.5, hc2); }
       if (hd.crownTop) { part(NF); const cc = pc(hd.crownTop); for (const x of [-4.5, -1.8, 0.9, 3.6]) poly([W(x - 1.2, -6.2), W(x + 1.2, -6.2), W(x, -9.8)], cc); poly([W(-5.5, -6.4), W(4.8, -6.4), W(4.6, -5.4), W(-5.4, -5.4)], cc); dotK(W(-0.4, -5.9), pc(C.red)); }
       if (hd.plume) { part(NF); const pl = pc(hd.plume), s = Math.sin(NOW * 0.008) * 1.5 - (P.ra || 0) * 2; chainK([W(0, -8), W(-4, -11), W(-9, -10 + s), W(-13, -6 + s * 1.4)], 2.6, 1.2, pl); }
+    } else if (t === 'tricorne') {
+      // 海贼三角帽（可带羽毛）
+      const b = hd.big ? 1.2 : 1;
+      discK(hc, r + 1, (px, py) => { const [, y] = L(px, py); return y < -2.6 ? c1 : 0; });
+      poly([W(-9.5 * b, -2.4), W(9 * b, -2.4), W(7 * b, -5.5), W(0, -4.6), W(-7 * b, -6)], c1);
+      part(NF); poly([W(-9.5 * b, -2.4), W(9 * b, -2.4), W(8.6 * b, -3.4), W(-9 * b, -3.4)], c2);
+      dotK(W(0.5, -6.2), pc('#ffffff'));
+      if (hd.plume) { part(NF); const s2 = Math.sin(NOW * 0.008) * 1.2; chainK([W(-2, -6.5), W(-7, -9.5 + s2), W(-12, -8 + s2)], 1.8, 0.7, pc(hd.plume)); }
     } else if (t === 'veil') {
       // 沙漠公主：金额饰 + 垂到肩后的薄纱
       poly([W(-2, -5.8), W(-9, -2), W(-8.5, 9), W(-3, 7), W(-1, -2)], c1);
@@ -1107,7 +1238,19 @@ const DFIG = (() => {
     } else if (k === 'axe') {
       cap(add(h, d, -4), add(h, d, w.len), 1.6, 1.5, pc(C.wood));
       const top = add(h, d, w.len - 1), side = dv(a - 90), H = [[4.5, 4], [6, 6.5], [7, 8], [8.5, 10]][w.h || 0];
-      if (w.cleaver) {
+      if (w.anchor) {
+        // 铁锚：顶端圆环 + 横杆 + 两侧弯钩
+        const sd = dv(a - 90), bot = add(h, d, w.len - 1), big = (w.h || 1) >= 2 ? 1.25 : 1;
+        if (w.glow) { part(FLAT); disc(bot, 7 * big, pc(w.glow)); part(NF); }
+        ring(add(h, d, -5.5), 1.2, 2.6, c);
+        cap(add(add(h, d, -2), sd, -4 * big), add(add(h, d, -2), sd, 4 * big), 1.1, 1.1, c);
+        const tp = add(h, d, w.len);
+        chain([tp, add(add(tp, d, 3), sd, 4.5 * big), add(add(tp, d, -2), sd, 7.5 * big)], 1.8 * big, 0.9, c);
+        chain([tp, add(add(tp, d, 3), sd, -4.5 * big), add(add(tp, d, -2), sd, -7.5 * big)], 1.8 * big, 0.9, c);
+        poly([add(add(tp, d, -2), sd, 7.5 * big), add(add(tp, d, -5.5), sd, 6.5 * big), add(add(tp, d, -3), sd, 9.5 * big)], c);
+        poly([add(add(tp, d, -2), sd, -7.5 * big), add(add(tp, d, -5.5), sd, -6.5 * big), add(add(tp, d, -3), sd, -9.5 * big)], c);
+        void bot;
+      } else if (w.cleaver) {
         const bw = (w.h >= 3 ? 10 : 8), bl = (w.h >= 3 ? 14 : 11), hot = w.fire && Math.sin(NOW * 0.02) > 0;
         poly([add(top, d, 1.5), add(add(top, d, 2.5), side, bw), add(add(top, d, -bl), side, bw + 1.5), add(top, d, -bl)], (px, py) => { const off = (px - top[0]) * side[0] + (py - top[1]) * side[1]; return off > bw - 2 ? pc(hot ? '#ffd040' : C.blade) : c; });
         disc(add(add(top, d, -2), side, 3), 1.1, pc(C.dIron));
@@ -1124,6 +1267,7 @@ const DFIG = (() => {
       cap(base, add(tip, d, -5), 1.6, 1.3, pc(w.gold ? C.gold : w.dark ? '#3a3646' : C.wood));
       if (k === 'fork') { const s2 = dv(a - 90); for (const o of [-2, 0, 2]) cap(add(add(tip, d, -5), s2, o), add(add(tip, d, 0), s2, o * 1.1), 0.7, 0.5, c); }
       else {
+        if (w.halberd) { const sd = dv(a - 90), b0 = add(tip, d, -6); poly([add(b0, d, 1.5), add(add(b0, d, 2.5), sd, 6), add(add(b0, d, -5), sd, 6.5), add(b0, d, -5)], (px, py) => { const off = (px - b0[0]) * sd[0] + (py - b0[1]) * sd[1]; return off > 4.6 ? pc(C.blade) : c; }); cap(add(b0, d, -1), add(add(b0, d, -1), sd, -3.5), 0.8, 0.5, c); }
         poly([add(add(tip, d, -6), dv(a + 90), 2.2), add(tip, d, 1), add(add(tip, d, -6), dv(a - 90), 2.2), add(tip, d, -7.5)], c);
         poly([add(add(h, d, 2), dv(a + 90), 1.3), add(add(h, d, 2), dv(a - 90), 1.3), add(add(h, d, 6.5), dv(a - 90), 3.2), add(add(h, d, 6.5), dv(a + 90), 3.2)], pc(w.gold ? C.gold : C.steel));
       }
@@ -1286,6 +1430,7 @@ const DFIG = (() => {
     cap(add(nt, dv(a, 2)), mz, 4.8, 4, c);
     disc(add(mz, dv(a + 35, 2)), 0.8, pc('#2a1a20'));
     bigEye(add(nt, dv(a + 62, 2.6)), M.eyes ? pc(M.eyes) : null);
+    if (M.beak) { part(NF); const bk = pc('#f0b030'); poly([add(nt, dv(a + 40, 3)), add(mz, dv(a, 4)), add(add(mz, dv(a, 2)), dv(a - 90, 3)), add(nt, dv(a - 50, 2.5))], bk); poly([add(nt, dv(a + 150, 4)), add(nt, dv(a + 175, 11)), add(nt, dv(a + 130, 7))], pc(M.wing)); }
     if (M.plate) { part(NF); const pl = pc(M.plate); cap(add(nt, dv(a, 1.5)), add(mz, dv(a, -1)), 3.2, 2.6, (px, py, t) => (t > 0.3 && t < 0.42 ? pc(M.trim || M.plate) : pl)); }
     part(NF);
     const back = dv(angOf(nb, nt) - 90);
@@ -1354,6 +1499,7 @@ const DFIG = (() => {
       drawSkirt(J, S, tid);
     }
     drawMantle(J, S);
+    if (S.flasks) { part(NF); [['#9aff4a', -3.5], ['#ff7a9a', 0], ['#7ad8ff', 3.2]].forEach(([fc, v]) => { const b0 = T(J, v, 1.2); cap(b0, add(b0, J.up, -3), 1.4, 1.1, pc(fc)); dot(add(b0, J.up, 0.8), pc(C.wood)); }); }
     if (S.beads) { part(NF); const bd = pc('#8a4a2a'); for (let i = 0; i < 6; i++) disc(T(J, -3 + i * 1.6, 15.5 - Math.sin(i / 5 * Math.PI) * 4), 1.1, i === 3 ? pc(C.gold) : bd); }
     drawHalo(J, S);
     drawHead(J, S, P);
@@ -1401,8 +1547,9 @@ const DFIG = (() => {
 
   const WHITE_SPR = {}, ICE_SPR = new WeakMap();
   // 冰龙：B 路线精灵图未就绪时，把龙的精灵图换成冰蓝色（保留深色描边）
-  function iceTint(spr) {
-    if (ICE_SPR.has(spr)) return ICE_SPR.get(spr);
+  function iceTint(spr, mode) {
+    const cache = ICE_SPR.get(spr) || {}; ICE_SPR.set(spr, cache);
+    if (cache[mode || 'ice']) return cache[mode || 'ice'];
     const c = document.createElement('canvas'); c.width = spr.width; c.height = spr.height;
     const x = c.getContext('2d'); x.drawImage(spr, 0, 0);
     const d = x.getImageData(0, 0, c.width, c.height);
@@ -1410,10 +1557,12 @@ const DFIG = (() => {
       if (!d.data[i + 3]) continue;
       const l = d.data[i] * 0.3 + d.data[i + 1] * 0.59 + d.data[i + 2] * 0.11;
       if (l < 45) continue;
-      d.data[i] = Math.min(255, 70 + l * 0.6); d.data[i + 1] = Math.min(255, 140 + l * 0.45); d.data[i + 2] = Math.min(255, 220 + l * 0.15);
+      if (mode === 'white') { d.data[i] = Math.min(255, 150 + l * 0.45); d.data[i + 1] = Math.min(255, 150 + l * 0.45); d.data[i + 2] = Math.min(255, 165 + l * 0.4); }
+      else if (mode === 'black') { const red = d.data[i] > 180 && d.data[i + 1] < 90; d.data[i] = red ? 255 : 30 + l * 0.35; d.data[i + 1] = red ? 60 : 24 + l * 0.25; d.data[i + 2] = red ? 40 : 44 + l * 0.4; }
+      else { d.data[i] = Math.min(255, 70 + l * 0.6); d.data[i + 1] = Math.min(255, 140 + l * 0.45); d.data[i + 2] = Math.min(255, 220 + l * 0.15); }
     }
     x.putImageData(d, 0, 0);
-    ICE_SPR.set(spr, c);
+    cache[mode || 'ice'] = c;
     return c;
   }
   function whiteSprite(spr, col) {
@@ -1431,7 +1580,8 @@ const DFIG = (() => {
     NOW = now; F = f;
     if (S.kind === 'sprite') {
       let spr = typeof unitSprite === 'function' ? unitSprite(u) : null;
-      if (S.ice && spr) spr = (typeof SPRITE_DEFS !== 'undefined' && SPRITE_DEFS[S.skB] && typeof getSprite === 'function') ? getSprite(S.skB, u.tier, u.team, u.hair, u.color) : iceTint(spr);
+      if (S.tintM && spr) spr = iceTint(spr, S.tintM);
+      else if (S.ice && spr) spr = (typeof SPRITE_DEFS !== 'undefined' && SPRITE_DEFS[S.skB] && typeof getSprite === 'function') ? getSprite(S.skB, u.tier, u.team, u.hair, u.color) : iceTint(spr);
       if (!spr) return null;
       const size = 16 * S.scale * s, hov = S.fly ? (-8 + Math.sin(now * 0.004) * 2.5) * s : 0;
       const sqx = 1 + P.sq, sqy = 1 - P.sq;
@@ -1512,7 +1662,8 @@ const DFIG = (() => {
     if (k === 'xbow') return { style: S.wpn.big ? 'bolt3' : 'bolt', keys: mkKeys([[0, {}], [200, { fa: 80, fe: 92, w: 90, lean: 6, hd: 4 }], [340, { fa: 80, fe: 92, w: 90, lean: 6, hd: 4 }], [370, { fa: 70, fe: 82, w: 100, lean: -6, dx: -3, ld: 0 }, 'out'], [520, { fa: 80, fe: 92, w: 90, ld: 0 }], [760, { ld: 0 }], [800, { ld: 1 }]]), dur: 800, release: 350, fly: 170 };
     // 近战武器隔空攻击：原地挥砍送出剑气
     if (ranged) {
-      if (k === 'staff') return { style: S.style === 'gu' ? 'swarm' : S.wpn.top === 'clock' || S.wpn.top === 'hourglass' ? 'clock' : 'orb', keys: mkKeys([[0, {}], [220, { fa: 150, fe: 160, w: 175, lean: -6, glw: 1 }], [300, { fa: 95, fe: 95, w: 110, lean: 10 }, 'out'], [520, { fa: 90, fe: 95, w: 110 }], [760, {}]]), dur: 760, release: 300, fly: 240 };
+      if (k === 'staff' && S.style === 'flask') return { style: 'flask', keys: mkKeys([[0, {}], [180, { ba: 190, be: 200, fa: 30, fe: 80, lean: -10 }], [260, { ba: 80, be: 60, lean: 14 }, 'out'], [460, { ba: 70, be: 50, lean: 10 }], [700, {}]]), dur: 700, release: 260, fly: 260 };
+      if (k === 'staff') return { style: S.style === 'gu' ? 'swarm' : S.style === 'elem' ? 'elem' : S.wpn.top === 'clock' || S.wpn.top === 'hourglass' ? 'clock' : 'orb', keys: mkKeys([[0, {}], [220, { fa: 150, fe: 160, w: 175, lean: -6, glw: 1 }], [300, { fa: 95, fe: 95, w: 110, lean: 10 }, 'out'], [520, { fa: 90, fe: 95, w: 110 }], [760, {}]]), dur: 760, release: 300, fly: 240 };
       return { style: 'wave', keys: mkKeys([[0, {}], [220, { fa: 200, fe: 215, w: 240, lean: -4 }], [320, { fa: 70, fe: 80, w: 65, lean: 22, tr: 1 }, 'in'], [360, { fa: 45, fe: 55, w: 35, lean: 24, tr: 1 }], [560, { fa: 45, fe: 55, w: 35, lean: 20 }], [800, {}]]), dur: 800, release: 330, fly: 220 };
     }
     if (S.mount) {

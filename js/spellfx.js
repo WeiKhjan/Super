@@ -462,6 +462,90 @@ STYLE.rain = async ctx => { // 天马流星枪：自空中连续刺下
   await wait(240);
 };
 
+// ---------- 专属大招演出（狂神降世：合技与纯相魔大魔法；依招式 id 选用） ----------
+const byDist = (cells, cx, cy) => cells.slice().sort((a, b) => Math.hypot(tc(a.x) - cx, tc(a.y) - cy) - Math.hypot(tc(b.x) - cx, tc(b.y) - cy));
+const SHOW = {
+  // 太古机兵：大地裂开，岩柱接连拔地而起，巨拳自天砸落
+  async ancientGolem({ x, y, cells }) {
+    sfx('rock'); shakeStage(0.4);
+    byDist(cells, x, y).forEach((c, k) => setTimeout(() => {
+      const px = tc(c.x), py = tc(c.y);
+      PFX.pillars.push({ x: px, y: py + TS * 0.3, w: 0.55, color: '#c8a070', t0: now0(), dur: T(520) });
+      emit(10, px, py + TS * 0.3, { angle: -Math.PI / 2, spread: 0.7, speed: [1.5, 3.2], life: [0.4, 0.7], size: [0.06, 0.12], cols: ELEM.rock.cols, gravity: 5, shape: 'rock' });
+    }, T(k * 28)));
+    await wait(420);
+    for (let k = 0; k < 6; k++) emit(1, x + rand(-0.2, 0.2) * TS, y - TS * 5, { speed: [0, 0], vy: 12, life: [0.36, 0.4], size: [0.5, 0.7], cols: ['#8a7a6a', '#6a5a4a'], shape: 'rock' });
+    await wait(330);
+    flash('#ffe0b0', 0.55, 260); shakeStage(1); sfx('boom'); haptic([40, 30, 80]);
+    for (let k = 0; k < 3; k++) PFX.rings.push({ x, y, r0: 0.2, r1: 2.5 + k, color: '#c8a070', t0: now0() + T(k * 90), dur: T(500), flat: true });
+    cells.forEach((c, k) => setTimeout(() => IMPACT.rock(tc(c.x), tc(c.y), false), T(k * 15)));
+    await wait(380);
+  },
+  // 暴风散弹箭：扇形的风之箭雨
+  async stormShot({ cx, cy, cells }) {
+    sfx('wind');
+    for (let r = 0; r < 3; r++) cells.forEach(c => shoot(cx, cy, tc(c.x) + rand(-0.2, 0.2) * TS, tc(c.y) + rand(-0.2, 0.2) * TS, 0.2, { col: r % 2 ? '#ffffff' : '#a8f0d0', delay: r * 0.07 + rand(0, 0.04) }));
+    emit(30, cx, cy, { speed: [0, 0], life: [0.4, 0.6], size: [0.04, 0.08], cols: ELEM.wind.cols, swirl: 9, cx, cy, jitter: 0.6, shape: 'shard' });
+    await wait(330);
+    cells.forEach((c, k) => setTimeout(() => IMPACT.wind(tc(c.x), tc(c.y), false), T(k * 25)));
+    flash('#d8fff0', 0.35, 220); shakeStage(0.6); sfx('hit');
+    await wait(360);
+  },
+  // 混沌脉冲：三道黑紫脉冲沿直线贯穿
+  async chaosPulse({ cx, cy, cells }) {
+    if (!cells.length) return;
+    const end = byDist(cells, cx, cy).pop();
+    const ex = tc(end.x), ey = tc(end.y);
+    sfx('dark');
+    emit(40, cx, cy, { speed: [0, 0], life: [0.4, 0.6], size: [0.05, 0.1], cols: ELEM.dark.cols, swirl: -10, cx, cy, jitter: 0.9, shape: 'circle' });
+    await wait(260);
+    for (let k = 0; k < 3; k++) PFX.beams.push({ x0: cx, y0: cy, x1: ex, y1: ey, w: 0.75 - k * 0.15, color: k === 1 ? '#f0c0ff' : '#8a2ad0', t0: now0() + T(k * 140), dur: T(420) });
+    byDist(cells, cx, cy).forEach((c, k) => setTimeout(() => { IMPACT.dark(tc(c.x), tc(c.y), false); PFX.rings.push({ x: tc(c.x), y: tc(c.y), r0: 0.1, r1: 0.9, color: '#c070ff', t0: now0(), dur: T(320) }); }, T(80 + k * 45)));
+    await wait(300); flash('#c070ff', 0.4, 260); shakeStage(0.8);
+    await wait(320);
+  },
+  // 超热燎原火：烈焰自施法者向外一圈圈蔓延
+  async heatWave({ cx, cy, cells }) {
+    sfx('fire');
+    const sorted = byDist(cells, cx, cy);
+    sorted.forEach((c, k) => setTimeout(() => {
+      const px = tc(c.x), py = tc(c.y);
+      emit(12, px, py + TS * 0.2, { speed: [0.3, 1.2], life: [0.4, 0.8], size: [0.08, 0.16], cols: ELEM.fire.cols, gravity: -2.4, drag: 0.85, shape: 'circle', jitter: 0.35 });
+      if (k % 3 === 0) PFX.rings.push({ x: px, y: py, r0: 0.1, r1: 0.8, color: '#ff8a30', t0: now0(), dur: T(300), flat: true });
+    }, T(Math.min(700, k * 14))));
+    await wait(360); flash('#ffb060', 0.5, 320); shakeStage(0.9); sfx('boom'); haptic([30, 20, 60]);
+    await wait(460);
+  },
+  // 火山爆发：地面隆起、熔岩冲天，火山弹四散落下
+  async volcano({ x, y, cells }) {
+    sfx('rock'); shakeStage(0.5);
+    PFX.circles.push({ x, y: y + TS * 0.3, r: 1.6, color: '#ff5a1a', t0: now0(), dur: T(1000) });
+    await wait(300);
+    PFX.pillars.push({ x, y: y + TS * 0.3, w: 1.2, color: '#ff7a1a', t0: now0(), dur: T(800) });
+    emit(60, x, y, { angle: -Math.PI / 2, spread: 0.5, speed: [3, 7], life: [0.6, 1.1], size: [0.08, 0.18], cols: ELEM.fire.cols, gravity: 6, drag: 0.92, shape: 'circle' });
+    flash('#ff8a30', 0.55, 300); shakeStage(1); sfx('boom'); haptic([40, 30, 80]);
+    cells.forEach((c, k) => setTimeout(() => { IMPACT.fire(tc(c.x), tc(c.y), false); if (k % 2 === 0) IMPACT.rock(tc(c.x), tc(c.y), false); }, T(200 + k * 30)));
+    await wait(700);
+  },
+  // 四元素爆炸：地、水、火、风四道元素柱依次落下，最后合为白光
+  async fourBurst({ x, y, cells }) {
+    const EL = [['rock', '#e0c090'], ['ice', '#7ad0ff'], ['fire', '#ff7a1a'], ['wind', '#8ae8c0']];
+    for (let k = 0; k < 4; k++) {
+      const [el, col] = EL[k], a = k * Math.PI / 2 + Math.PI / 4, px = x + Math.cos(a) * TS * 1.2, py = y + Math.sin(a) * TS * 0.8;
+      PFX.pillars.push({ x: px, y: py + TS * 0.3, w: 0.6, color: col, t0: now0(), dur: T(600) });
+      IMPACT[el](px, py, false); sfx(el === 'rock' ? 'rock' : el); await wait(150);
+    }
+    for (let k = 0; k < 4; k++) PFX.rings.push({ x, y, r0: 3, r1: 0.1, color: EL[k][1], t0: now0() + T(k * 60), dur: T(380) });
+    await wait(360);
+    flash('#ffffff', 0.75, 400); shakeStage(1); sfx('boom'); haptic([40, 30, 80]);
+    PFX.rings.push({ x, y, r0: 0.2, r1: 4, color: '#ffffff', t0: now0(), dur: T(600) });
+    cells.forEach((c, k) => setTimeout(() => IMPACT[EL[k % 4][0]](tc(c.x), tc(c.y), false), T(k * 12)));
+    await wait(560);
+  },
+};
+SHOW.ancientGolemB = SHOW.ancientGolem;
+SHOW.chaosPulseB = SHOW.chaosPulse;
+
 // ---------- 必杀技插图（全屏 cut-in） ----------
 let cutCv = null;
 function isUltimate(u, sp) {
@@ -562,7 +646,9 @@ async function castAnim(u, sp, spId, tx, ty) {
   const element = { fire: 'fire', ice: 'ice', bolt: 'bolt', wind: 'wind', rock: 'rock', dark: 'dark', holy: 'holy', acid: 'status', heal: 'heal', buff: 'buff', beam: 'fire' }[sp.fx];
 
   // 2) 施放
-  if (sp.style && STYLE[sp.style]) {
+  if (SHOW[spId]) {
+    await SHOW[spId]({ u, sp, cx, cy, x, y, cells, E });
+  } else if (sp.style && STYLE[sp.style]) {
     const ang = Math.atan2(y - cy, x - cx);
     const hitCells = sp.around ? cells.filter(c => c.x !== u.x || c.y !== u.y) : cells;
     await STYLE[sp.style]({ u, sp, cx, cy, x, y, ang, cells: hitCells, big, E });
