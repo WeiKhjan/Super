@@ -437,7 +437,7 @@ function tintSprite(c, id, mode) {
   return (GRAY[kk] = g);
 }
 // 冰龙路线默认用蓝色身体
-const spriteVariant = u => u.color || u.element || (spriteKey(u) === 'dragon_b' ? 'blue' : undefined);
+const spriteVariant = u => u.color || u.element || (altOf(u) || clsOf(u)).spriteVariant || (spriteKey(u) === 'dragon_b' ? 'blue' : undefined);
 function unitSprite(u) { const C = altOf(u) || clsOf(u); return getSprite(spriteKey(u), C.spriteTier ?? u.tier, u.team, u.hair, spriteVariant(u)); }
 const TEAM_COLOR = { player: '#4a9aff', ally: '#4ad87a', enemy: '#ff4a4a', rogue: '#e0b040' };
 

@@ -244,10 +244,10 @@ Object.assign(CLASSES, {
   gHolyKnight:  { line: '圣骑士', type: '骑兵', weapon: ['lance', 'sword'], sprite: 'gHolyKnight', hiddenOf: 'nushayi', tiers: G4_HID('圣骑士', 7, 'fly'),
     base: { hp: 38, mp: 18, atk: 14, def: 13, mag: 10, spd: 12 }, growth: { hp: 4.0, mp: 1.8, atk: 1.9, def: 1.8, mag: 1.2, spd: 1.3 },
     skills: [[1, 'holyLance'], [1, 'holyNova'], [1, 'bigHeal'], [10, 'dragonLance']] },
-  gWhiteDragon: { line: '白龙', type: '龙族', weapon: null, sprite: 'dragon', spriteTier: 0, hiddenOf: 'guluru', tiers: G4_HID('白龙', 6, 'fly', [1, 2]),
+  gWhiteDragon: { line: '白龙', type: '龙族', weapon: null, sprite: 'dragon', spriteTier: 0, spriteVariant: 'white', hiddenOf: 'guluru', tiers: G4_HID('白龙', 6, 'fly', [1, 2]),
     base: { hp: 44, mp: 20, atk: 14, def: 13, mag: 12, spd: 10 }, growth: { hp: 4.4, mp: 1.6, atk: 1.9, def: 1.7, mag: 1.5, spd: 1.1 },
     skills: [[1, 'breathIce'], [1, 'heatWave'], [10, 'blizzard']] },
-  gBlackDragon: { line: '黑龙', type: '龙族', weapon: null, sprite: 'dragon', spriteTier: 0, hiddenOf: 'guluru', tiers: G4_HID('黑龙', 6, 'fly', [1, 2]),
+  gBlackDragon: { line: '黑龙', type: '龙族', weapon: null, sprite: 'dragon', spriteTier: 0, spriteVariant: 'black', hiddenOf: 'guluru', tiers: G4_HID('黑龙', 6, 'fly', [1, 2]),
     base: { hp: 44, mp: 20, atk: 16, def: 12, mag: 12, spd: 10 }, growth: { hp: 4.4, mp: 1.6, atk: 2.1, def: 1.5, mag: 1.5, spd: 1.1 },
     skills: [[1, 'breathFire'], [1, 'heatWave'], [10, 'dragonFlameX']] },
   // —— 敌方专用 ——
