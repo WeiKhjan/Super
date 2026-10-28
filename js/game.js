@@ -193,12 +193,12 @@ function renderCamp() {
           <div><b>${esc(d.name)}</b> <span class="dim">${className(u)} Lv${d.lv}</span>${(S.rel || {})[id] !== undefined ? ` <span class="rel">♥ ${S.rel[id]}</span>` : ''}${(S.left || {})[id] ? ' <span class="tag t-away">已离队</span>' : ''}${away ? ' <span class="tag t-away">本关不在队中</span>' : ''}<br>
           <span class="small">HP ${d.mhp} · MP ${d.mmp} · 攻 ${atkOf(u)} · 防 ${defOf(u)} · 魔 ${magOf(u)} · 速 ${spdOf(u)} · 移 ${movOf(u)}</span><br>
           <span class="small dim">EXP ${d.exp}/100 · ${CLASSES[d.cls].line} · ${typeOf(u)}</span></div></div>
-        <p class="small skills">技能：${sk}</p>${(() => { const pk = [...new Set([...(CLASSES[d.cls].passive || []), ...(d.perks || [])])]; return pk.length ? `<p class="small skills">特殊能力：${pk.map(p => PERK_NAME[p] || p).join('、')}</p>` : ''; })()}
+        <p class="small skills">技能：${sk}</p>${(() => { const pk = [...new Set([...(CLASSES[d.cls].passive || []), ...(d.perks || [])])]; return pk.length ? `<p class="small skills">特殊能力：${pk.map(p => PERK_NAME[p] || p).join('、')}</p>` : ''; })()}${d.mastery && Object.keys(d.mastery).length ? `<p class="small skills">职业经历：${Object.keys(Object.assign({}, d.mastery, { [d.cls]: 1 })).map(k => `${CLASSES[k].line.replace(/系$/, '')} ${masteryOf(d, k)}`).join(' · ')}</p>` : ''}
         <div class="card-btns">
           ${CLASSES[d.cls].weapon ? `<button class="btn small" data-equip="${id}" data-slot="weapon">武器：${d.weapon ? ITEMS[d.weapon].name : '无'}</button>` : ''}
           <button class="btn small" data-equip="${id}" data-slot="armor">防具：${d.armor ? ITEMS[d.armor].name : '无'}</button>
           <button class="btn small" data-equip="${id}" data-slot="acc">饰品：${d.acc ? ITEMS[d.acc].name : '无'}</button>
-          ${ruleOn('freeClass') && d.lv >= 11 && reclassPool(d).length ? `<button class="btn small primary" data-reclass="${id}">转职所</button>` : ''}
+          ${ruleOn('freeClass') && d.lv >= reclassLv() && (reclassPool(d).length || hiddenInfo(d).length) ? `<button class="btn small primary" data-reclass="${id}">转职所</button>` : ''}
           <button class="btn small purple" data-tree="${id}">职业树${CLASSES[d.cls].alt && !d.path && d.tier >= CLASSES[d.cls].alt.at ? ' ⚑' : ''}</button>
         </div>
         <p class="small dim bio">${HEROES[id].bio}</p>
@@ -242,10 +242,21 @@ function treeHtml(d) {
     <p class="small dim">${d.path ? '已选定路线。' : d.tier >= at ? '尚未选择路线（目前视为 A），可在此选择一次。' : `到达 Lv ${branchLv(C)} 转职时选择路线。`}</p>`;
 }
 // 二代起的自由转职：Lv11 以上可转为其他职业，等级回到 1，保留能力值与已学会的招式
+function reclassLv() { const f = (curCampaign().rules || {}).freeClass; return typeof f === 'number' ? f : 11; }
+// 职业经历：各职业系曾达到的最高等级（狂神降世的隐藏职业条件）
+function masteryOf(d, k) { return Math.max((d.mastery || {})[k] || 0, d.cls === k ? d.lv : 0); }
+// 隐藏职业（英雄专属）：[{ cls, need, group, ok, taken }]
+function hiddenInfo(d) {
+  const h = HEROES[d.id] || {}, picked = d.hiddenPick || {};
+  return (h.hidden || []).filter(x => CLASSES[x.cls] && (!picked[x.group] || picked[x.group] === x.cls))
+    .map(x => ({ ...x, ok: Object.entries(x.need).every(([k, v]) => masteryOf(d, k) >= v) }));
+}
+function needText(need) { return Object.entries(need).map(([k, v]) => `${CLASSES[k].line} Lv${v}`).join('、'); }
 function reclassPool(d) {
   const c = curCampaign(), h = HEROES[d.id] || {};
   const base = h.pool || [...(h.lines || []), ...(c.classPool || [])]; // h.pool：主角专属的转职范围（[] = 不能转职）
-  return [...new Set(base)].filter(k => CLASSES[k] && k !== d.cls && (!CLASSES[k].sex || CLASSES[k].sex === (h.sex || 'm')) && (!CLASSES[k].needItem || S.inv[CLASSES[k].needItem] > 0));
+  const hid = hiddenInfo(d).filter(x => x.ok).map(x => x.cls);
+  return [...new Set([...base, ...hid])].filter(k => CLASSES[k] && k !== d.cls && (!CLASSES[k].sex || CLASSES[k].sex === (h.sex || 'm')) && (!CLASSES[k].needItem || S.inv[CLASSES[k].needItem] > 0) && (!CLASSES[k].hiddenOf || CLASSES[k].hiddenOf === d.id));
 }
 $('#camp').addEventListener('click', async e => {
   const rc = e.target.closest('[data-reclass]');
@@ -253,13 +264,17 @@ $('#camp').addEventListener('click', async e => {
     const id = rc.dataset.reclass, d = S.roster[id];
     sfx('select');
     const pool = reclassPool(d);
-    const html = pool.map(k => { const C = CLASSES[k]; return `<button class="pick" data-pick="${k}"><b>${esc(C.tiers[0].name)}${C.needItem ? ' ✦隐藏' : ''}</b><span>${esc(C.line)}${C.needItem ? ` · 消耗${esc(ITEMS[C.needItem].name)}` : ''}${C.passive ? ` · 特殊能力：${C.passive.map(p => PERK_NAME[p] || p).join('、')}` : ''}</span><small>${C.tiers.map(t => esc(t.name)).join(' → ')}</small></button>`; }).join('');
-    const k = await modal(`${esc(d.name)} · 转职所`, `<p class="dim small">转职后等级回到 Lv1（能力值保留），已学会的招式全部保留，可以一直循环转职。</p><div class="pick-list">${html}</div>`, [{ label: '取消', value: null }], { dismiss: null, wide: true });
+    const html = pool.map(k => { const C = CLASSES[k]; return `<button class="pick" data-pick="${k}"><b>${esc(C.tiers[0].name)}${C.needItem || C.hiddenOf ? ' ✦隐藏' : ''}</b><span>${esc(C.line)}${C.needItem ? ` · 消耗${esc(ITEMS[C.needItem].name)}` : ''}${C.passive ? ` · 特殊能力：${C.passive.map(p => PERK_NAME[p] || p).join('、')}` : ''}</span><small>${C.tiers.map(t => esc(t.name)).join(' → ')}</small></button>`; }).join('');
+    const locked = hiddenInfo(d).filter(x => !x.ok && x.cls !== d.cls).map(x => `<div class="pick" style="opacity:.55"><b>🔒 ${esc(CLASSES[x.cls].tiers[0].name)}</b><span>${esc(d.name)}专属隐藏职业</span><small>条件：${esc(needText(x.need))}（目前 ${Object.keys(x.need).map(k => `${CLASSES[k].line} ${masteryOf(d, k)}`).join('、')}）</small></div>`).join('');
+    const k = await modal(`${esc(d.name)} · 转职所`, `<p class="dim small">转职后等级回到 Lv1（能力值保留），已学会的招式全部保留，可以一直循环转职。</p><div class="pick-list">${html}${locked}</div>`, [{ label: '取消', value: null }], { dismiss: null, wide: true });
     if (!k) return;
     const u = Object.assign({ status: {}, buffs: [] }, d);
     d.learned = [...new Set([...(d.learned || []), ...skillsOf(u)])];
     d.perks = [...new Set([...(d.perks || []), ...(CLASSES[d.cls].passive || [])])]; // 特殊能力也保留
     if (CLASSES[k].needItem) { if (--S.inv[CLASSES[k].needItem] <= 0) delete S.inv[CLASSES[k].needItem]; }
+    d.mastery = Object.assign({}, d.mastery, { [d.cls]: masteryOf(d, d.cls) }); // 记下职业经历
+    const hx = (HEROES[d.id].hidden || []).find(x => x.cls === k); // 选了隐藏职业：同组的另一个消失
+    if (hx) d.hiddenPick = Object.assign({}, d.hiddenPick, { [hx.group]: k });
     Object.assign(d, { cls: k, lv: 1, exp: 0, tier: 0, path: undefined });
     const u2 = Object.assign({ status: {}, buffs: [] }, d);
     if (d.weapon && !canUseWeapon(u2, d.weapon)) { S.inv[d.weapon] = (S.inv[d.weapon] || 0) + 1; d.weapon = null; }

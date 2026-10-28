@@ -95,7 +95,7 @@ function advMult(a, d) {
 // =====================================================================
 // 英雄数据（存档中的成长）与单位生成
 // =====================================================================
-const PERSIST_FIELDS = ['lv', 'exp', 'tier', 'path', 'cls', 'learned', 'perks', 'mhp', 'mmp', 'atk', 'def', 'mag', 'spd', 'weapon', 'armor', 'acc'];
+const PERSIST_FIELDS = ['lv', 'exp', 'tier', 'path', 'cls', 'learned', 'perks', 'mastery', 'hiddenPick', 'mhp', 'mmp', 'atk', 'def', 'mag', 'spd', 'weapon', 'armor', 'acc'];
 function heroData(id, minLv) {
   const h = HEROES[id], C = CLASSES[h.cls];
   const d = {
@@ -346,7 +346,8 @@ function magCalc(a, d, sp) {
 function pairPartner(u, sp) {
   if (sp && sp.partner) {
     if ((S && S.rel ? S.rel[sp.partner] || 0 : 0) < (sp.rel || 0)) return null;
-    return alive().find(p => p.id === sp.partner && p.team === u.team && !p.acted && canAct(p) && mdist(p.x, p.y, u.x, u.y) === 1) || null;
+    if (sp.needHidden && !(CLASSES[u.cls] || {}).hiddenOf) return null; // 狂神降世：双方都要在隐藏职业
+    return alive().find(p => p.id === sp.partner && p.team === u.team && !p.acted && canAct(p) && mdist(p.x, p.y, u.x, u.y) === 1 && (!sp.needHidden || (CLASSES[p.cls] || {}).hiddenOf)) || null;
   }
   return alive().filter(p => p !== u && p.team === u.team && !p.acted && canAct(p) && PAIR_CLASSES.includes(p.cls) && mdist(p.x, p.y, u.x, u.y) === 1)
     .sort((a, b) => atkOf(b) - atkOf(a))[0] || null;
@@ -437,7 +438,7 @@ function tintSprite(c, id, mode) {
 }
 // 冰龙路线默认用蓝色身体
 const spriteVariant = u => u.color || u.element || (spriteKey(u) === 'dragon_b' ? 'blue' : undefined);
-function unitSprite(u) { return getSprite(spriteKey(u), u.tier, u.team, u.hair, spriteVariant(u)); }
+function unitSprite(u) { const C = altOf(u) || clsOf(u); return getSprite(spriteKey(u), C.spriteTier ?? u.tier, u.team, u.hair, spriteVariant(u)); }
 const TEAM_COLOR = { player: '#4a9aff', ally: '#4ad87a', enemy: '#ff4a4a', rogue: '#e0b040' };
 
 function render(now) {
@@ -810,7 +811,7 @@ function rels() { S.rel = S.rel || {}; return S.rel; }
 function condOk(c) {
   if (!c) return true;
   if (Array.isArray(c)) return c.every(condOk);
-  if (c.flag) return (flags()[c.flag] ?? false) === (c.is ?? true);
+  if (c.flag) { const v = flags()[c.flag] ?? false; return Array.isArray(c.is) ? c.is.includes(v) : v === (c.is ?? true); }
   if (c.rel) return Object.entries(c.rel).every(([id, v]) => (rels()[id] || 0) >= v);
   if (c.has) return !!(S.roster[c.has] && !(S.left || {})[c.has]);
   if (c.item) return (S.inv[c.item] || 0) > 0;
@@ -821,6 +822,13 @@ function applyEffects(e) {
   if (!e) return;
   for (const [k, v] of Object.entries(e.set || {})) flags()[k] = v;
   for (const [id, v] of Object.entries(e.rel || {})) { rels()[id] = clamp((rels()[id] || 0) + v, 0, 100); if (!AUTO && v) toast(`${(HEROES[id] || {}).name || id} ${curCampaign().relLabel || '好感度'} ${v > 0 ? '↑' : '↓'}`); }
+  // 永久能力变化（开场问答等）；战斗中也同步到场上的单位，免得战后回写时被盖掉
+  const onField = id => B && B.units.find(o => o.id === id && o.team === 'player');
+  for (const [id, st] of Object.entries(e.stat || {})) {
+    const d = ensureHero(id), u = onField(id);
+    for (const [k, v] of Object.entries(st)) { const f = k === 'hp' ? 'mhp' : k === 'mp' ? 'mmp' : k; d[f] += v; if (u) { u[f] += v; if (k === 'hp') u.hp += v; if (k === 'mp') u.mp += v; } }
+  }
+  for (const [id, list] of Object.entries(e.perk || {})) { const d = ensureHero(id), u = onField(id); d.perks = [...new Set([...(d.perks || []), ...list])]; if (u) u.perks = d.perks; }
   for (const id of e.catchUp || []) { const d = ensureHero(id), to = partyLevel(); if (d.lv < to) { catchUpData(d, to); if (!AUTO) toast(`${d.name} 追上了队伍（Lv ${d.lv}）`); } } // 归队补经验
   for (const [id, list] of Object.entries(e.learn || {})) { const d = ensureHero(id); d.learned = [...new Set([...(d.learned || []), ...[].concat(list)])]; if (B) { const u = B.units.find(o => o.id === id && o.team === 'player'); if (u) u.learned = d.learned; } if (!AUTO) toast(`${d.name} 习得「${[].concat(list).map(k => SPELLS[k].name).join('、')}」！`); }
   for (const id of e.join || []) { S.left = S.left || {}; delete S.left[id]; ensureHero(id); }
@@ -1042,7 +1050,19 @@ async function applyDamage(a, d, dmg, crit) {
     haptic(lethal ? [40, 30, 80] : crit ? [30, 20, 40] : 15);
     await sleep(T(lethal ? 140 : crit ? 110 : 55)); // hit-stop
   }
+  // 变身（狂神降世）：首领生命降到一定比例时化为真身，回满并变强
+  if (d.transform && !d.transformed && d.hp <= d.mhp * (d.transform.below || 0)) { await transformUnit(d); return; }
   if (d.hp <= 0) await killUnit(d);
+}
+async function transformUnit(d) {
+  const t = d.transform; d.transformed = true;
+  const nu = makeMonster(t.to, t.lv || d.lv, { boss: d.boss });
+  for (const k of ['cls', 'tier', 'mhp', 'mmp', 'atk', 'def', 'mag', 'spd', 'weapon']) d[k] = nu[k];
+  if (t.mul) for (const k of ['mhp', 'atk', 'def', 'mag']) d[k] = Math.round(d[k] * t.mul);
+  d.hp = d.mhp; d.mp = d.mmp; d.status = {}; d.buffs = [];
+  if (t.name) d.name = t.name;
+  sfx('promote'); floatText(d.x, d.y - 0.4, '变身！', '#ff5a5a', true);
+  if (!AUTO) { addTrauma(0.8); haptic([60, 40, 120]); if (t.say) await dialog(t.say); }
 }
 async function killUnit(u) {
   sfx('die'); sfx('ko');
