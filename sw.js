@@ -1,5 +1,5 @@
 // 离线缓存：首次打开后即可离线游玩
-const CACHE = 'cskyxcs-v8';
+const CACHE = 'cskyxcs-v9';
 const FILES = ['./', 'index.html', 'css/style.css', 'js/data.js', 'js/stages/stages_01_09.js', 'js/stages/stages_10_18.js', 'js/stages/stages_19_27.js', 'js/stages/stages_28_35.js',
   'js/story.js', 'js/sprites.js', 'js/sprites3.js', 'js/portraits.js', 'js/audio.js', 'js/battle.js', 'js/duelfig.js', 'js/duel.js', 'js/spellfx.js', 'js/promote.js', 'js/game.js',
   'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];

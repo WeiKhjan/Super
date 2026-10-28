@@ -87,16 +87,18 @@ const DFIG = (() => {
     fill(x - R, y - R, x + R, y + R, (px, py) => { const dx = px - x, dy = py - y, u = dx * co + dy * s, v = -dx * s + dy * co; return u * u / (rx * rx) + v * v / (ry * ry) <= 1 || false; }, c);
   }
   // 着色：内描边（后方部件紧贴前方部件处）→ 左上亮边 → 右下暗边；外围 1px 深色描边
-  function finish(flash) {
+  function finish(flash, sil) {
+    const SIL = sil ? pk(...rgb(sil)) : 0;
     const W = FW;
     for (let y = 0; y < FH; y++) {
       for (let x = 0; x < W; x++) {
         const i = y * W + x, c = COL[i];
         const up = y ? ID[i - W] : 0, dn = y < FH - 1 ? ID[i + W] : 0, lf = x ? ID[i - 1] : 0, rt = x < W - 1 ? ID[i + 1] : 0;
         if (!c) {
-          U32[i] = ((up && FL[up] & OL) || (dn && FL[dn] & OL) || (lf && FL[lf] & OL) || (rt && FL[rt] & OL)) ? OUTC : 0;
+          U32[i] = ((up && FL[up] & OL) || (dn && FL[dn] & OL) || (lf && FL[lf] & OL) || (rt && FL[rt] & OL)) ? (SIL || OUTC) : 0;
           continue;
         }
+        if (SIL) { U32[i] = SIL; continue; }
         const p = ID[i], f = FL[p], g = GR[p];
         if (f & FLAT) { U32[i] = flash ? WHITE : PAL[c]; continue; }
         if ((up > p && GR[up] !== g && FL[up] & OL) || (dn > p && GR[dn] !== g && FL[dn] & OL) || (lf > p && GR[lf] !== g && FL[lf] & OL) || (rt > p && GR[rt] !== g && FL[rt] & OL)) {
@@ -1043,17 +1045,18 @@ const DFIG = (() => {
   }
 
   const WHITE_SPR = {};
-  function whiteSprite(spr) {
-    if (WHITE_SPR[spr.__id]) return WHITE_SPR[spr.__id];
-    const c = document.createElement('canvas'); c.width = spr.width; c.height = spr.height;
-    const x = c.getContext('2d'); x.drawImage(spr, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+  function whiteSprite(spr, col) {
     spr.__id = spr.__id || Math.random().toString(36).slice(2);
-    return (WHITE_SPR[spr.__id] = c);
+    const key = spr.__id + (col || '#fff');
+    if (WHITE_SPR[key]) return WHITE_SPR[key];
+    const c = document.createElement('canvas'); c.width = spr.width; c.height = spr.height;
+    const x = c.getContext('2d'); x.drawImage(spr, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = col || '#fff'; x.fillRect(0, 0, c.width, c.height);
+    return (WHITE_SPR[key] = c);
   }
 
   // 主入口：在 g 上画角色。x/feet 为屏幕脚底点、s 为美术像素→屏幕像素倍率、f 为朝向（1 = 面向右）
   function draw(g, u, S, P, opt) {
-    const { x, feet, s, f, now, flash, prev, crit } = opt;
+    const { x, feet, s, f, now, flash, prev, crit, sil } = opt;
     NOW = now; F = f;
     if (S.kind === 'sprite') {
       const spr = typeof unitSprite === 'function' ? unitSprite(u) : null;
@@ -1066,14 +1069,14 @@ const DFIG = (() => {
       g.rotate(P.rot * f * RAD);
       g.scale(f > 0 ? -sqx : sqx, sqy);
       g.drawImage(spr, -size / 2, -size * 15 / 16, size, size);
-      if (flash) g.drawImage(whiteSprite(spr), -size / 2, -size * 15 / 16, size, size);
+      if (flash || sil) g.drawImage(whiteSprite(spr, sil), -size / 2, -size * 15 / 16, size, size);
       g.restore();
       const top = feet + hov + P.Y * s - size * 0.8 * sqy;
       return { tip: [x + f * size * 0.42, feet + hov - size * 0.5], hand: [x + f * size * 0.35, feet + hov - size * 0.5], shot: [x + f * size * 0.42, feet + hov - size * 0.55], head: [x + f * size * 0.25, top + size * 0.15], chest: [x, feet + hov - size * 0.45], top: [x, top] };
     }
     clear();
     const J = drawDoll(S, P, prev, crit);
-    finish(flash);
+    finish(flash, sil);
     g.save();
     g.globalAlpha *= P.al;
     g.translate(x, feet);
@@ -1095,7 +1098,21 @@ const DFIG = (() => {
     if (SD.kind === 'sprite') g += 16 * SD.scale * 0.2;
     return g;
   }
+  // 蓄力：在挥击前的预备姿势上多停一拍（并在武器上闪光），让命中有反差
   function plan(S, ranged, crit) {
+    const pl = planRaw(S, ranged, crit), ks = pl.keys;
+    let wi = -1;
+    if (pl.impact != null) { const sw = ks.findIndex(k => k.p.tr > 0 || k.p.P > 0.5); wi = sw > 0 ? sw - 1 : 1; }
+    else wi = ks.reduce((b, k, i) => (k.t < pl.release - 30 ? i : b), 0);
+    const ms = pl.impact != null ? (pl.style === 'iai' ? 60 : 100) : 60, tw = ks[wi].t;
+    ks.splice(wi + 1, 0, { t: tw + ms, p: ks[wi].p, e: EASE.io });
+    for (let i = wi + 2; i < ks.length; i++) ks[i].t += ms;
+    for (const f of ['impact', 'release', 'puff']) if (pl[f] != null && pl[f] > tw) pl[f] += ms;
+    if (pl.streak) pl.streak = pl.streak.map(t => (t > tw ? t + ms : t));
+    pl.dur += ms; pl.glint = [Math.max(0, tw - 40), ms + 100];
+    return pl;
+  }
+  function planRaw(S, ranged, crit) {
     if (S.kind === 'sprite') {
       if (S.dragon && !ranged) return { style: 'bite', puff: 200, keys: mkKeys([[0, {}], [180, { X: -0.06, sq: -0.2, rot: -12, mo: 1 }], [300, { X: 1, sq: 0.14, rot: 12, mo: 1 }, 'in'], [340, { X: 1.03, sq: 0.26, rot: 6 }], [520, { X: 1, sq: 0 }], [740, { X: 0.3, Y: -12, sq: -0.1 }], [880, {}]]), dur: 880, impact: 320 };
       if (ranged || S.dragon) {
@@ -1149,9 +1166,10 @@ const DFIG = (() => {
       return { keys: mkKeys([[0, {}], [90, { dx: -16, Y: -11, lean: -16, lt: 40, ls: -20, bt: -10, bs: -60 }], [220, { dx: -19, Y: 0, lean: -6 }], [440, {}]]), dur: 440 };
     }
     // die
-    if (spr) return { keys: mkKeys([[0, {}], [80, { dx: -8, sq: -0.2, rot: -10 }], [300, { dx: -10, sq: 0.35, rot: -16 }], [650, { dx: -10, sq: 0.55, rot: -20, Y: 2, al: 0.45 }]]), dur: 650, hold: 1 };
-    if (mnt) return { keys: mkKeys([[0, {}], [80, { dx: -8, mp: 10, lean: -24, hd: -20 }], [360, { dx: -10, mp: 14, lean: -30, rot: -10 }], [700, { dx: -12, mp: -6, lean: -50, rot: -16, Y: 8, al: 0.5 }]]), dur: 700, hold: 1 };
-    return { keys: mkKeys([[0, {}], [80, { dx: -8, lean: -24, hd: -20, fa: -20, ba: -50 }], [330, { dx: -10, lean: 30, hd: 25, lt: 88, ls: -6, bt: 10, bs: -88, fa: 10, fe: 20, w: 100, ba: 10, be: 10 }], [700, { dx: -12, lean: 30, hd: 25, lt: 88, ls: -6, bt: 10, bs: -88, fa: 10, fe: 20, w: 100, rot: -86, al: 0.5 }]]), dur: 700, hold: 1 };
+    if (spr) return { keys: mkKeys([[0, {}], [70, { dx: -16, Y: -6, sq: -0.2, rot: -14 }, 'out'], [300, { dx: -22, sq: 0.35, rot: -16 }], [520, { dx: -22, sq: 0.55, rot: -20, Y: 2, al: 0.7 }], [720, { dx: -22, sq: 0.6, rot: -20, Y: 2, al: 0 }]]), dur: 720, hold: 1 };
+    if (mnt) return { keys: mkKeys([[0, {}], [70, { dx: -14, mp: 12, lean: -30, hd: -24 }, 'out'], [360, { dx: -20, mp: 14, lean: -30, rot: -10 }], [520, { dx: -22, mp: -6, lean: -50, rot: -16, Y: 8, al: 0.8 }], [720, { dx: -22, mp: -6, lean: -50, rot: -16, Y: 8, al: 0 }]]), dur: 720, hold: 1 };
+    const KN = { lean: 30, hd: 25, lt: 88, ls: -6, bt: 10, bs: -88, fa: 10, fe: 20, w: 100, ba: 10, be: 10 };
+    return { keys: mkKeys([[0, {}], [70, { dx: -14, Y: -7, lean: -30, hd: -24, fa: -40, fe: -20, ba: -60, be: -40 }, 'out'], [200, { dx: -24, Y: -2, lean: -16, hd: -10, fa: -20, ba: -50 }], [330, Object.assign({ dx: -26 }, KN)], [520, Object.assign({ dx: -27, rot: -86, al: 0.8 }, KN), 'in'], [720, Object.assign({ dx: -27, rot: -86, al: 0 }, KN)]]), dur: 720, hold: 1 };
   }
 
   return { specOf, stance, sample, proc, draw, plan, react, gap, mkKeys, FW, FH, OX, OY };
