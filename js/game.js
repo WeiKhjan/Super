@@ -25,7 +25,8 @@ function defaultDeploy(st) {
 }
 function prepareStage(idx) {
   const st = STAGES[idx];
-  for (const id of st.heroes) if (!(S.left || {})[id]) ensureHero(id);
+  // 二代起：英雄由剧情 join 加入，这里只确保必须出战的角色在队中
+  for (const id of st.id ? st.required : st.heroes) if (!(S.left || {})[id]) ensureHero(id);
 }
 // 关卡之后去哪里：一代依序；二代起可分支（选项 / 条件）、隐藏关、回到主线
 function stageIndexById(id) { return STAGES.findIndex(s => s.id === id); }
@@ -70,6 +71,7 @@ async function runStage(idx, opts) {
       for (const f of PERSIST_FIELDS) S.roster[u.id][f] = u[f];
     }
     S.gold += st.reward || 0;
+    if (st.id) (S.done = S.done || []).push(st.id);
     applyEffects(st.onWin);
     let nx = await resolveNext(st, idx);
     if (B.secretFound && st.secret) { S.ret = nx; nx = stageIndexById(st.secret.to); }
@@ -94,7 +96,7 @@ async function runStage(idx, opts) {
 async function chapterCard(st) {
   if (AUTO) return;
   const c = $('#chapter-card');
-  c.innerHTML = `<div><small>第 ${st.no} 关</small>${esc(st.title)}</div>`;
+  c.innerHTML = `<div>${st.part ? `<small class="cc-part">${esc(st.part)}</small>` : ''}<small>${st.secretStage ? '隐藏关' : `第 ${st.no} 关`}</small>${esc(st.title)}</div>`;
   c.hidden = false; c.classList.add('on');
   await sleep(1700);
   c.classList.remove('on'); await sleep(300); c.hidden = true;
@@ -141,6 +143,12 @@ function abortBattle() {
 // =====================================================================
 let campTab = 'party';
 function shopStock() {
+  const c = curCampaign();
+  if (c.shopBase) { // 二代起：基本商品 + 已通过关卡解锁的商品
+    const list = c.shopBase.slice();
+    for (const id of S.done || []) { const st = STAGES.find(s => s.id === id); for (const it of (st && st.shop) || []) if (!list.includes(it)) list.push(it); }
+    return list.filter(id => ITEMS[id] && ITEMS[id].price > 0);
+  }
   const list = SHOP_BASE.slice();
   for (const [n, id] of SHOP_UNLOCK) if (S.stage >= n && !list.includes(id)) list.push(id);
   for (let i = 0; i < S.stage; i++) for (const id of STAGES[i].shop || []) if (!list.includes(id) && ITEMS[id].price) list.push(id);
@@ -386,10 +394,11 @@ function showSelect() {
     const c = CAMPAIGNS[id];
     let prog = '';
     try { const s = JSON.parse(localStorage.getItem(c.saveKey)); if (s && s.roster) { const n = (CAMPAIGN_STAGES[id] || []).length; prog = s.stage >= n && n ? '已通关' : `进行到第 ${s.stage + 1} 关`; } } catch (e) { }
-    return `<button class="game-card ${c.soon ? 'soon' : ''}" data-game="${id}" style="--gc:${c.color}">
+    const soon = !campaignReady(id);
+    return `<button class="game-card ${soon ? 'soon' : ''}" data-game="${id}" style="--gc:${c.color}">
       <span class="gc-no">${c.no}</span>
       <span class="gc-main"><b>${esc(c.full || c.title)}</b><small>${c.year} · ${esc(c.tag)}${prog ? ' · ' + prog : ''}</small><em>${esc(c.desc)}</em></span>
-      <span class="gc-go">${c.soon ? '制作中' : '▶'}</span>
+      <span class="gc-go">${soon ? '制作中' : '▶'}</span>
     </button>`;
   }).join('');
 }
@@ -397,7 +406,7 @@ $('#select-list').addEventListener('click', e => {
   const b = e.target.closest('[data-game]');
   if (!b) return;
   const c = CAMPAIGNS[b.dataset.game];
-  if (c.soon) { sfx('miss'); toast(`《${c.full || c.title}》制作中，敬请期待`); return; }
+  if (!campaignReady(c.id)) { sfx('miss'); toast(`《${c.full || c.title}》制作中，敬请期待`); return; }
   sfx('select');
   useCampaign(c.id);
   showTitle();
@@ -547,7 +556,7 @@ for (const ev of ['pointerdown', 'touchend', 'keydown']) document.addEventListen
 $('#btn-sound').textContent = (OPT.sound || OPT.music) ? '🔊' : '🔇';
 diffLabel();
 // 启动：先到系列作品选择画面（记住上次选的作品）
-try { const last = localStorage.getItem('cskyxcs_campaign'); if (last && CAMPAIGNS[last] && !CAMPAIGNS[last].soon) useCampaign(last); } catch (e) { }
+try { const last = localStorage.getItem('cskyxcs_campaign'); if (last && campaignReady(last)) useCampaign(last); } catch (e) { }
 showSelect();
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });
 

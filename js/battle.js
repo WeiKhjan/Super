@@ -173,7 +173,7 @@ function spawnSpec(spec) {
   } else {
     // 需要保护的友军 NPC 至少与本关敌兵同级
     const npc = opts && opts.team === 'ally' && B && B.def;
-    if (npc) lv = Math.max(lv, Math.round(1 + (B.def.no - 1) * 0.85) + 3);
+    if (npc) lv = Math.max(lv, (B.def.level ?? Math.round(1 + (B.def.no - 1) * 0.85)) + 3);
     u = makeMonster(what, lv, Object.assign({}, opts));
     if (npc) { u.mhp = u.hp = Math.round(u.mhp * 1.3); }
   }
@@ -676,7 +676,7 @@ function music(name) {
 }
 function battleTheme(team) {
   if (!B) return 'player';
-  if (B.def.no === STAGES[STAGES.length - 1].no) return 'final';
+  if (B.def.final || (!B.def.id && B.def.no === STAGES[STAGES.length - 1].no)) return 'final';
   if (B.def.win.type === 'boss' && B.units.some(u => u.boss && u.hp > 0 && B.turn >= 2)) return 'boss';
   return team === 'player' || team === 'ally' ? 'player' : 'enemy';
 }
@@ -801,6 +801,7 @@ function condOk(c) {
   if (c.flag) return (flags()[c.flag] ?? false) === (c.is ?? true);
   if (c.rel) return Object.entries(c.rel).every(([id, v]) => (rels()[id] || 0) >= v);
   if (c.has) return !!(S.roster[c.has] && !(S.left || {})[c.has]);
+  if (c.item) return (S.inv[c.item] || 0) > 0;
   if (c.not) return !condOk(c.not);
   return true;
 }

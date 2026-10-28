@@ -43,7 +43,7 @@ const ENDING_SETS = { g1: { prelude: typeof ENDING_PRELUDE !== 'undefined' ? END
 
 // 切换当前作品：替换全局的 STAGES 与 HEROES（其余系统共用）
 function useCampaign(id) {
-  if (!CAMPAIGNS[id] || CAMPAIGNS[id].soon) return false;
+  if (!campaignReady(id)) return false;
   CUR_CAMPAIGN = id;
   STAGES.length = 0;
   STAGES.push(...(CAMPAIGN_STAGES[id] || []));
@@ -54,3 +54,4 @@ function useCampaign(id) {
   return true;
 }
 function curCampaign() { return CAMPAIGNS[CUR_CAMPAIGN]; }
+function campaignReady(id) { const c = CAMPAIGNS[id]; return !!c && !c.soon && (id === 'g1' || (CAMPAIGN_STAGES[id] || []).length > 0); }
