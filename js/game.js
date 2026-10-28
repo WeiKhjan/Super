@@ -507,6 +507,7 @@ $('#btn-help').addEventListener('click', () => {
     <p><b>异常状态</b>：石化、冻结、失明时无法行动；中毒每回合损失生命；禁锢无法施法；破魂剑法让敌人无法反击。可用状态回复、解石化、解毒草、化石草治疗。</p>
     <p><b>成长</b>：获得 100 经验升级，到达一定等级自动转职（例如孟祈：作家 → 侠客 → 剑道家 → 圣剑士 → 剑侠 → 剑王 → 剑圣）。多数职业在中期转职时会出现<b>分支</b>，可选择原作路线或新路线（如剑士→魔法剑士、骑兵→圣骑士、武士→忍者、法师→时空术士），营地的「职业树」可查看。</p>
     <p><b>营地</b>：每关之间可以更换装备（武器 / 防具 / 饰品）、使用道具、购物，并选择出击人员。进度自动保存在本机。</p>
+    ${curCampaign().rules ? `<p><b>本作规则</b>：<b>移动点数制</b>——攻击或施法后，若还有剩余移动力，可以再移动（适合打了就退）。<b>方向</b>——单位脚下的小箭头是面向，从侧面攻击伤害 ×1.15、从背后 ×1.3。<b>高低差</b>——站得越高攻击越强（每层 +10%）。<b>自由转职</b>——Lv11 以上可在营地「转职所」改换职业，等级回到 1、能力与招式保留，可循环转职。<b>好感度</b>——剧情选项会影响伊娃、秋月、依琳娜、芙蓉的好感度（♥），80 以上且相邻时清风可施展<b>情侣合技</b>；好感度、同调石的下落与关键抉择会决定结局与最终 BOSS。</p>` : ''}
     <p class="dim">提示：在手机浏览器中「添加到主屏幕」，即可像 App 一样全屏游玩。</p>
     </div>`, [{ label: '明白了', value: 1, cls: 'primary' }], { dismiss: 1, wide: true });
 });
@@ -560,6 +561,26 @@ try { const last = localStorage.getItem('cskyxcs_campaign'); if (last && campaig
 showSelect();
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });
 
+// 测试接口（二代起的分支剧情）：AI 依路线自动打下去，记录走过的关卡；opts.flags / opts.pick 可预设旗标与路线
+window.__autoplayRoute = async function (opts) {
+  opts = opts || {};
+  AUTO = true;
+  newSave();
+  Object.assign(S.flags, opts.flags || {});
+  const out = [];
+  for (let n = 0; n < (opts.max || 80) && S.stage < STAGES.length; n++) {
+    const i = S.stage, st = STAGES[i];
+    let won = false, tries = 0;
+    autoShop();
+    while (!won && tries <= (opts.retries ?? 2)) { tries++; const before = JSON.stringify([S.stage, S.done && S.done.length]); await runStage(i, { skipIntro: true }); won = JSON.stringify([S.stage, S.done && S.done.length]) !== before; }
+    out.push({ id: st.id, no: st.no, won, tries, turns: window.__lastTurn, lv: partyLevel(), party: S.order.filter(id => !(S.left || {})[id]).length });
+    if (!won) { // 打不过就跳到它的下一关继续（测试用）
+      const nx = await resolveNext(st, i); S.stage = nx < 0 ? STAGES.length : nx;
+    }
+  }
+  AUTO = false;
+  return { out, flags: S.flags, rel: S.rel, ending: CAMPAIGN_ENDINGS[CUR_CAMPAIGN] ? CAMPAIGN_ENDINGS[CUR_CAMPAIGN].resolve(S) : null };
+};
 // 测试接口：AI 自动打完全部关卡（每关最多重试 retries 次），返回每关结果
 window.__autoplay = async function (from, to, retries) {
   AUTO = true;
