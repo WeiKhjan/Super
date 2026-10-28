@@ -8,6 +8,7 @@ const key = (x, y) => x + ',' + y;
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const STATS = ['hp', 'mp', 'atk', 'def', 'mag', 'spd'];
 const STAT_NAME = { hp: 'HP', mp: 'MP', atk: '攻击', def: '防御', mag: '魔力', spd: '敏捷' };
+const PERK_NAME = { combo: '连击', drain: '吸取', pierce: '灵击', search: '搜索', unlock: '开锁', poisonHit: '毒击' };
 const STATUS_NAME = { petrify: '石化', freeze: '冻结', blind: '失明', poison: '中毒', silence: '禁锢', noCounter: '无法反击' };
 const STATUS_COLOR = { petrify: '#9a9aa8', freeze: '#7ad8ff', blind: '#f4e04a', poison: '#a04ad8', silence: '#ff7ab0', noCounter: '#ff9a3a' };
 const BUFF_NAME = { atk: '攻击', def: '防御', mag: '魔力', mov: '移动', skill: '战技', fly: '飞行', bless: '祝福' };
@@ -94,7 +95,7 @@ function advMult(a, d) {
 // =====================================================================
 // 英雄数据（存档中的成长）与单位生成
 // =====================================================================
-const PERSIST_FIELDS = ['lv', 'exp', 'tier', 'path', 'cls', 'learned', 'mhp', 'mmp', 'atk', 'def', 'mag', 'spd', 'weapon', 'armor', 'acc'];
+const PERSIST_FIELDS = ['lv', 'exp', 'tier', 'path', 'cls', 'learned', 'perks', 'mhp', 'mmp', 'atk', 'def', 'mag', 'spd', 'weapon', 'armor', 'acc'];
 function heroData(id, minLv) {
   const h = HEROES[id], C = CLASSES[h.cls];
   const d = {
@@ -303,11 +304,13 @@ function posInfo(a, d) {
     const vx = a.x - d.x, vy = a.y - d.y;
     const ax = Math.abs(vx) >= Math.abs(vy) ? Math.sign(vx) : 0, ay = ax ? 0 : Math.sign(vy);
     const dot = ax * d.dir.x + ay * d.dir.y;
-    if (dot < 0) { m *= 1.3; tag = '背后'; } else if (dot === 0) { m *= 1.15; tag = '侧面'; }
+    const R = curCampaign().rules.facing, side = R.side || 1.15, back = R.back || 1.3;
+    if (dot < 0) { m *= back; tag = '背后'; } else if (dot === 0) { m *= side; tag = '侧面'; }
   }
   if (ruleOn('height')) {
     const dh = clamp(heightAt(a.x, a.y) - heightAt(d.x, d.y), -2, 2);
-    if (dh) { m *= 1 + dh * 0.1; tag += (tag ? '·' : '') + (dh > 0 ? '居高' : '仰攻'); }
+    const hk = typeof curCampaign().rules.height === 'number' ? curCampaign().rules.height : 0.1;
+    if (dh) { m *= 1 + dh * hk; tag += (tag ? '·' : '') + (dh > 0 ? '居高' : '仰攻'); }
   }
   return { m, tag };
 }
@@ -316,9 +319,11 @@ function faceTo(u, x, y) {
   if (!vx && !vy) return;
   u.dir = Math.abs(vx) >= Math.abs(vy) ? { x: Math.sign(vx), y: 0 } : { x: 0, y: Math.sign(vy) };
 }
+// 特殊能力（北方密使起）：职业自带 + 转职前学会的（u.perks）
+function hasPerk(u, p) { return !!u && (((CLASSES[u.cls] || {}).passive || []).includes(p) || (u.perks || []).includes(p)); }
 function physCalc(a, d, power = 0, sure = false) {
   const t = terrAt(d.x, d.y);
-  let dmg = atkOf(a) + power - Math.round(defOf(d) * (1 + t.def / 100) * 0.75);
+  let dmg = atkOf(a) + power - Math.round(defOf(d) * (1 + t.def / 100) * 0.75 * (hasPerk(a, 'pierce') ? 0.5 : 1));
   const pos = posInfo(a, d);
   dmg = Math.max(1, Math.round(dmg * advMult(a, d) * pos.m));
   const hit = sure ? 100 : clamp(88 + (spdOf(a) - spdOf(d)) * 2 - t.avoid + hitBonus(a), 30, 100);
@@ -444,7 +449,7 @@ function render(now) {
   ctx.setTransform(DPR, 0, 0, DPR, shx, shy);
   const ts = TS;
 
-  for (const c of B.chests) drawChest(ctx, c.x * ts, c.y * ts, ts, c.opened);
+  for (const c of B.chests) if (!c.hidden || c.opened || searcherOn()) { drawChest(ctx, c.x * ts, c.y * ts, ts, c.opened); if (c.locked && !c.opened) { ctx.fillStyle = '#ffd25a'; ctx.font = `${Math.round(ts * 0.36)}px sans-serif`; ctx.fillText('🔒', c.x * ts + ts * 0.55, c.y * ts + ts * 0.4); } }
   // 目标地点
   if (B.def.win.type === 'reach') {
     const [gx, gy] = B.def.win.at, p = (Math.sin(now / 200) + 1) / 2;
@@ -706,6 +711,7 @@ function modal(title, bodyHtml, buttons, opts) {
       <div class="m-btns">${(buttons || []).map((b, i) => `<button class="btn ${b.cls || ''}" data-i="${i}" ${b.disabled ? 'disabled' : ''}>${b.label}</button>`).join('')}</div>
     </div>`;
     m.hidden = false;
+    if (opts && opts.onOpen) opts.onOpen(m);
     const done = v => { m.hidden = true; m.innerHTML = ''; m.onclick = null; res(v); };
     m.onclick = e => {
       if (opts && opts.onClick && opts.onClick(e, done)) return;
@@ -808,7 +814,8 @@ function condOk(c) {
 function applyEffects(e) {
   if (!e) return;
   for (const [k, v] of Object.entries(e.set || {})) flags()[k] = v;
-  for (const [id, v] of Object.entries(e.rel || {})) { rels()[id] = clamp((rels()[id] || 0) + v, 0, 100); if (!AUTO && v) toast(`${(HEROES[id] || {}).name || id} 好感度 ${v > 0 ? '↑' : '↓'}`); }
+  for (const [id, v] of Object.entries(e.rel || {})) { rels()[id] = clamp((rels()[id] || 0) + v, 0, 100); if (!AUTO && v) toast(`${(HEROES[id] || {}).name || id} ${curCampaign().relLabel || '好感度'} ${v > 0 ? '↑' : '↓'}`); }
+  for (const [id, list] of Object.entries(e.learn || {})) { const d = ensureHero(id); d.learned = [...new Set([...(d.learned || []), ...[].concat(list)])]; if (B) { const u = B.units.find(o => o.id === id && o.team === 'player'); if (u) u.learned = d.learned; } if (!AUTO) toast(`${d.name} 习得「${[].concat(list).map(k => SPELLS[k].name).join('、')}」！`); }
   for (const id of e.join || []) { S.left = S.left || {}; delete S.left[id]; ensureHero(id); }
   for (const id of e.leave || []) { S.left = S.left || {}; S.left[id] = true; if (B) { const u = B.units.find(o => o.id === id && o.team === 'player'); if (u) { u.hp = 0; floatText(u.x, u.y, '离队', '#cccccc'); } } }
   if (e.item) for (const [id, n] of Object.entries(e.item)) { S.inv[id] = (S.inv[id] || 0) + n; if (S.inv[id] <= 0) delete S.inv[id]; }
@@ -877,7 +884,7 @@ function startBattle(stageIdx, deploy) {
   const st = STAGES[stageIdx];
   B = {
     idx: stageIdx, def: st, map: st.map, w: st.map[0].length, h: st.map.length,
-    units: [], chests: (st.chests || []).map(([x, y, item, gold]) => ({ x, y, item, gold: gold || 0, opened: false })),
+    units: [], chests: (st.chests || []).map(([x, y, item, gold, flag]) => ({ x, y, item, gold: gold || 0, opened: false, hidden: flag === 'hidden', locked: flag === 'locked' })),
     turn: 1, phase: 'player', mode: 'idle', over: null, firedEvents: new Set(),
   };
   const ids = deploy && deploy.length ? deploy : st.required.slice();
@@ -1056,6 +1063,7 @@ async function strike(a, d, calc, ranged) {
   if (!hit) { floatText(d.x, d.y, 'MISS', '#aaccff'); sfx('miss'); await wait(220); return { dmg: 0, killed: false }; }
   if (!ranged && !DUEL.on) addFx('slash', d.x, d.y, 200);
   await applyDamage(a, d, dmg, crit);
+  if (hasPerk(a, 'drain') && a.hp > 0 && a.hp < a.mhp) { const h = Math.min(a.mhp - a.hp, Math.round(dmg * 0.5)); a.hp += h; floatText(a.x, a.y, `+${h}`, '#7cff9a'); }
   await wait(220);
   return { dmg, killed: d.hp <= 0 };
 }
@@ -1064,7 +1072,12 @@ async function doAttack(a, d) {
   faceTo(a, d.x, d.y);
   const ranged = mdist(a.x, a.y, d.x, d.y) > 1;
   const duel = await duelOpen(a, d);
-  const r1 = await strike(a, d, physCalc(a, d), ranged);
+  let r1 = await strike(a, d, physCalc(a, d), ranged);
+  if (d.hp > 0 && a.hp > 0 && hasPerk(a, 'combo') && Math.random() < 0.3) { // 连击
+    floatText(a.x, a.y - 0.4, '连击！', '#ffd25a');
+    const rb = await strike(a, d, physCalc(a, d), ranged);
+    r1 = { dmg: r1.dmg + rb.dmg, killed: rb.killed };
+  }
   let r2 = null;
   if (d.hp > 0 && a.hp > 0 && canCounter(d, a)) { r2 = await strike(d, a, physCalc(d, a), ranged); faceTo(d, a.x, a.y); }
   if (duel) await duelClose();
@@ -1288,6 +1301,7 @@ async function useItem(u, itemId, target) {
   await wait(500);
 }
 
+function searcherOn() { return !!B && B.units.some(o => o.team === 'player' && o.hp > 0 && hasPerk(o, 'search')); }
 async function finishUnit(u) {
   u.acted = true;
   // 隐藏关入口：我方停在指定格子上
@@ -1298,7 +1312,9 @@ async function finishUnit(u) {
     if (!AUTO) await modal('发现', `<p class="center">${esc(sec.msg || '发现了通往隐藏地点的入口！战斗胜利后将前往该处。')}</p>`, [{ label: '好', value: 1, cls: 'primary' }]);
   }
   if (u.team === 'player' && u.hp > 0) {
-    const c = B.chests.find(c => !c.opened && c.x === u.x && c.y === u.y);
+    let c = B.chests.find(c => !c.opened && c.x === u.x && c.y === u.y);
+    if (c && c.hidden && !searcherOn()) c = null; // 隐藏宝物：要有「搜索」能力的同伴在场才找得到
+    if (c && c.locked && !hasPerk(u, 'unlock')) { floatText(u.x, u.y, '上锁了', '#ffd25a'); if (!AUTO) toast('宝箱上了锁——需要有「开锁」能力的角色（杀手系）'); c = null; }
     if (c) {
       c.opened = true; sfx('chest');
       const it = ITEMS[c.item];

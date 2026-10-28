@@ -411,6 +411,15 @@ function duelDrawFx(g, f, p, now, anc, s) {
       g.fillRect(Math.round((x - r) / z) * z, Math.round((y - r) / z) * z, Math.round(2 * r / z) * z, Math.round(2 * r / z) * z);
     }
     g.globalAlpha = 1;
+  } else if (f.type === 'laser') {
+    // 机甲 / 高科技战士的光炮：瞬间贯通的光束
+    if (!f.a) { f.a = anc(f.from, 'tip').slice(); f.b = anc(f.to, 'chest').slice(); }
+    const reach = Math.min(1, p * 3), x1 = lerp(f.a[0], f.b[0], reach), y1 = lerp(f.a[1], f.b[1], reach), w0 = (p < 0.7 ? 1 : (1 - p) / 0.3) * s;
+    g.lineCap = 'round';
+    g.strokeStyle = 'rgba(255,60,60,0.55)'; g.lineWidth = (7 + Math.sin(now * 0.08) * 1.5) * w0; g.beginPath(); g.moveTo(f.a[0], f.a[1]); g.lineTo(x1, y1); g.stroke();
+    g.strokeStyle = '#ffd0d0'; g.lineWidth = 3 * w0; g.beginPath(); g.moveTo(f.a[0], f.a[1]); g.lineTo(x1, y1); g.stroke();
+    g.strokeStyle = '#ffffff'; g.lineWidth = 1.2 * w0; g.beginPath(); g.moveTo(f.a[0], f.a[1]); g.lineTo(x1, y1); g.stroke();
+    g.fillStyle = '#ffffff'; duelStar(g, f.a[0], f.a[1], 6 * s * (1 - p));
   } else if (f.type === 'swarm') {
     // 蛊虫群：一团抖动的小黑虫沿弧线飞向目标
     if (!f.a) { f.a = anc(f.from, 'tip').slice(); f.b = anc(f.to, 'chest').slice(); f.bugs = Array.from({ length: 22 }, () => [Math.random() * 2 - 1, Math.random() * 2 - 1, Math.random() * 6]); }

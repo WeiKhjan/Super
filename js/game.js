@@ -25,6 +25,8 @@ function defaultDeploy(st) {
 }
 function prepareStage(idx) {
   const st = STAGES[idx];
+  // 双主角作品：lordReq 的关卡自动把「本路线的主角」列为必须出战
+  if (st.lordReq && curCampaign().lord) { st._req0 = st._req0 || st.required || []; st.required = [...new Set([curCampaign().lord(S), ...st._req0])]; }
   // 二代起：英雄由剧情 join 加入，这里只确保必须出战的角色在队中
   for (const id of st.id ? st.required : st.heroes) if (!(S.left || {})[id]) ensureHero(id);
 }
@@ -191,12 +193,12 @@ function renderCamp() {
           <div><b>${esc(d.name)}</b> <span class="dim">${className(u)} Lv${d.lv}</span>${(S.rel || {})[id] !== undefined ? ` <span class="rel">♥ ${S.rel[id]}</span>` : ''}${(S.left || {})[id] ? ' <span class="tag t-away">已离队</span>' : ''}${away ? ' <span class="tag t-away">本关不在队中</span>' : ''}<br>
           <span class="small">HP ${d.mhp} · MP ${d.mmp} · 攻 ${atkOf(u)} · 防 ${defOf(u)} · 魔 ${magOf(u)} · 速 ${spdOf(u)} · 移 ${movOf(u)}</span><br>
           <span class="small dim">EXP ${d.exp}/100 · ${CLASSES[d.cls].line} · ${typeOf(u)}</span></div></div>
-        <p class="small skills">技能：${sk}</p>
+        <p class="small skills">技能：${sk}</p>${(() => { const pk = [...new Set([...(CLASSES[d.cls].passive || []), ...(d.perks || [])])]; return pk.length ? `<p class="small skills">特殊能力：${pk.map(p => PERK_NAME[p] || p).join('、')}</p>` : ''; })()}
         <div class="card-btns">
           ${CLASSES[d.cls].weapon ? `<button class="btn small" data-equip="${id}" data-slot="weapon">武器：${d.weapon ? ITEMS[d.weapon].name : '无'}</button>` : ''}
           <button class="btn small" data-equip="${id}" data-slot="armor">防具：${d.armor ? ITEMS[d.armor].name : '无'}</button>
           <button class="btn small" data-equip="${id}" data-slot="acc">饰品：${d.acc ? ITEMS[d.acc].name : '无'}</button>
-          ${ruleOn('freeClass') && d.lv >= 11 ? `<button class="btn small primary" data-reclass="${id}">转职所</button>` : ''}
+          ${ruleOn('freeClass') && d.lv >= 11 && reclassPool(d).length ? `<button class="btn small primary" data-reclass="${id}">转职所</button>` : ''}
           <button class="btn small purple" data-tree="${id}">职业树${CLASSES[d.cls].alt && !d.path && d.tier >= CLASSES[d.cls].alt.at ? ' ⚑' : ''}</button>
         </div>
         <p class="small dim bio">${HEROES[id].bio}</p>
@@ -207,7 +209,7 @@ function renderCamp() {
     const ids = Object.keys(S.inv).filter(id => S.inv[id] > 0);
     body.innerHTML = ids.length ? ids.map(id => {
       const it = ITEMS[id];
-      const canUse = it.type === 'use' && it.stat;
+      const canUse = it.type === 'use' && it.stat || it.type === 'book';
       const sell = it.price ? Math.floor(it.price / 2) : 0;
       return `<div class="row-item"><div><b>${it.name}</b> ×${S.inv[id]}<br><span class="small dim">${itemDesc(it)}</span></div>
         <div>${canUse ? `<button class="btn small primary" data-use="${id}">使用</button>` : ''}${sell ? `<button class="btn small" data-sell="${id}">卖 ${sell}G</button>` : ''}</div></div>`;
@@ -242,7 +244,8 @@ function treeHtml(d) {
 // 二代起的自由转职：Lv11 以上可转为其他职业，等级回到 1，保留能力值与已学会的招式
 function reclassPool(d) {
   const c = curCampaign(), h = HEROES[d.id] || {};
-  return [...new Set([...(h.lines || []), ...(c.classPool || [])])].filter(k => CLASSES[k] && k !== d.cls && (!CLASSES[k].sex || CLASSES[k].sex === (h.sex || 'm')));
+  const base = h.pool || [...(h.lines || []), ...(c.classPool || [])]; // h.pool：主角专属的转职范围（[] = 不能转职）
+  return [...new Set(base)].filter(k => CLASSES[k] && k !== d.cls && (!CLASSES[k].sex || CLASSES[k].sex === (h.sex || 'm')) && (!CLASSES[k].needItem || S.inv[CLASSES[k].needItem] > 0));
 }
 $('#camp').addEventListener('click', async e => {
   const rc = e.target.closest('[data-reclass]');
@@ -250,11 +253,13 @@ $('#camp').addEventListener('click', async e => {
     const id = rc.dataset.reclass, d = S.roster[id];
     sfx('select');
     const pool = reclassPool(d);
-    const html = pool.map(k => { const C = CLASSES[k]; return `<button class="pick" data-pick="${k}"><b>${esc(C.tiers[0].name)}</b><span>${esc(C.line)}</span><small>${C.tiers.map(t => esc(t.name)).join(' → ')}</small></button>`; }).join('');
+    const html = pool.map(k => { const C = CLASSES[k]; return `<button class="pick" data-pick="${k}"><b>${esc(C.tiers[0].name)}${C.needItem ? ' ✦隐藏' : ''}</b><span>${esc(C.line)}${C.needItem ? ` · 消耗${esc(ITEMS[C.needItem].name)}` : ''}${C.passive ? ` · 特殊能力：${C.passive.map(p => PERK_NAME[p] || p).join('、')}` : ''}</span><small>${C.tiers.map(t => esc(t.name)).join(' → ')}</small></button>`; }).join('');
     const k = await modal(`${esc(d.name)} · 转职所`, `<p class="dim small">转职后等级回到 Lv1（能力值保留），已学会的招式全部保留，可以一直循环转职。</p><div class="pick-list">${html}</div>`, [{ label: '取消', value: null }], { dismiss: null, wide: true });
     if (!k) return;
     const u = Object.assign({ status: {}, buffs: [] }, d);
     d.learned = [...new Set([...(d.learned || []), ...skillsOf(u)])];
+    d.perks = [...new Set([...(d.perks || []), ...(CLASSES[d.cls].passive || [])])]; // 特殊能力也保留
+    if (CLASSES[k].needItem) { if (--S.inv[CLASSES[k].needItem] <= 0) delete S.inv[CLASSES[k].needItem]; }
     Object.assign(d, { cls: k, lv: 1, exp: 0, tier: 0, path: undefined });
     const u2 = Object.assign({ status: {}, buffs: [] }, d);
     if (d.weapon && !canUseWeapon(u2, d.weapon)) { S.inv[d.weapon] = (S.inv[d.weapon] || 0) + 1; d.weapon = null; }
@@ -287,6 +292,15 @@ $('#camp').addEventListener('click', async e => {
     const list = S.order.map(h => `<button class="pick" data-pick="${h}"><b>${S.roster[h].name}</b><small>HP ${S.roster[h].mhp} MP ${S.roster[h].mmp} 攻 ${S.roster[h].atk} 魔 ${S.roster[h].mag}</small></button>`).join('');
     const who = await modal(`使用 ${ITEMS[id].name}`, `<div class="pick-list">${list}</div>`, [{ label: '取消', value: null }], { dismiss: null });
     if (!who) return;
+    const it = ITEMS[id];
+    if (it.type === 'book') { // 秘籍：学会招式
+      const d = S.roster[who], u = Object.assign({ status: {}, buffs: [] }, d);
+      if (it.who && !it.who.includes(CLASSES[d.cls].type)) { toast(`${d.name} 看不懂这本秘籍（需要${it.who.join('、')}类职业）`); return; }
+      if (skillsOf(u).includes(it.learn)) { toast(`${d.name} 已经会「${SPELLS[it.learn].name}」了`); return; }
+      d.learned = [...(d.learned || []), it.learn];
+      if (--S.inv[id] <= 0) delete S.inv[id];
+      sfx('levelup'); toast(`${d.name} 习得「${SPELLS[it.learn].name}」！`); persist(); return renderCamp();
+    }
     for (const k in ITEMS[id].stat) S.roster[who][k] += ITEMS[id].stat[k];
     if (--S.inv[id] <= 0) delete S.inv[id];
     sfx('levelup'); toast(`${S.roster[who].name} 的能力提升了！`); persist(); return renderCamp();
@@ -420,6 +434,7 @@ function showTitle() {
   $('#logo-sub').textContent = c.subtitle;
   $('#logo-title').innerHTML = c.id === 'g1' ? '超时空<br>英雄传说' : `<small class="logo-pre">超时空英雄传说${c.id === 'g3' ? '外传' : ''}</small>${esc(c.title)}`;
   $('#logo-tag').textContent = `移动重制版 · ${c.tag}`;
+  if ($('#logo-year')) $('#logo-year').textContent = c.year;
   const row = $('#title-heroes'); row.innerHTML = '';
   for (const id of c.titleHeroes || []) { const pc = portraitCanvas(id, 64); if (pc) row.appendChild(pc); }
   const sv = readSave();
@@ -485,15 +500,23 @@ $('#btn-new').addEventListener('click', async () => {
     const ok = await modal('新的旅程', '<p class="center">将覆盖现有存档，确定吗？</p>', [{ label: '开始', value: 1, cls: 'primary' }, { label: '取消', value: 0 }]);
     if (!ok) return;
   }
-  newSave(); persist();
-  runStage(0);
+  newSave();
+  const c = curCampaign();
+  if (c.starts) { // 选择主角 / 路线
+    const v = await modal('选择主角', `<div class="pick-list">${c.starts.map((o, i) => `<button class="pick" data-pick="${i}"><span class="ep-port" data-hero="${o.hero}"></span><b>${esc(o.label)}</b><span>${esc(o.sub || '')}</span><small>${esc(o.desc || '')}</small></button>`).join('')}</div>`, [{ label: '取消', value: null }], { dismiss: null, wide: true, onOpen: box => { for (const p of box.querySelectorAll('[data-hero]')) { const pc = portraitCanvas(p.dataset.hero, 44); if (pc) p.appendChild(pc); } } });
+    if (v == null) return;
+    const o = c.starts[+v];
+    applyEffects(o); S.stage = stageIndexById(o.to);
+  }
+  persist();
+  runStage(S.stage);
 });
 $('#btn-continue').addEventListener('click', () => {
   sfx('select');
   S = readSave();
   if (!S) return;
   if (S.stage >= STAGES.length) return showEnding();
-  if (S.stage === 0) return runStage(0);
+  if (S.stage === 0 || (!S.done || !S.done.length) && (curCampaign().starts || []).some(o => stageIndexById(o.to) === S.stage)) return runStage(S.stage);
   showCamp();
 });
 $('#btn-help').addEventListener('click', () => {
@@ -507,7 +530,7 @@ $('#btn-help').addEventListener('click', () => {
     <p><b>异常状态</b>：石化、冻结、失明时无法行动；中毒每回合损失生命；禁锢无法施法；破魂剑法让敌人无法反击。可用状态回复、解石化、解毒草、化石草治疗。</p>
     <p><b>成长</b>：获得 100 经验升级，到达一定等级自动转职（例如孟祈：作家 → 侠客 → 剑道家 → 圣剑士 → 剑侠 → 剑王 → 剑圣）。多数职业在中期转职时会出现<b>分支</b>，可选择原作路线或新路线（如剑士→魔法剑士、骑兵→圣骑士、武士→忍者、法师→时空术士），营地的「职业树」可查看。</p>
     <p><b>营地</b>：每关之间可以更换装备（武器 / 防具 / 饰品）、使用道具、购物，并选择出击人员。进度自动保存在本机。</p>
-    ${curCampaign().rules ? `<p><b>本作规则</b>：<b>移动点数制</b>——攻击或施法后，若还有剩余移动力，可以再移动（适合打了就退）。<b>方向</b>——单位脚下的小箭头是面向，从侧面攻击伤害 ×1.15、从背后 ×1.3。<b>高低差</b>——站得越高攻击越强（每层 +10%）。<b>自由转职</b>——Lv11 以上可在营地「转职所」改换职业，等级回到 1、能力与招式保留，可循环转职。<b>好感度</b>——剧情选项会影响伊娃、秋月、依琳娜、芙蓉的好感度（♥），80 以上且相邻时清风可施展<b>情侣合技</b>；好感度、同调石的下落与关键抉择会决定结局与最终 BOSS。</p>` : ''}
+    ${curCampaign().helpRules ? `<p><b>本作规则</b>：${curCampaign().helpRules}</p>` : curCampaign().rules ? `<p><b>本作规则</b>：<b>移动点数制</b>——攻击或施法后，若还有剩余移动力，可以再移动（适合打了就退）。<b>方向</b>——单位脚下的小箭头是面向，从侧面攻击伤害 ×1.15、从背后 ×1.3。<b>高低差</b>——站得越高攻击越强（每层 +10%）。<b>自由转职</b>——Lv11 以上可在营地「转职所」改换职业，等级回到 1、能力与招式保留，可循环转职。<b>好感度</b>——剧情选项会影响伊娃、秋月、依琳娜、芙蓉的好感度（♥），80 以上且相邻时清风可施展<b>情侣合技</b>；好感度、同调石的下落与关键抉择会决定结局与最终 BOSS。</p>` : ''}
     <p class="dim">提示：在手机浏览器中「添加到主屏幕」，即可像 App 一样全屏游玩。</p>
     </div>`, [{ label: '明白了', value: 1, cls: 'primary' }], { dismiss: 1, wide: true });
 });
@@ -566,6 +589,8 @@ window.__autoplayRoute = async function (opts) {
   opts = opts || {};
   AUTO = true;
   newSave();
+  const starts = curCampaign().starts;
+  if (starts) { const o = starts.find(o => o.to === opts.start) || starts.find(o => o.auto) || starts[0]; applyEffects(o); S.stage = stageIndexById(o.to); }
   Object.assign(S.flags, opts.flags || {});
   const out = [];
   for (let n = 0; n < (opts.max || 80) && S.stage < STAGES.length; n++) {
