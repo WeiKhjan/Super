@@ -390,7 +390,7 @@ CAMPAIGN_HEROES.g4 = {
 // 作品设定
 // ===================================================================
 Object.assign(CAMPAIGNS.g4, {
-  soon: false, tag: '四路线 · 隐藏职业',
+  soon: false, tag: '四路线 · 隐藏职业', finalStage: 'g4_79',
   desc: '新大陆法尔马立克：和会刺杀案后被嫁祸的血狮鹫兵团，一路追查到「狂神」降世的阴谋。A/B 两线再分四路线、各英雄专属隐藏职业、合技与多结局。',
   rules: { ap: true, facing: { side: 1.2, back: 1.4 }, height: 0.1, freeClass: 5 },
   titleHeroes: ['beiliqina', 'kehelin', 'maisi', 'kouqi'],

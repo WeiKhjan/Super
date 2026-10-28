@@ -54,6 +54,8 @@ function useCampaign(id) {
   return true;
 }
 function curCampaign() { return CAMPAIGNS[CUR_CAMPAIGN]; }
+// 选单上开放：最终关也写好了才算完成（制作中的作品仍可由测试脚本 useCampaign 载入）
+function campaignOpen(id) { const c = CAMPAIGNS[id]; return campaignReady(id) && (!c.finalStage || (CAMPAIGN_STAGES[id] || []).some(s => s.id === c.finalStage)); }
 function campaignReady(id) {
   const c = CAMPAIGNS[id], st = CAMPAIGN_STAGES[id] || [];
   if (!c || c.soon) return false;

@@ -423,7 +423,7 @@ function showSelect() {
     const c = CAMPAIGNS[id];
     let prog = '';
     try { const s = JSON.parse(localStorage.getItem(c.saveKey)); if (s && s.roster) { const n = (CAMPAIGN_STAGES[id] || []).length; prog = s.stage >= n && n ? '已通关' : `进行到第 ${s.stage + 1} 关`; } } catch (e) { }
-    const soon = !campaignReady(id);
+    const soon = !campaignOpen(id);
     return `<button class="game-card ${soon ? 'soon' : ''}" data-game="${id}" style="--gc:${c.color}">
       <span class="gc-no">${c.no}</span>
       <span class="gc-main"><b>${esc(c.full || c.title)}</b><small>${c.year} · ${esc(c.tag)}${prog ? ' · ' + prog : ''}</small><em>${esc(c.desc)}</em></span>
@@ -435,7 +435,7 @@ $('#select-list').addEventListener('click', e => {
   const b = e.target.closest('[data-game]');
   if (!b) return;
   const c = CAMPAIGNS[b.dataset.game];
-  if (!campaignReady(c.id)) { sfx('miss'); toast(`《${c.full || c.title}》制作中，敬请期待`); return; }
+  if (!campaignOpen(c.id)) { sfx('miss'); toast(`《${c.full || c.title}》制作中，敬请期待`); return; }
   sfx('select');
   useCampaign(c.id);
   showTitle();
@@ -595,7 +595,7 @@ for (const ev of ['pointerdown', 'touchend', 'keydown']) document.addEventListen
 $('#btn-sound').textContent = (OPT.sound || OPT.music) ? '🔊' : '🔇';
 diffLabel();
 // 启动：先到系列作品选择画面（记住上次选的作品）
-try { const last = localStorage.getItem('cskyxcs_campaign'); if (last && campaignReady(last)) useCampaign(last); } catch (e) { }
+try { const last = localStorage.getItem('cskyxcs_campaign'); if (last && campaignOpen(last)) useCampaign(last); } catch (e) { }
 showSelect();
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });
 
