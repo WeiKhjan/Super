@@ -428,6 +428,7 @@ function render(now) {
     for (const k of set) { const [x, y] = k.split(',').map(Number); ctx.fillRect(x * ts + 1, y * ts + 1, ts - 2, ts - 2); ctx.strokeRect(x * ts + 1.5, y * ts + 1.5, ts - 3, ts - 3); }
   };
   hl(B.hlDanger, 'rgba(255,60,60,0.22)', 'rgba(255,90,90,0.5)');
+  hl(B.hlRange, 'rgba(255,255,255,0.10)', 'rgba(255,255,255,0.28)');
   hl(B.hlMove, 'rgba(70,150,255,0.33)', 'rgba(140,200,255,0.75)');
   hl(B.hlAttack, 'rgba(255,60,60,0.30)', 'rgba(255,120,120,0.85)');
   hl(B.hlHeal, 'rgba(60,230,120,0.30)', 'rgba(120,255,160,0.85)');
@@ -485,6 +486,16 @@ function render(now) {
     ctx.moveTo(x1, y1 - L); ctx.lineTo(x1, y1); ctx.lineTo(x1 - L, y1);
     ctx.moveTo(x0 + L, y1); ctx.lineTo(x0, y1); ctx.lineTo(x0, y1 - L);
     ctx.stroke();
+  }
+  // 作用范围叠在单位上方再描一次边（避免被 Q 版大头挡住）
+  if (B.hlArea) {
+    const pa = 0.55 + 0.35 * Math.sin(now / 160);
+    ctx.lineWidth = Math.max(2, ts / 14);
+    for (const k of B.hlArea) {
+      const [x, y] = k.split(',').map(Number);
+      ctx.fillStyle = `rgba(255,220,60,${0.16 * pa})`; ctx.fillRect(x * ts + 1, y * ts + 1, ts - 2, ts - 2);
+      ctx.strokeStyle = `rgba(255,236,120,${pa})`; ctx.strokeRect(x * ts + 2, y * ts + 2, ts - 4, ts - 4);
+    }
   }
   drawFx(now);
   if (typeof drawSpellFx === 'function') drawSpellFx(now);
@@ -1222,9 +1233,62 @@ async function finishUnit(u) {
 // =====================================================================
 // 玩家操作
 // =====================================================================
+// ---------- 招式范围预览 ----------
+function skillShapeText(sp) {
+  const r = sp.range[0] === sp.range[1] ? `${sp.range[0]}` : `${sp.range[0]}-${sp.range[1]}`;
+  const tgt = sp.kind === 'summon' ? '召唤' : friendlySpell(sp) ? '友方' : '敌方';
+  let shape;
+  if (sp.around) shape = `自身周围 ${sp.area} 格`;
+  else if (sp.line) shape = '直线贯穿（不分敌我）';
+  else if (sp.arc) shape = '横扫 3 格';
+  else if (sp.cone) shape = `扇形 ${sp.cone} 排`;
+  else if (sp.area) shape = `范围 半径 ${sp.area}`;
+  else shape = '单体';
+  return sp.around ? `${shape} · ${tgt}` : `射程 ${r} · ${shape} · ${tgt}`;
+}
+// 以施法者为中心的小格子示意图：浅色 = 射程，黄色 = 作用范围（示例目标），蓝色 = 自己
+function drawSkillDiagram(cv, sp) {
+  const R = Math.min(4, Math.max(1, sp.range[1] + (sp.area || 0), sp.cone || 0)), N = R * 2 + 1, C = 7;
+  cv.width = N * C; cv.height = N * C;
+  const g = cv.getContext('2d');
+  g.fillStyle = '#120c2c'; g.fillRect(0, 0, cv.width, cv.height);
+  const me = { x: R, y: R };
+  const inR = (x, y) => { const d = Math.abs(x - R) + Math.abs(y - R); return d >= sp.range[0] && d <= sp.range[1]; };
+  // 示例目标：向上
+  let tgt = sp.around ? me : sp.arc || sp.cone ? { x: R, y: R - 1 } : { x: R, y: Math.max(0, R - Math.min(sp.range[1], R - (sp.area || 0))) };
+  if (!sp.around && tgt.y === R && sp.range[0] > 0) tgt = { x: R, y: R - sp.range[0] };
+  const cells = new Set();
+  const add = (x, y) => { if (x >= 0 && y >= 0 && x < N && y < N) cells.add(x + ',' + y); };
+  if (sp.line) for (let k = 1; k <= sp.range[1]; k++) add(R, R - k);
+  else if (sp.arc) for (let s = -1; s <= 1; s++) add(R + s, R - 1);
+  else if (sp.cone) for (let k = 1; k <= sp.cone; k++) for (let s = -(k - 1); s <= k - 1; s++) add(R + s, R - k);
+  else for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (Math.abs(x - tgt.x) + Math.abs(y - tgt.y) <= (sp.area || 0)) add(x, y);
+  const friendly = friendlySpell(sp);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const k = x + ',' + y, px = x * C, py = y * C;
+    if (cells.has(k)) g.fillStyle = sp.line ? '#ff9a3a' : '#ffd84a';
+    else if (inR(x, y) && !sp.around) g.fillStyle = friendly ? 'rgba(90,230,140,0.45)' : 'rgba(255,90,90,0.45)';
+    else g.fillStyle = '#231a4a';
+    g.fillRect(px + 1, py + 1, C - 2, C - 2);
+  }
+  g.fillStyle = '#4aa8ff'; g.fillRect(me.x * C + 1, me.y * C + 1, C - 2, C - 2);
+  g.fillStyle = '#ffffff'; g.fillRect(me.x * C + 3, me.y * C + 3, 1, 1);
+}
+// 命中最多（敌方伤害 / 友方治疗）的目标格
+function bestSpellTarget(u, id) {
+  const sp = SPELLS[id];
+  let best = null;
+  for (const t of spellTiles(u, id)) {
+    const hit = spellAffected(u, id, t.x, t.y);
+    let s = 0;
+    for (const o of hit) s += hostile(u, o) === !friendlySpell(sp) ? 10 + (sp.kind === 'heal' ? o.mhp - o.hp : 0) : -15;
+    if (!best || s > best.s) best = { x: t.x, y: t.y, s };
+  }
+  return best && best.s > 0 ? best : (best && sp.kind === 'summon' ? best : null);
+}
 function setMode(mode, extra) {
   B.mode = mode;
-  Object.assign(B, { hlMove: null, hlAttack: null, hlHeal: null, hlArea: null, hlDanger: null, pending: null }, extra || {});
+  Object.assign(B, { hlMove: null, hlAttack: null, hlHeal: null, hlArea: null, hlDanger: null, hlRange: null, pending: null }, extra || {});
   if (mode === 'idle') { B.sel = null; B.cursor = null; }
   refreshPanel();
 }
@@ -1337,17 +1401,18 @@ async function onAction(act) {
         const sp = SPELLS[id];
         const ok = canCastNow(u, id) && spellTiles(u, id).length > 0;
         const why = !ok && sp.kind === 'pair' && !pairPartner(u) ? '（需相邻且未行动的剑术系伙伴：作家、剑士、魔剑使、大剑师）' : '';
-        return `<button class="pick" data-pick="${id}" ${ok ? '' : 'disabled'}><b>${sp.name}</b><span>MP ${sp.mp}</span><small>${sp.desc}${why}</small></button>`;
+        return `<button class="pick sk" data-pick="${id}" ${ok ? '' : 'disabled'}><canvas class="sk-diag pix" data-diag="${id}"></canvas><b>${sp.name}</b><span>MP ${sp.mp}</span><em class="sk-shape">${skillShapeText(sp)}</em><small>${sp.desc}${why}</small></button>`;
       }).join('')).join('');
-      const id = await modal(hasStatus(u, 'silence') ? '法术（被禁锢）' : '法术 / 战技', `<div class="pick-list">${html}</div>`, [{ label: '返回', value: null }], { dismiss: null });
+      const id = await modal(hasStatus(u, 'silence') ? '法术（被禁锢）' : '法术 / 战技', `<div class="pick-list">${html}</div>`, [{ label: '返回', value: null }], { dismiss: null, onOpen: m => { for (const c of m.querySelectorAll('[data-diag]')) drawSkillDiagram(c, SPELLS[c.dataset.diag]); } });
       if (!id) return;
       const sp = SPELLS[id];
       const set = new Set(spellTiles(u, id).map(t => key(t.x, t.y)));
       setMode('spell', { sel: u, focus: u, orig: B.orig, spell: id, [friendlySpell(sp) || sp.kind === 'summon' ? 'hlHeal' : 'hlAttack']: set });
-      if (sp.around) { // 以自身为中心：直接预览范围，再点一次确认
-        Object.assign(B, { pending: { x: u.x, y: u.y }, cursor: { x: u.x, y: u.y }, hlArea: new Set(areaTiles(u.x, u.y, sp.area).map(t => key(t.x, t.y))) });
-        refreshPanel();
-      }
+      B.hlRange = new Set(tilesInRange(u.x, u.y, sp.range[0], sp.range[1]).map(t => key(t.x, t.y)));
+      // 自动选好命中最多的目标并预览作用范围（点别的格子可改，再点一次确认）
+      const best = bestSpellTarget(u, id);
+      if (best) Object.assign(B, { pending: { x: best.x, y: best.y }, cursor: { x: best.x, y: best.y }, hlArea: new Set(spellCells(u, sp, best.x, best.y).map(t => key(t.x, t.y))) });
+      refreshPanel();
       return;
     }
     case 'item': {
