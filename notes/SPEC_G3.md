@@ -42,7 +42,7 @@ skeleton 骷髅兵 · bat 吸血蝙蝠(飞，吸取) · mecha 重装机甲(射�
 * 结局：克雷布特里在奚族圣地被打倒，主战派失势，议和派的奥帕儿继任「边地行政长官」。
 
 ## 旗标一览
-route、branch1（'desert'/'ruins'）、metNatalia、metBai、opal（奥帕儿支线）、xtLeft（刑天秋月第一次离队）、xtLeft2（第二次）、xtBack（第 54 关归队）、plan（拿到军事计划书）、advice（'taipu'/'muer'）、breakout（'north'/'south'）、baoerKept、opalQueen、opalLeft、madhouse。
+route、branch1（'desert'/'ruins'）、metNatalia、metBai、opal（奥帕儿支线）、xtLeft（刑天秋月第一次离队）、xtLeft2（第二次）、xtBack（第 54 关归队）、plan（拿到军事计划书）、advice（'taipu'/'muer'）、breakout（'north'/'south'）、baoerKept、opalQueen、opalLeft、madhouse、keliteSaved（g3_95 救了柯莉特，g3_100 她会来助战）。
 
 ## 路线与关卡分配（id / no / 标题 / 要点）
 
