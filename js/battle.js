@@ -73,7 +73,7 @@ function skillsOf(u) {
   const cap = grunt ? 10 + u.lv / 5 : 99;
   // 杂兵的职业战技只用单体的基本招式（贯穿、范围技留给我方与首领）
   const gruntOk = (sp, lv) => !grunt || (sp.kind === 'phys' && (sp.line || sp.area || shaped(sp)) ? false
-    : !['枪', '斧', '刀', '弓', '翼', '牙'].includes(sp.school) || (!sp.line && !sp.area && !shaped(sp) && (sp.power || 0) <= 6 && u.lv >= lv + 5));
+    : !['枪', '斧', '刀', '弓', '翼', '牙', '忍', '魔', '拳', '蛊', '幻'].includes(sp.school) || (!sp.line && !sp.area && !shaped(sp) && (sp.power || 0) <= 6 && u.lv >= lv + 5));
   for (const [lv, id] of list) if (lv <= u.lv && !seen.has(id) && SPELLS[id].mp <= cap && gruntOk(SPELLS[id], lv)) { seen.add(id); out.push(id); }
   return out;
 }
