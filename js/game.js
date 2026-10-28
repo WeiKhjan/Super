@@ -6,7 +6,7 @@ const OPT_KEY = 'cskyxcs_opt_v1';
 let S = null; // { stage, gold, roster: {id: data}, order: [id], inv: {itemId: n}, cleared }
 
 
-function newSave() { S = { stage: 0, gold: 150, roster: {}, order: [], inv: { herb: 3 } }; }
+function newSave() { S = { stage: 0, gold: 150, roster: {}, order: [], inv: { herb: 3 }, flags: {}, rel: {}, left: {} }; }
 function persist() { try { localStorage.setItem(saveKey(), JSON.stringify(S)); } catch (e) { /* 隐私模式等 */ } }
 function readSave() {
   try { const s = JSON.parse(localStorage.getItem(saveKey())); if (s && s.roster) return s; } catch (e) { }
@@ -19,13 +19,31 @@ function saveOpt() { try { localStorage.setItem(OPT_KEY, JSON.stringify(OPT)); }
 // 关卡流程
 // =====================================================================
 function defaultDeploy(st) {
-  const pick = st.required.slice();
-  for (const id of S.order) if (pick.length < st.maxDeploy && st.heroes.includes(id) && !pick.includes(id)) pick.push(id);
+  const pick = st.required.filter(id => !(S.left || {})[id]);
+  for (const id of S.order) if (pick.length < st.maxDeploy && st.heroes.includes(id) && !pick.includes(id) && !(S.left || {})[id]) pick.push(id);
   return pick;
 }
 function prepareStage(idx) {
   const st = STAGES[idx];
-  for (const id of st.heroes) ensureHero(id);
+  for (const id of st.heroes) if (!(S.left || {})[id]) ensureHero(id);
+}
+// 关卡之后去哪里：一代依序；二代起可分支（选项 / 条件）、隐藏关、回到主线
+function stageIndexById(id) { return STAGES.findIndex(s => s.id === id); }
+async function resolveNext(st, idx) {
+  let nx = st.next;
+  if (nx === undefined) return idx + 1;
+  if (nx === 'END') return STAGES.length;
+  if (nx === 'RETURN') { const r = S.ret ?? idx + 1; delete S.ret; return r; }
+  if (typeof nx === 'string') return stageIndexById(nx);
+  const opts = nx.filter(o => condOk(o.if));
+  if (!opts.length) return idx + 1;
+  let o = opts[0];
+  if (opts.length > 1 && opts.some(o => o.label)) {
+    if (AUTO) o = opts.find(o => o.auto) || opts[0];
+    else { const v = await modal('前进的方向', `<p class="center">${esc(st.ask || '接下来要往哪里去？')}</p>`, opts.map((o, i) => ({ label: esc(o.label), value: String(i), cls: i ? '' : 'primary' }))); o = opts[+v || 0]; }
+  }
+  applyEffects(o);
+  return o.to === 'END' ? STAGES.length : stageIndexById(o.to);
 }
 
 async function runStage(idx, opts) {
@@ -52,7 +70,10 @@ async function runStage(idx, opts) {
       for (const f of PERSIST_FIELDS) S.roster[u.id][f] = u[f];
     }
     S.gold += st.reward || 0;
-    S.stage = idx + 1;
+    applyEffects(st.onWin);
+    let nx = await resolveNext(st, idx);
+    if (B.secretFound && st.secret) { S.ret = nx; nx = stageIndexById(st.secret.to); }
+    S.stage = nx < 0 ? STAGES.length : nx;
     persist();
     if (S.stage >= STAGES.length) return showEnding();
     if (AUTO) return 'win';
@@ -159,7 +180,7 @@ function renderCamp() {
       const sk = skillsOf(u).map(s => SPELLS[s].name).join('、') || '—';
       return `<div class="card ${away ? 'away' : ''}">
         <div class="card-top"><div class="port" data-hero="${id}"></div>
-          <div><b>${esc(d.name)}</b> <span class="dim">${className(u)} Lv${d.lv}</span>${away ? ' <span class="tag t-away">本关不在队中</span>' : ''}<br>
+          <div><b>${esc(d.name)}</b> <span class="dim">${className(u)} Lv${d.lv}</span>${(S.rel || {})[id] !== undefined ? ` <span class="rel">♥ ${S.rel[id]}</span>` : ''}${(S.left || {})[id] ? ' <span class="tag t-away">已离队</span>' : ''}${away ? ' <span class="tag t-away">本关不在队中</span>' : ''}<br>
           <span class="small">HP ${d.mhp} · MP ${d.mmp} · 攻 ${atkOf(u)} · 防 ${defOf(u)} · 魔 ${magOf(u)} · 速 ${spdOf(u)} · 移 ${movOf(u)}</span><br>
           <span class="small dim">EXP ${d.exp}/100 · ${CLASSES[d.cls].line} · ${typeOf(u)}</span></div></div>
         <p class="small skills">技能：${sk}</p>
@@ -167,6 +188,7 @@ function renderCamp() {
           ${CLASSES[d.cls].weapon ? `<button class="btn small" data-equip="${id}" data-slot="weapon">武器：${d.weapon ? ITEMS[d.weapon].name : '无'}</button>` : ''}
           <button class="btn small" data-equip="${id}" data-slot="armor">防具：${d.armor ? ITEMS[d.armor].name : '无'}</button>
           <button class="btn small" data-equip="${id}" data-slot="acc">饰品：${d.acc ? ITEMS[d.acc].name : '无'}</button>
+          ${ruleOn('freeClass') && d.lv >= 11 ? `<button class="btn small primary" data-reclass="${id}">转职所</button>` : ''}
           <button class="btn small purple" data-tree="${id}">职业树${CLASSES[d.cls].alt && !d.path && d.tier >= CLASSES[d.cls].alt.at ? ' ⚑' : ''}</button>
         </div>
         <p class="small dim bio">${HEROES[id].bio}</p>
@@ -209,7 +231,28 @@ function treeHtml(d) {
   return `<div class="tree-row">${shared} →</div><div class="tree-branch">${row('a')}${row('b')}</div>
     <p class="small dim">${d.path ? '已选定路线。' : d.tier >= at ? '尚未选择路线（目前视为 A），可在此选择一次。' : `到达 Lv ${branchLv(C)} 转职时选择路线。`}</p>`;
 }
+// 二代起的自由转职：Lv11 以上可转为其他职业，等级回到 1，保留能力值与已学会的招式
+function reclassPool(d) {
+  const c = curCampaign(), h = HEROES[d.id] || {};
+  return [...new Set([...(h.lines || []), ...(c.classPool || [])])].filter(k => CLASSES[k] && k !== d.cls && (!CLASSES[k].sex || CLASSES[k].sex === (h.sex || 'm')));
+}
 $('#camp').addEventListener('click', async e => {
+  const rc = e.target.closest('[data-reclass]');
+  if (rc) {
+    const id = rc.dataset.reclass, d = S.roster[id];
+    sfx('select');
+    const pool = reclassPool(d);
+    const html = pool.map(k => { const C = CLASSES[k]; return `<button class="pick" data-pick="${k}"><b>${esc(C.tiers[0].name)}</b><span>${esc(C.line)}</span><small>${C.tiers.map(t => esc(t.name)).join(' → ')}</small></button>`; }).join('');
+    const k = await modal(`${esc(d.name)} · 转职所`, `<p class="dim small">转职后等级回到 Lv1（能力值保留），已学会的招式全部保留，可以一直循环转职。</p><div class="pick-list">${html}</div>`, [{ label: '取消', value: null }], { dismiss: null, wide: true });
+    if (!k) return;
+    const u = Object.assign({ status: {}, buffs: [] }, d);
+    d.learned = [...new Set([...(d.learned || []), ...skillsOf(u)])];
+    Object.assign(d, { cls: k, lv: 1, exp: 0, tier: 0, path: undefined });
+    const u2 = Object.assign({ status: {}, buffs: [] }, d);
+    if (d.weapon && !canUseWeapon(u2, d.weapon)) { S.inv[d.weapon] = (S.inv[d.weapon] || 0) + 1; d.weapon = null; }
+    sfx('promote'); toast(`${d.name} 转职为「${CLASSES[k].tiers[0].name}」`); persist();
+    return renderCamp();
+  }
   const tr = e.target.closest('[data-tree]');
   if (tr) {
     const id = tr.dataset.tree, d = S.roster[id], C = CLASSES[d.cls];
@@ -302,7 +345,7 @@ function autoShop() {
 
 // 出击人员选择
 async function chooseDeploy(st) {
-  const avail = S.order.filter(id => st.heroes.includes(id));
+  const avail = S.order.filter(id => st.heroes.includes(id) && !(S.left || {})[id]);
   if (avail.length <= st.maxDeploy && avail.length === st.heroes.length) return avail;
   const sel = new Set(defaultDeploy(st));
   const row = id => {
@@ -376,6 +419,7 @@ function showTitle() {
 }
 async function showEnding() {
   if (AUTO) return 'win';
+  if (CUR_CAMPAIGN !== 'g1') return showCampaignEnding();
   show('ending');
   music('ending');
   const box = $('#ending-scroll');
@@ -404,6 +448,28 @@ async function showEnding() {
   $('#btn-end-title').onclick = () => { persist(); showTitle(); };
 }
 
+// 二代起：结局由旗标与关系值决定（CAMPAIGN_ENDINGS[id].resolve 返回结局键）
+async function showCampaignEnding() {
+  const CE = CAMPAIGN_ENDINGS[CUR_CAMPAIGN];
+  show('ending');
+  music('ending');
+  const box = $('#ending-scroll');
+  box.innerHTML = '';
+  if (CE.prelude) await dialog(CE.prelude);
+  const k = CE.resolve(S), E = CE.endings[k];
+  await dialog(E.lines);
+  sfx('win');
+  const c = curCampaign();
+  box.innerHTML = `<h2>— ${esc(E.title)} —</h2>
+    <div class="epilogue">${(E.epilogue || []).map(([id, text]) => `<div class="ep"><span class="ep-port" data-hero="${id}"></span><div><b>${esc((HEROES[id] || {}).name || id)}</b><p>${esc(text)}</p></div></div>`).join('')}</div>
+    <p class="thanks">感谢游玩《${esc(c.full || c.title)} · 移动重制版》</p>
+    <p class="dim small">本作为粉丝向非官方重制，谨此致敬 宇峻科技。剧情依原作改编，对白为重新撰写。</p>
+    <p class="dim small">已知结局：${Object.values(CE.endings).map(e => e.title).join(' / ')}——不同的选择、好感度与关键道具会走向不同的结局。</p>
+    <button class="btn primary" id="btn-end-title">返回标题</button>`;
+  for (const p of box.querySelectorAll('[data-hero]')) { const pc = portraitCanvas(p.dataset.hero, 44); if (pc) p.appendChild(pc); }
+  box.scrollTop = 0;
+  $('#btn-end-title').onclick = () => { persist(); showTitle(); };
+}
 $('#btn-new').addEventListener('click', async () => {
   sfx('select');
   if (readSave()) {

@@ -5,6 +5,7 @@
 // 一代沿用最早的全局 STAGES / HEROES（关卡文件直接 push 进 STAGES）
 const CAMPAIGN_STAGES = window.CAMPAIGN_STAGES || (window.CAMPAIGN_STAGES = {});
 const CAMPAIGN_HEROES = window.CAMPAIGN_HEROES || (window.CAMPAIGN_HEROES = {});
+const CAMPAIGN_ENDINGS = window.CAMPAIGN_ENDINGS || (window.CAMPAIGN_ENDINGS = {});
 
 const CAMPAIGNS = {
   g1: {

@@ -66,6 +66,7 @@ function skillsOf(u) {
   const h = u.id && HEROES[u.id];
   if (h && h.skills) list = list.concat(h.skills);
   if (h && h.noSkills) list = list.filter(s => !h.noSkills.includes(s[1]));
+  if (u.learned) list = list.concat(u.learned.map(id => [0, id])); // 转职前学会的招式
   const seen = new Set(), out = [];
   // 敌方杂兵只会使用与等级相称的招式，大招留给首领
   const grunt = !u.id && !u.boss && (u.team === 'enemy' || u.team === 'rogue');
@@ -93,7 +94,7 @@ function advMult(a, d) {
 // =====================================================================
 // 英雄数据（存档中的成长）与单位生成
 // =====================================================================
-const PERSIST_FIELDS = ['lv', 'exp', 'tier', 'path', 'mhp', 'mmp', 'atk', 'def', 'mag', 'spd', 'weapon', 'armor', 'acc'];
+const PERSIST_FIELDS = ['lv', 'exp', 'tier', 'path', 'cls', 'learned', 'mhp', 'mmp', 'atk', 'def', 'mag', 'spd', 'weapon', 'armor', 'acc'];
 function heroData(id, minLv) {
   const h = HEROES[id], C = CLASSES[h.cls];
   const d = {
@@ -207,8 +208,8 @@ function freeSpotNear(u, x, y) {
   return { x, y };
 }
 
-function reachable(u) {
-  const mt = moveTypeOf(u), mov = movOf(u);
+function reachable(u, budget) {
+  const mt = moveTypeOf(u), mov = budget ?? movOf(u);
   const best = new Map();
   best.set(key(u.x, u.y), { x: u.x, y: u.y, c: 0, prev: null });
   const q = [{ x: u.x, y: u.y, c: 0 }];
@@ -291,13 +292,38 @@ function threatTiles(u) {
 }
 
 // ---------- 伤害计算 ----------
+// ---------- 系列规则（二代起：再移动 / 方向 / 高低差 / 自由转职） ----------
+const ruleOn = r => typeof curCampaign === 'function' && !!(curCampaign().rules || {})[r];
+const HEIGHT_OF = { H: 1, M: 2, K: 1, Y: 2 };
+function heightAt(x, y) { const hm = B && B.def.heights; return hm ? +(hm[y] || '')[x] || 0 : HEIGHT_OF[tileAt(x, y)] || 0; }
+// 攻击方位与高低差的伤害倍率：背后 ×1.3、侧面 ×1.15；每高一层 +10%（最多 ±20%）
+function posInfo(a, d) {
+  let m = 1, tag = '';
+  if (ruleOn('facing') && d.dir) {
+    const vx = a.x - d.x, vy = a.y - d.y;
+    const ax = Math.abs(vx) >= Math.abs(vy) ? Math.sign(vx) : 0, ay = ax ? 0 : Math.sign(vy);
+    const dot = ax * d.dir.x + ay * d.dir.y;
+    if (dot < 0) { m *= 1.3; tag = '背后'; } else if (dot === 0) { m *= 1.15; tag = '侧面'; }
+  }
+  if (ruleOn('height')) {
+    const dh = clamp(heightAt(a.x, a.y) - heightAt(d.x, d.y), -2, 2);
+    if (dh) { m *= 1 + dh * 0.1; tag += (tag ? '·' : '') + (dh > 0 ? '居高' : '仰攻'); }
+  }
+  return { m, tag };
+}
+function faceTo(u, x, y) {
+  const vx = x - u.x, vy = y - u.y;
+  if (!vx && !vy) return;
+  u.dir = Math.abs(vx) >= Math.abs(vy) ? { x: Math.sign(vx), y: 0 } : { x: 0, y: Math.sign(vy) };
+}
 function physCalc(a, d, power = 0, sure = false) {
   const t = terrAt(d.x, d.y);
   let dmg = atkOf(a) + power - Math.round(defOf(d) * (1 + t.def / 100) * 0.75);
-  dmg = Math.max(1, Math.round(dmg * advMult(a, d)));
+  const pos = posInfo(a, d);
+  dmg = Math.max(1, Math.round(dmg * advMult(a, d) * pos.m));
   const hit = sure ? 100 : clamp(88 + (spdOf(a) - spdOf(d)) * 2 - t.avoid + hitBonus(a), 30, 100);
   const crit = clamp(3 + Math.max(0, spdOf(a) - spdOf(d)) + (typeOf(a) === '弓箭手' ? 5 : 0) + (a.boss ? 5 : 0) + critBonus(a), 0, 45);
-  return { dmg, hit, crit, adv: advMult(a, d) };
+  return { dmg, hit, crit, adv: advMult(a, d), pos: pos.tag };
 }
 function magCalc(a, d, sp) {
   let dmg = sp.power + magOf(a) * 0.85 - (defOf(d) * 0.35 + magOf(d) * 0.35);
@@ -305,7 +331,12 @@ function magCalc(a, d, sp) {
   if (sp.school === '技') dmg = Math.round(dmg * advMult(a, d)); // 喷火等天生攻击也受相克影响
   return { dmg: Math.max(1, Math.round(dmg)), hit: 100, crit: 0, adv: 1 };
 }
-function pairPartner(u) {
+// 合击伙伴：一般双人剑式要剑术系伙伴；情侣合技（sp.partner）要指定角色相邻且好感度足够
+function pairPartner(u, sp) {
+  if (sp && sp.partner) {
+    if ((S && S.rel ? S.rel[sp.partner] || 0 : 0) < (sp.rel || 0)) return null;
+    return alive().find(p => p.id === sp.partner && p.team === u.team && !p.acted && canAct(p) && mdist(p.x, p.y, u.x, u.y) === 1) || null;
+  }
   return alive().filter(p => p !== u && p.team === u.team && !p.acted && canAct(p) && PAIR_CLASSES.includes(p.cls) && mdist(p.x, p.y, u.x, u.y) === 1)
     .sort((a, b) => atkOf(b) - atkOf(a))[0] || null;
 }
@@ -448,6 +479,11 @@ function render(now) {
     ctx.beginPath(); ctx.ellipse(ux + ts / 2, uy + ts * 0.86, ts * 0.33, ts * 0.12, 0, 0, 7); ctx.fill();
     ctx.strokeStyle = TEAM_COLOR[u.team]; ctx.lineWidth = Math.max(1.5, ts / 22);
     ctx.beginPath(); ctx.ellipse(ux + ts / 2, uy + ts * 0.86, ts * 0.36, ts * 0.13, 0, 0, 7); ctx.stroke();
+    if (u.dir && u.hp > 0 && ruleOn('facing')) { // 面向箭头（背后受攻击伤害较高）
+      const fx = ux + ts / 2 + u.dir.x * ts * 0.4, fy = uy + ts * 0.86 + u.dir.y * ts * 0.16, s = ts * 0.09;
+      ctx.fillStyle = TEAM_COLOR[u.team]; ctx.beginPath();
+      ctx.moveTo(fx + u.dir.x * s * 1.6, fy + u.dir.y * s); ctx.lineTo(fx - u.dir.y * s, fy + u.dir.x * s * 0.6); ctx.lineTo(fx + u.dir.y * s, fy - u.dir.x * s * 0.6); ctx.fill();
+    }
     let spr = unitSprite(u);
     const sid = `${spriteKey(u)}|${u.tier}|${u.team}|${u.hair}|${spriteVariant(u)}`;
     if (hasStatus(u, 'petrify')) spr = tintSprite(spr, sid, 'stone');
@@ -756,7 +792,52 @@ function unitPortrait(u, size) {
   const kind = Object.keys(KIND_ALIAS).find(k => KIND_ALIAS[k] === u.cls) || u.cls;
   return portraitCanvas('enemy:' + kind, size, u.color || u.element);
 }
-function dialog(lines) {
+// ---------- 剧情：旗标、关系值、选项 ----------
+function flags() { S.flags = S.flags || {}; return S.flags; }
+function rels() { S.rel = S.rel || {}; return S.rel; }
+function condOk(c) {
+  if (!c) return true;
+  if (Array.isArray(c)) return c.every(condOk);
+  if (c.flag) return (flags()[c.flag] ?? false) === (c.is ?? true);
+  if (c.rel) return Object.entries(c.rel).every(([id, v]) => (rels()[id] || 0) >= v);
+  if (c.has) return !!(S.roster[c.has] && !(S.left || {})[c.has]);
+  if (c.not) return !condOk(c.not);
+  return true;
+}
+function applyEffects(e) {
+  if (!e) return;
+  for (const [k, v] of Object.entries(e.set || {})) flags()[k] = v;
+  for (const [id, v] of Object.entries(e.rel || {})) { rels()[id] = clamp((rels()[id] || 0) + v, 0, 100); if (!AUTO && v) toast(`${(HEROES[id] || {}).name || id} 好感度 ${v > 0 ? '↑' : '↓'}`); }
+  for (const id of e.join || []) { S.left = S.left || {}; delete S.left[id]; ensureHero(id); }
+  for (const id of e.leave || []) { S.left = S.left || {}; S.left[id] = true; if (B) { const u = B.units.find(o => o.id === id && o.team === 'player'); if (u) { u.hp = 0; floatText(u.x, u.y, '离队', '#cccccc'); } } }
+  if (e.item) for (const [id, n] of Object.entries(e.item)) { S.inv[id] = (S.inv[id] || 0) + n; if (S.inv[id] <= 0) delete S.inv[id]; }
+  if (e.gold) S.gold += e.gold;
+  if (e.win && B) B.over = 'win';
+}
+// 对白里可以穿插：['?', '问题', [{ label, set, rel, join, leave, say: [...] }]] 选项；['if', 条件, [...]] 条件对白；['do', 效果] 直接生效
+async function dialog(lines) {
+  if (!lines || !lines.length) return;
+  let seg = [];
+  const flush = async () => { if (seg.length) { const s = seg; seg = []; await dialogPlain(s); } };
+  for (const l of lines) {
+    if (l[0] === 'if') { await flush(); if (condOk(l[1])) await dialog(l[2]); else if (l[3]) await dialog(l[3]); continue; }
+    if (l[0] === 'do') { await flush(); applyEffects(l[1]); continue; }
+    if (l[0] === '?') {
+      await flush();
+      const opts = l[2].filter(o => condOk(o.if));
+      let pick = 0;
+      if (!AUTO) pick = +(await modal('', `<p class="center">${esc(l[1])}</p>`, opts.map((o, i) => ({ label: esc(o.label), value: String(i), cls: i ? '' : 'primary' })))) || 0;
+      else pick = Math.max(0, opts.findIndex(o => o.auto)); // 自动对战：选标记 auto 的选项，否则第一个
+      const o = opts[pick];
+      applyEffects(o);
+      if (o.say) await dialog(o.say);
+      continue;
+    }
+    seg.push(l);
+  }
+  await flush();
+}
+function dialogPlain(lines) {
   if (AUTO || !lines || !lines.length) return Promise.resolve();
   return new Promise(res => {
     const box = $('#dialog'); let i = 0, typing = null, full = '';
@@ -808,6 +889,7 @@ function startBattle(stageIdx, deploy) {
     B.units.push(u);
   });
   for (const spec of st.units || []) B.units.push(spawnSpec(spec));
+  for (const u of B.units) if (!u.dir) u.dir = { x: 0, y: u.team === 'player' ? -1 : 1 };
   show('battle');
   $('#hud-title').textContent = st.title;
   resize();
@@ -873,7 +955,7 @@ async function phaseStart(team) {
   B.phase = team;
   setMode('idle');
   const mine = alive().filter(u => u.team === team);
-  for (const u of B.units) if (u.team === team) u.acted = false;
+  for (const u of B.units) if (u.team === team) { u.acted = false; u.spent = 0; }
   for (const u of mine) {
     // 召唤物倒计时
     if (u.summonLeft && --u.summonLeft <= 0) { u.hp = 0; floatText(u.x, u.y, '消失', '#ccc'); continue; }
@@ -895,8 +977,9 @@ async function phaseStart(team) {
     const lim = B.def.win.turns;
     await banner(`第 ${B.turn} 回合`, label + (lim ? `（剩余 ${lim - B.turn + 1} 回合）` : ''), 'player');
     for (const [i, ev] of (B.def.events || []).entries()) {
-      if (ev.turn === B.turn && !B.firedEvents.has(i)) {
+      if (ev.turn === B.turn && !B.firedEvents.has(i) && condOk(ev.if)) {
         B.firedEvents.add(i);
+        applyEffects(ev.effects);
         for (const spec of ev.spawn || []) {
           const u = spawnSpec(spec);
           B.units.push(u);
@@ -920,6 +1003,7 @@ async function moveUnit(u, path) {
     await tween(t => { u.px = a.x + (b.x - a.x) * t; u.py = a.y + (b.y - a.y) * t; }, 65);
   }
   const last = path[path.length - 1];
+  if (path.length > 1) faceTo(u, last.x + (last.x - path[path.length - 2].x), last.y + (last.y - path[path.length - 2].y));
   u.x = last.x; u.y = last.y; delete u.px; delete u.py;
 }
 async function lunge(a, d) {
@@ -976,11 +1060,12 @@ async function strike(a, d, calc, ranged) {
 }
 async function doAttack(a, d) {
   B.cursor = null;
+  faceTo(a, d.x, d.y);
   const ranged = mdist(a.x, a.y, d.x, d.y) > 1;
   const duel = await duelOpen(a, d);
   const r1 = await strike(a, d, physCalc(a, d), ranged);
   let r2 = null;
-  if (d.hp > 0 && a.hp > 0 && canCounter(d, a)) r2 = await strike(d, a, physCalc(d, a), ranged);
+  if (d.hp > 0 && a.hp > 0 && canCounter(d, a)) { r2 = await strike(d, a, physCalc(d, a), ranged); faceTo(d, a.x, a.y); }
   if (duel) await duelClose();
   await giveExp(a, d, r1);
   if (r2) await giveExp(d, a, r2);
@@ -1060,7 +1145,7 @@ function canCastNow(u, spId) {
   const sp = SPELLS[spId];
   if (u.mp < sp.mp) return false;
   if (hasStatus(u, 'silence') && sp.school !== '技') return false;
-  if (sp.kind === 'pair' && !pairPartner(u)) return false;
+  if (sp.kind === 'pair' && !pairPartner(u, sp)) return false;
   if (sp.kind === 'summon' && alive().filter(o => o.summoner === u.uid).length >= maxSummons(u)) return false;
   return true;
 }
@@ -1108,7 +1193,7 @@ async function castSpell(u, spId, tx, ty) {
   const anim = typeof castAnim === 'function' && !AUTO;
   if (!anim) sfx(friendlySpell(sp) ? (sp.kind === 'heal' ? 'heal' : 'buff') : sp.kind === 'summon' ? 'summon' : 'magic');
   let partner = null;
-  if (sp.kind === 'pair') { partner = pairPartner(u); if (partner) { partner.acted = true; floatText(partner.x, partner.y, '合击！', '#ffe08a'); } }
+  if (sp.kind === 'pair') { partner = pairPartner(u, sp); if (partner) { partner.acted = true; floatText(partner.x, partner.y, '合击！', '#ffe08a'); } }
   B.castPartner = partner;
   await wait(anim ? 120 : 280);
   if (sp.kind === 'summon') {
@@ -1204,6 +1289,13 @@ async function useItem(u, itemId, target) {
 
 async function finishUnit(u) {
   u.acted = true;
+  // 隐藏关入口：我方停在指定格子上
+  const sec = B.def.secret;
+  if (sec && u.team === 'player' && u.hp > 0 && !B.secretFound && u.x === sec.at[0] && u.y === sec.at[1] && condOk(sec.if)) {
+    B.secretFound = true; sfx('chest');
+    floatText(u.x, u.y, '隐藏入口！', '#ffe08a', true);
+    if (!AUTO) await modal('发现', `<p class="center">${esc(sec.msg || '发现了通往隐藏地点的入口！战斗胜利后将前往该处。')}</p>`, [{ label: '好', value: 1, cls: 'primary' }]);
+  }
   if (u.team === 'player' && u.hp > 0) {
     const c = B.chests.find(c => !c.opened && c.x === u.x && c.y === u.y);
     if (c) {
@@ -1322,12 +1414,24 @@ async function onTap(x, y) {
       const v = B.reach.get(key(x, y));
       if (v && v.stop) {
         busy = true; B.hlMove = null; B.hlDanger = null;
+        sel.spent = (sel.spent || 0) + v.c;
         await moveUnit(sel, pathTo(B.reach, x, y));
         busy = false;
         return afterMove();
       }
       if (u && u.team === 'player' && !u.acted && canAct(u)) return selectUnit(u);
       return setMode('idle');
+    }
+    case 'move2': { // 行动后用剩余的移动点数再移动（二代起的移动点数制）
+      const sel = B.sel;
+      const v = B.reach.get(key(x, y));
+      busy = true;
+      if (v && v.stop && u !== sel) { sel.spent = (sel.spent || 0) + v.c; B.hlMove = null; await moveUnit(sel, pathTo(B.reach, x, y)); }
+      else if (u !== sel) { busy = false; return; }
+      setMode('busy', { sel });
+      await finishUnit(sel);
+      busy = false;
+      return afterAction();
     }
     case 'action': return;
     case 'target': case 'spell': {
@@ -1353,7 +1457,7 @@ function selectUnit(u) {
   const atk = new Set();
   const [r0, r1] = rangeOf(u);
   for (const v of stops) for (const t of tilesInRange(v.x, v.y, r0, r1)) if (!reach.get(key(t.x, t.y))?.stop) atk.add(key(t.x, t.y));
-  setMode('move', { sel: u, reach, orig: { x: u.x, y: u.y }, focus: u, hlMove: new Set(stops.map(v => key(v.x, v.y))), hlDanger: atk });
+  setMode('move', { sel: u, reach, orig: { x: u.x, y: u.y, spent: u.spent || 0 }, focus: u, hlMove: new Set(stops.map(v => key(v.x, v.y))), hlDanger: atk });
   B.cursor = { x: u.x, y: u.y };
   refreshPanel();
 }
@@ -1375,6 +1479,15 @@ async function confirmPending() {
   setMode('busy', { sel: u });
   if (mode === 'target') await doAttack(u, unitAt(p.x, p.y));
   else await castSpell(u, spell, p.x, p.y);
+  // 移动点数制：行动后若还有剩余移动力，可以再移动（点自己或「待机」结束）
+  const left = movOf(u) - (u.spent || 0);
+  if (ruleOn('ap') && u.hp > 0 && canAct(u) && !checkEnd() && left >= 1) {
+    busy = false;
+    const reach = reachable(u, left);
+    setMode('move2', { sel: u, focus: u, reach, hlMove: new Set([...reach.values()].filter(v => v.stop).map(v => key(v.x, v.y))) });
+    B.cursor = { x: u.x, y: u.y };
+    return refreshPanel();
+  }
   await finishUnit(u);
   busy = false;
   afterAction();
@@ -1400,7 +1513,7 @@ async function onAction(act) {
       const html = Object.keys(groups).map(sc => `<div class="pick-group">${SCHOOL_NAME[sc] || sc}</div>` + groups[sc].map(id => {
         const sp = SPELLS[id];
         const ok = canCastNow(u, id) && spellTiles(u, id).length > 0;
-        const why = !ok && sp.kind === 'pair' && !pairPartner(u) ? '（需相邻且未行动的剑术系伙伴：作家、剑士、魔剑使、大剑师）' : '';
+        const why = !ok && sp.kind === 'pair' && !pairPartner(u, sp) ? (sp.partner ? `（需与${(HEROES[sp.partner] || {}).name || ''}相邻，且好感度 ${sp.rel || 0} 以上）` : '（需相邻且未行动的剑术系伙伴：作家、剑士、魔剑使、大剑师）') : '';
         return `<button class="pick sk" data-pick="${id}" ${ok ? '' : 'disabled'}><canvas class="sk-diag pix" data-diag="${id}"></canvas><b>${sp.name}</b><span>MP ${sp.mp}</span><em class="sk-shape">${skillShapeText(sp)}</em><small>${sp.desc}${why}</small></button>`;
       }).join('')).join('');
       const id = await modal(hasStatus(u, 'silence') ? '法术（被禁锢）' : '法术 / 战技', `<div class="pick-list">${html}</div>`, [{ label: '返回', value: null }], { dismiss: null, onOpen: m => { for (const c of m.querySelectorAll('[data-diag]')) drawSkillDiagram(c, SPELLS[c.dataset.diag]); } });
@@ -1433,14 +1546,14 @@ async function onAction(act) {
       busy = false;
       return afterAction();
     }
-    case 'wait':
+    case 'wait': case 'wait2':
       busy = true; setMode('busy', { sel: u });
       await finishUnit(u);
       busy = false;
       return afterAction();
     case 'cancel':
       if (B.mode === 'target' || B.mode === 'spell') return afterMove();
-      if (B.orig) { u.x = B.orig.x; u.y = B.orig.y; }
+      if (B.orig) { u.x = B.orig.x; u.y = B.orig.y; u.spent = B.orig.spent || 0; }
       return setMode('idle');
     case 'confirm':
       return confirmPending();
@@ -1627,7 +1740,7 @@ function unitInfoHtml(u) {
       <div class="ui-stats dim">${eq}</div>
     </div></div>`;
 }
-function advText(m) { return m > 1 ? `<i class="adv up">克制×${m}</i>` : m < 1 ? `<i class="adv down">被克×${m}</i>` : ''; }
+function advText(m, pos) { return (m > 1 ? `<i class="adv up">克制×${m}</i>` : m < 1 ? `<i class="adv down">被克×${m}</i>` : '') + (pos ? `<i class="adv ${/背后|侧面|居高/.test(pos) ? 'up' : 'down'}">${pos}</i>` : ''); }
 function forecastHtml() {
   const u = B.sel, p = B.pending;
   if (!p) return '';
@@ -1636,7 +1749,7 @@ function forecastHtml() {
     const c = physCalc(u, t);
     const counter = canCounter(t, u) ? physCalc(t, u) : null;
     return `<div class="fc">
-      <div class="fc-side"><b>${esc(u.name)}</b>${advText(c.adv)}<div>伤害 <em>${c.dmg}</em> 命中 ${c.hit}% 暴击 ${c.crit}%</div></div>
+      <div class="fc-side"><b>${esc(u.name)}</b>${advText(c.adv, c.pos)}<div>伤害 <em>${c.dmg}</em> 命中 ${c.hit}% 暴击 ${c.crit}%</div></div>
       <div class="fc-vs">⚔</div>
       <div class="fc-side"><b>${esc(t.name)}</b> HP ${t.hp}/${t.mhp}<div>${counter ? `反击 <em>${counter.dmg}</em> 命中 ${counter.hit}%` : '无法反击'}</div></div>
     </div>`;
@@ -1644,7 +1757,7 @@ function forecastHtml() {
   if (B.mode === 'spell') {
     const sp = SPELLS[B.spell];
     if (sp.kind === 'summon') return `<div class="fc"><div class="fc-side"><b>${sp.name}</b><div>在此处召唤${CLASSES[sp.unit].tiers[0].name}（${sp.turns} 回合）</div></div></div>`;
-    const partner = sp.kind === 'pair' ? pairPartner(u) : null;
+    const partner = sp.kind === 'pair' ? pairPartner(u, sp) : null;
     const ts = spellAffected(u, B.spell, p.x, p.y);
     const rows = ts.map(o => {
       const ally = !hostile(u, o);
@@ -1682,6 +1795,7 @@ function refreshPanel() {
   switch (B.mode) {
     case 'idle': case 'inspect': b = btn('目标', 'objective') + btn('菜单', 'menu') + btn('结束回合', 'endturn', 'primary', !myTurn); break;
     case 'move': b = btn('取消', 'cancel'); break;
+    case 'move2': b = `<span class="dim small">可用剩余移动力再移动（剩 ${movOf(B.sel) - (B.sel.spent || 0)}）</span>` + btn('待机', 'wait2', 'primary'); break;
     case 'action': {
       const u = B.sel;
       const canAtk = attackTargets(u).length > 0;

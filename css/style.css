@@ -243,3 +243,5 @@ button { font: inherit; color: inherit; }
 .gc-main em { font-style: normal; color: #c8c0e8; font-size: 12px; line-height: 1.4; }
 .gc-go { font-size: 13px; color: var(--gc); font-weight: 900; white-space: nowrap; }
 .logo-pre { display: block; font-size: 15px; letter-spacing: 3px; color: #e8deff; -webkit-text-fill-color: #e8deff; }
+
+.rel { color: #ff8ab0; font-weight: 900; font-size: 13px; }
