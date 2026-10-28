@@ -242,6 +242,70 @@ const DFIG = (() => {
   };
   LINES.emperor = LINES.king;
 
+  // ---------------- 转职 B 路线（u.path === 'b' 且 tier >= at）----------------
+  // at 以 CLASSES[cls].alt.at 为准；data.js 尚未提供时使用此后备表
+  const ALT_AT = { swordsman: 2, knight: 2, fighter: 2, samurai: 2, archer: 2, priest: 2, mage: 2, sorcerer: 1, hawk: 1, wolf: 1, babyDragon: 2 };
+  const NINJATO = (c, o) => Object.assign({ k: 'katana', len: 20, c, g: '#2a2434', straight: 1, grip: '#2a2434' }, o);
+  const LINES_B = {
+    // 魔法剑士 → 魔导剑士 → 圣魔剑士：法师披肩 + 符文光剑（魔法拖影）
+    swordsman: (t, p, q) => [
+      { head: { t: 'circlet', c: C.silver, gem: '#b070ff' }, armor: { t: 'leather', c: '#5a4a7a', c2: '#3a2a5a' }, mantle: { c: q, trim: C.gold }, skirt: { t: 'tunic', c: p }, wpn: SW(20, '#d0e8ff', C.silver, { glow: '#8ab8ff', runes: 1 }), trail: '#9a8aff' },
+      { head: { t: 'circlet', c: C.gold, gem: C.cyan }, armor: { t: 'plate', c: '#8a7ab8', c2: '#4a3a78', trim: C.gold }, emblem: p, pads: { c: '#6a5aa0', big: 1 }, mantle: { c: p, trim: C.gold }, skirt: { t: 'tassets', c: '#8a7ab8', c2: p }, wpn: SW(22, '#e8d8ff', C.gold, { glow: '#c890ff', runes: 1, big: 1 }), trail: '#c890ff', aura: '#a070ff', sparkle: 1 },
+      { head: { t: 'crown', c: C.gold, gem: '#ff70ff' }, armor: { t: 'plate', c: C.white, c2: '#b8a0e0', trim: '#8a5ad8' }, emblem: '#8a5ad8', pads: { c: C.white, big: 1 }, cape: { c: '#6a3aa8', c2: C.white, trim: C.gold, len: 34 }, skirt: { t: 'tassets', c: C.white, c2: p }, wpn: SW(25, '#ffffff', C.gold, { glow: '#ff90ff', runes: 1, big: 1, twin: '#7ad8ff' }), trail: '#ff90ff', aura: '#d8a0ff', sparkle: 1 },
+    ][t - 2],
+    // 重装骑士 → 圣骑士 → 皇家骑士：始终骑马（全披甲马），塔盾，长枪冲锋
+    knight: (t, p, q) => [
+      { head: { t: 'helm', c: C.steel, visor: 1 }, armor: { t: 'plate', c: C.steel, c2: C.dSteel }, emblem: p, pads: { c: C.steel, big: 1 }, shield: { s: 'tower', c: p, c2: C.steel, e: C.steel }, wpn: { k: 'lance', len: 38, c: C.steel, flag: p }, mount: { t: 'horse', c: '#6a4a30', m: '#2a1a10', bard: '#8a8f9c', trim: p, plate: C.steel } },
+      { head: { t: 'helm', c: C.white, visor: 1, crest: C.gold, plume: C.gold }, armor: { t: 'plate', c: C.white, c2: C.pearl, trim: C.gold }, emblem: C.gold, pads: { c: C.gold, big: 1 }, cape: { c: C.white, c2: C.pearl, trim: C.gold, len: 24 }, shield: { s: 'tower', c: C.white, c2: C.gold, e: C.gold, cross: 1 }, wpn: { k: 'lance', len: 40, c: C.blade, flag: p, gold: 1 }, mount: { t: 'horse', c: '#f2f2f6', m: '#e0d0a0', bard: p, trim: C.gold, plate: C.silver }, aura: '#fff4c0' },
+      { head: { t: 'helm', c: C.gold, visor: 1, crownTop: C.gold, plume: p }, armor: { t: 'plate', c: C.gold, c2: C.dGold, trim: '#2a3a8a' }, emblem: p, pads: { c: '#2a3a8a', big: 1 }, cape: { c: '#2a3a8a', c2: '#1a2458', trim: C.gold, len: 26 }, shield: { s: 'tower', c: '#2a3a8a', c2: C.gold, e: C.gold, cross: 1 }, wpn: { k: 'lance', len: 44, c: '#ffffff', flag: p, banner: 1, gold: 1, glow: '#fff0a0' }, mount: { t: 'horse', c: '#f6f6fa', m: '#f4c542', bard: p, trim: C.gold, plate: C.gold }, aura: '#ffe080', sparkle: 1 },
+    ][t - 2],
+    // 狂战士 → 斗神 → 破坏神：赤膊战纹、巨型砍刀 / 双斧、狂暴跳劈，顶阶红色怒气
+    fighter: (t, p, q) => [
+      { hs: 'spiky', head: { t: 'band', c: C.red, tail: 1 }, armor: { t: 'bare', c: C.dLeather, paint: '#c82020' }, bracer: C.leather, pants: p, wpn: { k: 'axe', len: 22, h: 1, c: C.steel, cleaver: 1 }, style: 'rage' },
+      { hs: 'spiky', head: { t: 'helm', c: C.bone, c2: '#c8b898', horns: C.bone, visor: 1, eyes: '#ff4020' }, armor: { t: 'bare', c: C.dLeather, paint: '#c82020' }, mantle: { c: '#8a6a4a', trim: '#e8dcc0', fur: 1 }, pads: { c: '#c8b088', fur: 1 }, bracer: C.steel, pants: p, wpn: { k: 'axe', len: 21, h: 2, c: C.steel }, wpn2: { k: 'axe', len: 19, h: 1, c: C.steel }, style: 'rage', aura: '#ff6040' },
+      { hs: 'spiky', head: { t: 'helm', c: '#2a1418', c2: '#5a1a1a', horns: C.red, visor: 1, eyes: '#ffb020' }, armor: { t: 'plate', c: '#6a1a1a', c2: '#2a0a0a', trim: '#ff5020' }, emblem: p, pads: { c: '#2a1418', big: 1 }, cape: { c: '#2a0a0a', c2: C.red, trim: '#ff5020', len: 32 }, skirt: { t: 'tassets', c: '#3a1414', c2: p }, wpn: { k: 'axe', len: 28, h: 3, c: '#ffd0a0', g: '#ff5020', cleaver: 1, glow: '#ff7030', fire: 1 }, style: 'rage', aura: '#ff3020', sparkle: 1 },
+    ][t - 2],
+    // 忍者 → 上忍 → 影忍：蒙面头巾、忍者刀、长围巾；瞬身到敌后斩击，远程掷手里剑
+    samurai: (t, p, q) => [
+      { head: { t: 'ninja', c: '#34304a' }, armor: { t: 'tunic', c: '#34304a' }, belt: p, pants: '#2a2638', boots: '#2a2638', scarf: p, scarfLen: 1, wpn: NINJATO(C.steel), style: 'ninja' },
+      { head: { t: 'ninja', c: '#24304a', band: C.steel }, armor: { t: 'harness', c: '#4a4a5a' }, shirt: '#24304a', belt: p, bracer: C.steel, pants: '#1e2438', boots: '#1e2438', scarf: p, scarfLen: 1.5, wpn: NINJATO(C.blade), style: 'ninja' },
+      { head: { t: 'ninja', c: '#1e1428', band: '#6a3aa8', eyes: '#e070ff' }, armor: { t: 'harness', c: '#3a2a5a' }, shirt: '#2a1a3a', belt: p, bracer: '#6a3aa8', pants: '#1e1428', boots: '#1e1428', scarf: '#6a3aa8', scarfLen: 2.2, wpn: NINJATO('#e8d8ff', { glow: '#b070ff' }), wpn2: NINJATO('#e8d8ff'), style: 'ninja', aura: '#8040c0', sparkle: 1 },
+    ][t - 2],
+    // 游侠 → 魔弓手 → 天弓使：绿斗篷长弓 → 发光弓弦与符文魔法箭 → 白金天弓、光之箭
+    archer: (t, p, q) => [
+      { head: { t: 'hood', c: '#3a6a3a' }, cape: { c: '#3a6a3a', c2: '#24442a', len: 28 }, armor: { t: 'leather', c: C.leather, c2: C.dLeather }, skirt: { t: 'tunic', c: p }, quiver: 1, wpn: { k: 'bow', size: 16, c: C.wood } },
+      { head: { t: 'hood', c: '#4a2a6a' }, mantle: { c: q, trim: C.gold }, cape: { c: '#4a2a6a', c2: '#2a1a40', trim: C.gold, len: 28 }, armor: { t: 'leather', c: '#5a3a6a', c2: C.gold }, skirt: { t: 'tunic', c: p }, quiver: 1, wpn: { k: 'bow', size: 16, c: '#5a3a8a', tip: C.gold, str: '#d8b0ff', arrow: '#c890ff' }, sparkle: 1 },
+      { head: { t: 'circlet', c: C.gold, wings: C.white, gem: C.cyan }, cape: { c: C.white, c2: C.pearl, trim: C.gold, len: 32 }, armor: { t: 'plate', c: C.white, c2: C.pearl, trim: C.gold }, emblem: p, pads: { c: C.gold, big: 1 }, skirt: { t: 'tassets', c: C.white, c2: p }, wpn: { k: 'bow', size: 17, c: C.gold, tip: C.white, str: '#fff6a0', arrow: '#fff090', glow: 1 }, aura: '#fff0a0', sparkle: 1 },
+    ][t - 2],
+    // 武僧 → 圣拳士 → 拳圣：徒手连打（数记快拳 + 终结一击），高阶拳头发光
+    priest: (t, p, q) => [
+      { head: { t: 'band', c: '#c87818', tail: 1 }, armor: { t: 'tunic', c: '#f0a030' }, shirt: '#f0a030', sleeve: '#f0a030', collar: '#c87818', belt: p, beads: 1, pants: '#e89028', wide: 1, glove: '#f4ecd8', bracer: '#f4ecd8', wpn: { k: 'fist' } },
+      { head: { t: 'band', c: C.white, tail: 1 }, armor: { t: 'tunic', c: C.white }, shirt: C.white, sleeve: C.white, collar: C.gold, belt: p, beads: 1, pants: C.white, wide: 1, glove: C.gold, bracer: C.gold, wpn: { k: 'fist', glow: '#fff0a0' }, sparkle: 1 },
+      { head: { t: 'circlet', c: C.gold, gem: C.red }, armor: { t: 'tunic', c: C.white }, shirt: C.white, sleeve: C.white, mantle: { c: C.gold, trim: C.white }, collar: C.gold, belt: p, beads: 1, pants: '#f4e8c8', wide: 1, glove: C.gold, bracer: C.gold, wpn: { k: 'fist', glow: '#fff6a0', big: 1 }, aura: '#ffe060', sparkle: 1 },
+    ][t - 2],
+    // 时空术士 → 时空法师 → 时空贤者：沙漏 / 时钟杖，悬浮沙漏，时针光环
+    mage: (t, p, q) => [
+      { head: { t: 'circlet', c: C.silver, gem: '#7ad8ff' }, robe: { c: '#2a8a8a', trim: C.silver, sash: p }, belt: C.silver, wpn: STAFF(32, 'hourglass', { tc: C.silver }) },
+      { head: { t: 'circlet', c: C.gold, gem: '#7ad8ff' }, robe: { c: '#1f6a6a', trim: C.gold, sash: p }, cape: { c: '#1a4a5a', c2: '#0e2a3a', trim: C.gold, dots: C.gold, len: 32 }, belt: C.gold, float: 'hourglass', wpn: STAFF(36, 'clock', { tc: C.gold }) },
+      { head: { t: 'circlet', c: C.gold, gem: '#c8f4ff' }, robe: { c: '#1a1a4a', trim: C.gold, sash: p, stars: 1 }, cape: { c: '#14143a', c2: '#2a2a6a', trim: '#7ad8ff', dots: '#ffffff', len: 36 }, belt: C.gold, halo: 'clock', float: 'hourglass', wpn: STAFF(40, 'clock', { tc: C.gold, glow: '#c8f4ff', wood: C.gold }), aura: '#7ad8ff', sparkle: 1 },
+    ][t - 2],
+    // 召唤士 → 召唤王：符文长袍 + 水晶杖与精灵光球 → 王冠、魔典、环绕的多颗精灵
+    sorcerer: (t, p, q) => [
+      { head: { t: 'hood', c: '#2a3a6a' }, robe: { c: '#3a4a7a', trim: C.cyan, sash: p, runes: 1 }, belt: p, orbs: ['#8af0ff'], wpn: STAFF(34, 'crystal', { gem: C.cyan }) },
+      { head: { t: 'crown', c: C.gold, gem: C.cyan }, robe: { c: '#2a3060', trim: C.gold, sash: p, runes: 1 }, cape: { c: p, c2: '#2a1a50', trim: C.gold, len: 34 }, belt: C.gold, book: '#6a2a8a', orbs: ['#8af0ff', '#ff90c0', '#b0ff90'], wpn: STAFF(36, 'crystal', { gem: '#c8a0ff', tc: C.gold }), aura: '#a0c0ff', sparkle: 1 },
+    ][t - 1],
+    // 风鹰术士 → 风暴之翼：青羽鸟人持杖 → 闪电缠绕的风暴之翼
+    hawk: (t, p, q) => [
+      { beast: 'hawk', hair: '#3a9a9a', armor: { t: 'harness', c: C.leather }, mantle: { c: '#2a6a6a', trim: C.silver }, skirt: { t: 'tunic', c: p }, wings: { c: '#3a9a9a', c2: '#e8fff8' }, wpn: STAFF(30, 'gem', { gem: C.cyan, tc: C.silver }) },
+      { beast: 'hawk', hair: '#2a7a8a', head: { t: 'beakhelm', c: C.silver, crest: C.cyan }, armor: { t: 'plate', c: C.silver, c2: '#5a7a8a', trim: C.cyan }, emblem: p, mantle: { c: '#1a4a5a', trim: C.cyan }, skirt: { t: 'tunic', c: p }, wings: { c: '#1a5a6a', c2: '#7af0ff', big: 1 }, storm: 1, wpn: STAFF(34, 'orb', { gem: C.cyan, glow: '#c8f8ff', tc: C.silver }), aura: '#7af0ff', sparkle: 1 },
+    ][t - 1],
+    // 月影狼 → 月神狼：银蓝毛皮、额上新月 → 发光白狼、月轮光环；扑击更快
+    wolf: (t, p, q) => [
+      { beast: 'wolf', fur: '#9aaccc', mark: C.gold, armor: { t: 'harness', c: '#c8d0e0' }, skirt: { t: 'tunic', c: p }, wpn: { k: 'claw', c: '#e8eef8' }, fast: 1 },
+      { beast: 'wolf', fur: '#e8eef8', mark: C.gold, halo: 'moon', armor: { t: 'plate', c: C.silver, c2: '#7a8ab8', trim: '#7ab0ff' }, emblem: p, pads: { c: C.silver, big: 1 }, cape: { c: p, c2: q, trim: C.silver }, skirt: { t: 'tassets', c: C.silver, c2: p }, wpn: { k: 'claw', c: '#ffffff', big: 1, glow: '#c8e8ff' }, fast: 1, aura: '#c8e0ff', sparkle: 1 },
+    ][t - 1],
+  };
+
   // 规格补完：默认色、衣袖 / 手套 / 腿甲依护甲类型推导
   function finalize(S, base) {
     const a = S.armor;
@@ -263,22 +327,26 @@ const DFIG = (() => {
   function specOf(u) {
     const cls = u.cls, CL = typeof CLASSES !== 'undefined' && CLASSES[cls];
     const team = TEAM_PAL[u.team] ? u.team : 'enemy', p = TEAM_PAL[team].p, q = TEAM_PAL[team].q;
-    const n = CL ? CL.tiers.length : 1, t = clamp(u.tier | 0, 0, n - 1);
+    const alt = CL && CL.alt, at = alt && alt.at != null ? alt.at : ALT_AT[cls];
+    const n = Math.max(CL ? CL.tiers.length : 1, alt && alt.tiers ? at + alt.tiers.length : 0), t = clamp(u.tier | 0, 0, n - 1);
+    const isB = u.path === 'b' && at != null && t >= at;
     const wk = (typeof ITEMS !== 'undefined' && u.weapon && ITEMS[u.weapon] && ITEMS[u.weapon].kind) || '';
-    const key = [cls, t, team, u.hair || '', u.id || '', wk, u.element || '', u.color || ''].join('|');
+    const key = [cls, t, team, u.hair || '', u.id || '', wk, u.element || '', u.color || '', isB ? 'b' : 'a'].join('|');
     if (SPEC_CACHE[key]) return SPEC_CACHE[key];
-    const fn = LINES[cls] || (CL && LINES[CL.sprite]);
+    const fn = (isB && LINES_B[cls]) || LINES[cls] || (CL && LINES[CL.sprite]);
     let S;
     if (!fn) {
       const sk = CL ? CL.sprite : cls;
       S = { kind: 'sprite', sk, dragon: /dragon/i.test(sk || '') || cls === 'babyDragon', fly: !!(CL && CL.tiers[t] && CL.tiers[t].move === 'fly'), big: ['giant', 'yeti', 'sphinx', 'kraken', 'hydra', 'demon', 'darkLord', 'dragon', 'console', 'turtle'].includes(sk) };
       S.scale = S.big ? 4.0 : cls === 'babyDragon' ? 3.0 + t * 0.3 : 3.3;
+      if (isB && cls === 'babyDragon') { S.ice = 1; S.skB = ((alt && alt.sprite) || 'dragon_b'); S.breath = 'blue'; S.scale += 0.2 * (t - at + 1); }
     } else {
       const base = fn(t, p, q, u) || {};
-      S = Object.assign({ kind: 'doll', p, q, t, skin: C.skin, hair: u.hair || '#3a2a1a', hs: HAIR_STYLE[u.id] || 'short', beard: !!BEARD[u.id] }, base);
+      S = Object.assign({ kind: 'doll', p, q, t, path: isB ? 'b' : 'a', skin: C.skin, hair: u.hair || '#3a2a1a', hs: HAIR_STYLE[u.id] || 'short', beard: !!BEARD[u.id] }, base);
+      if (isB && cls === 'hawk' && base.hair) S.hair = base.hair;
       S.wpn = Object.assign({}, S.wpn || { k: 'none' });
       // 装备的武器种类可覆盖默认（如武士改拿剑、鹰族拿爪）
-      if (wk && wk !== S.wpn.k && !(S.wpn.k === 'xbow' && wk === 'bow')) {
+      if (!isB && wk && wk !== S.wpn.k && !(S.wpn.k === 'xbow' && wk === 'bow')) {
         if (wk === 'sword') S.wpn = SW(19, C.steel, C.dSteel);
         else if (wk === 'blade') S.wpn = { k: 'katana', len: 24, c: C.blade, g: C.dIron };
         else if (wk === 'claw') S.wpn = { k: 'claw', c: C.steel };
@@ -297,7 +365,7 @@ const DFIG = (() => {
   // ---------------- 姿势 ----------------
   // 所有角度为绝对方向（0 下、90 前、180 上）；X = 冲刺进度、P = 穿越（以两人间距为 1）、dx/Y = 美术像素位移
   const P0 = { X: 0, P: 0, dx: 0, Y: 0, rot: 0, sq: 0, al: 1, lean: 4, hd: 0, lt: 10, ls: -4, bt: -14, bs: -18, fa: 20, fe: 80, ba: -8, be: 14, w: 150,
-    dr: 0, sik: 0, two: 0, ra: 0, ga: 0, mp: 0, wf: 0, tr: 0, mo: 0, ld: 1, glw: 0 };
+    dr: 0, sik: 0, two: 0, ra: 0, ga: 0, mp: 0, wf: 0, tr: 0, mo: 0, ld: 1, glw: 0, fl: 0 };
   const STANCE = {
     sword: { fa: 25, fe: 95, w: 138, ba: -15, be: 18, lean: 6 },
     katana: { fa: 35, fe: 105, w: 122, two: 1, lean: 8, lt: 18, ls: -6, bt: -20, bs: -22 },
@@ -308,6 +376,7 @@ const DFIG = (() => {
     bow: { ba: 35, be: 60, fa: 8, fe: 30, lean: 0 },
     xbow: { fa: 14, fe: 75, w: 112, two: 1, lean: 2 },
     claw: { fa: 40, fe: 150, ba: 28, be: 135, lean: 14, lt: 22, ls: -10, bt: -26, bs: -32 },
+    fist: { fa: 50, fe: 140, ba: 40, be: 125, lean: 10, lt: 22, ls: -10, bt: -26, bs: -32 },
     none: { fa: 30, fe: 135, ba: 20, be: 120, lean: 8 },
   };
   function stance(S) {
@@ -317,6 +386,8 @@ const DFIG = (() => {
     if (S.robe) Object.assign(st, { lt: 6, ls: 0, bt: -8, bs: -8 });
     if (S.wings) Object.assign(st, { wf: 0.25 }, k === 'claw' ? { fa: 50, fe: 100, ba: 40, be: 95 } : {});
     if (S.shield) Object.assign(st, { ba: 35, be: 100 });
+    if (S.wpn2) Object.assign(st, { two: 0, ba: 25, be: 110, fa: 35, fe: 120 });
+    if (S.book) Object.assign(st, { ba: 40, be: 95 });
     return st;
   }
   const EASE = { in: t => t * t, out: t => 1 - (1 - t) * (1 - t), lin: t => t, io: t => t * t * (3 - 2 * t) };
@@ -398,7 +469,7 @@ const DFIG = (() => {
     if (k === 'axe') return [add(J.hF, J.wd, w.len * 0.55), add(add(J.hF, J.wd, w.len - 2), dv(P.w - 90), 6)];
     if (k === 'lance' || k === 'fork') return [add(J.hF, J.wd, w.len * 0.5), add(J.hF, J.wd, w.len)];
     if (k === 'staff') return [add(J.hF, J.wd, w.len * 0.35), add(J.hF, J.wd, w.len - 12)];
-    if (k === 'claw' || k === 'none') return [J.eF, add(J.hF, dv(J.fe), 5)];
+    if (k === 'claw' || k === 'none' || k === 'fist') return [J.eF, add(J.hF, dv(J.fe), 5)];
     return [J.hF, J.hF];
   }
 
@@ -487,6 +558,7 @@ const DFIG = (() => {
     poly(pts, (px, py) => {
       const rx = px - A[0], ry = py - A[1], along = rx * d[0] + ry * d[1], side = rx * pp[0] + ry * pp[1];
       if (along > len - 2.6 + Math.abs(side) * 0.05) return cp.ermine ? ((Math.floor(px) + Math.floor(py)) % 5 === 0 ? bk : wh) : tr;
+      if (cp.dots && ((Math.floor(px) * 5 + Math.floor(py) * 3) % 17 === 0)) return pc(cp.dots);
       return side < -4 ? c2 : c1;
     });
   }
@@ -495,10 +567,10 @@ const DFIG = (() => {
     const n = add(add(J.neck, J.fw, -3.5), J.up, -1.5), spd = Math.max(P.ra || 0, Math.abs(P.Y) > 6 ? 0.6 : 0);
     const w1 = Math.sin(NOW * 0.011) * 9, w2 = Math.sin(NOW * 0.011 - 1.2) * 12;
     const base = -58 - spd * 28 - (P.lean < -8 ? 15 : 0);
-    const l = S.scarfLong ? 5.5 : 4.2;
+    const l = (S.scarfLong ? 5.5 : 4.2) * (S.scarfLen || 1);
     const a = add(n, dv(base + w1 - 8, l)), b = add(a, dv(base + w2 - 4, l)), c = add(b, dv(base + w2 * 1.3, l * 0.8));
     const rc = pc(S.scarf), rd = pc(C.dRed);
-    chain(S.scarfLong ? [n, a, b, c] : [n, a, b], 3.3, 2.6, (px, py, t) => rc);
+    chain(S.scarfLong || S.scarfLen ? [n, a, b, c] : [n, a, b], 3.3, 2.6, (px, py, t) => rc);
     if (S.scarfLong) cap(add(n, [0, 1]), add(a, dv(base + 30, 3)), 2.1, 1.6, rd);
   }
   function drawArm(s, e, h, S, back, fe) {
@@ -564,7 +636,7 @@ const DFIG = (() => {
           return ac;
         }
         case 'do': return u > 14.8 ? ac2 : Math.floor(u * KU) % 3 === 0 ? ac2 : ac;
-        case 'bare': return Math.abs(v - (u * 0.7 - 5.5)) < 0.9 ? ac : sk;
+        case 'bare': if (a.paint && (Math.abs(u - 10.5 + v * 0.3) < 0.9 || Math.abs(u - 7.5 + v * 0.3) < 0.9) && v > -1) return pc(a.paint); return Math.abs(v - (u * 0.7 - 5.5)) < 0.9 ? ac : sk;
         case 'harness': return (a.plate && u > 8) ? ac : (Math.abs(v - (u * 0.7 - 5.5)) < 0.9 || (u > 3.4 && u < 4.6) ? ac : (fur || sk));
       }
       return sh;
@@ -595,6 +667,8 @@ const DFIG = (() => {
       const t = clamp((py - wF[1]) / Math.max(1, hem - wF[1]), 0, 1), front = wF[0] + (pts[2][0] - wF[0]) * t;
       if (px > front - 1.6) return tr;
       if (sa && px > front - 4 && px < front - 1.6) return sa;
+      if (r.stars && ((Math.floor(px) * 7 + Math.floor(py) * 13) % 29 === 0)) return pc('#ffffff');
+      if (r.runes && t > 0.5 && t < 0.65 && Math.floor(px) % 3 === 0) return tr;
       return t > 0.55 ? c2 : c1;
     });
     // 上身袍子
@@ -613,7 +687,7 @@ const DFIG = (() => {
     const TP = (v, u) => T(J, v, u, 1.1);
     const c1 = pc(m.c), tr = pc(m.trim);
     const pts = m.collar ? [TP(-6, 19.5), TP(-2, 18.5), TP(5.8, 16), TP(6.4, 9.5), TP(2, 8), TP(-6.4, 9)] : [TP(-5.8, 16), TP(5.6, 15.2), TP(6.4, 9.6), TP(1, 8.6), TP(-6.4, 9.4)];
-    poly(pts, (px, py) => { const u = TLoc(J, px, py, 1.1)[1]; return u < 10.6 ? tr : c1; });
+    poly(pts, (px, py) => { const u = TLoc(J, px, py, 1.1)[1]; if (m.fur) return u < 10.6 ? tr : ((Math.floor(px * 1.3) + Math.floor(py)) % 3 ? c1 : pc('#5a3a1a')); return u < 10.6 ? tr : c1; });
   }
   function drawHead(J, S, P) {
     const hc = J.hc, hd = S.head || {}, r = 6.3;
@@ -698,11 +772,19 @@ const DFIG = (() => {
       if (t === 'beakhelm') { poly([W(3, -4.5), W(10, -1.5), W(4.5, -0.6)], c1); }
       if (hd.crest) { part(NF); const cc = pc(hd.crest); poly([W(-5, -6), W(-1, -9.8), W(3.5, -8), W(-2, -6.8)], cc); }
       if (hd.horns) { part(NF); const hc2 = pc(hd.horns); chainK([W(-1.5, -6), W(-4.5, -8.5), W(-4, -11)], 1.8, 0.6, hc2); chainK([W(2, -6), W(4.8, -8), W(4.6, -10.5)], 1.6, 0.5, hc2); }
+      if (hd.crownTop) { part(NF); const cc = pc(hd.crownTop); for (const x of [-4.5, -1.8, 0.9, 3.6]) poly([W(x - 1.2, -6.2), W(x + 1.2, -6.2), W(x, -9.8)], cc); poly([W(-5.5, -6.4), W(4.8, -6.4), W(4.6, -5.4), W(-5.4, -5.4)], cc); dotK(W(-0.4, -5.9), pc(C.red)); }
       if (hd.plume) { part(NF); const pl = pc(hd.plume), s = Math.sin(NOW * 0.008) * 1.5 - (P.ra || 0) * 2; chainK([W(0, -8), W(-4, -11), W(-9, -10 + s), W(-13, -6 + s * 1.4)], 2.6, 1.2, pl); }
+    } else if (t === 'ninja') {
+      // 忍者头巾：只露出眼睛一条缝，脑后打结
+      discK(hc, r + 1.4, (px, py) => { const [x, y] = L(px, py); if (x > -0.4 && y > -1.9 && y < 1.6) return 0; return c1; });
+      const sw = Math.sin(NOW * 0.012) * 1.5; capK(W(-6.5, -1.5), W(-10.5, 0.5 + sw), 1.2, 0.7, c1); capK(W(-6.5, -1.5), W(-10, 3 + sw), 1.1, 0.6, c1);
+      if (hd.band) { part(NF); discK(hc, r + 1.6, (px, py) => { const [, y] = L(px, py); return y > -4.4 && y < -3 ? pc(hd.band) : 0; }); poly([W(3, -4.6), W(5.4, -4.6), W(5.4, -2.8), W(3, -2.8)], pc(C.silver)); }
+      if (hd.eyes) { part(NF); poly([W(-0.4, -1.9), W(6.6, -1.9), W(6.6, 1.6), W(-0.4, 1.6)], pc('#120a18')); part(FLAT); poly([W(0.8, -0.9), W(2.8, -0.6), W(2.8, 0.3), W(0.8, 0.1)], pc(hd.eyes)); poly([W(3.9, -0.7), W(5, -0.5), W(5, 0.3), W(3.9, 0.2)], pc(hd.eyes)); }
     } else if (t === 'circlet' || t === 'crown') {
       discK(hc, r + 0.8, (px, py) => { const [, y] = L(px, py); return y > -4.2 && y < -2.4 ? c1 : 0; });
       if (t === 'crown') { const b = hd.big ? 1.3 : 1; for (const x of [-4, -1, 2, 4.5]) poly([W(x - 1.3, -3.5), W(x + 1.3, -3.5), W(x, -3.5 - 4 * b)], c1); if (hd.big) poly([W(-5, -3.5), W(5, -3.5), W(4, -6), W(-4, -6)], pc(C.dRed)); }
       if (hd.gem) dotK(W(4.5, -3.4), pc(hd.gem));
+      if (hd.wings) { part(NF); const wc = pc(hd.wings); poly([W(-3.5, -3.4), W(-9, -9), W(-8, -6), W(-10.5, -6), W(-8.5, -4), W(-10, -2.5), W(-6, -2.6)], wc); }
     } else if (t === 'mitre') {
       const h = hd.tall ? 17 : 14;
       poly([W(-5.5, -2.5), W(5.2, -2.5), W(4, -h * 0.7), W(0.5, -h), W(-4.5, -h * 0.72)], (px, py) => { const [x, y] = L(px, py); return Math.abs(x) < 0.9 || y > -4 ? c2 : c1; });
@@ -748,6 +830,7 @@ const DFIG = (() => {
     if (mo > 0.2) capK(W(2, 3), W(8.5, 5 + mo * 3), 1.6, 1.2, fur);
     discK(W(9, 1.4), 0.9, dk);
     poly([W(-3.5, -3.5), W(-1.8, -11.5), W(0.8, -4)], fur);
+    if (S.mark) { part(FLAT); const mk = pc(S.mark), mc = W(0.4, -3.6); disc(mc, 1.6 * HK, (px, py) => { const [x, y] = L(px, py); return Math.hypot(x - 1.1, y + 4.1) > 1.3 ? mk : 0; }); }
     part(NF); capK(W(-4, 2), W(-8, 8), 3, 2.2, fur);
     drawHeadgear(J, Object.assign({}, S, { head: S.head && S.head.t !== 'beakhelm' ? S.head : null }), P, W, L, hc, 5.8);
   }
@@ -771,10 +854,24 @@ const DFIG = (() => {
     }
   }
   function drawShield(J, S) {
+    if (S.book) {
+      part(NF);
+      const h = add(J.hB, J.fw, 2), bc = pc(S.book), pg = pc('#f4ecd8'), gd = pc(C.gold);
+      poly([add(h, [-4.5, -5]), add(h, [4.5, -5]), add(h, [4.5, 4]), add(h, [-4.5, 4])], (px, py) => { const x = px - h[0], y = py - h[1]; return Math.abs(x) > 3.4 || Math.abs(y + 0.5) > 3.6 ? gd : Math.abs(x) < 0.6 ? gd : bc; });
+      dot(h, pc('#8af0ff')); void pg;
+    }
     const sd = S.shield; if (!sd) return;
     part(NF);
     const c1 = pc(sd.c), c2 = pc(sd.c2), e = sd.e ? pc(sd.e) : 0, h = add(J.hB, J.fw, 1.5);
-    if (sd.s === 'round') {
+    if (sd.s === 'tower') {
+      const w2 = 7, ht = 12, hh = add(add(h, J.fw, 3), [0, 3]);
+      poly([add(hh, [-w2, -ht]), add(hh, [w2, -ht]), add(hh, [w2, ht - 3]), add(hh, [0, ht]), add(hh, [-w2, ht - 3])], (px, py) => {
+        const x = px - hh[0], y = py - hh[1];
+        if (Math.abs(x) > w2 - 1.6 || y < -ht + 1.6 || y > ht - 2.6 - Math.abs(x) * 0.5) return c2;
+        if (sd.cross ? (Math.abs(x) < 1.3 && y < ht - 4) || (Math.abs(y + 3) < 1.3) : (e && Math.abs(x) < 1.2)) return e || c2;
+        return Math.floor(y + 20) % 6 === 0 ? c2 : c1;
+      });
+    } else if (sd.s === 'round') {
       ell(h, 5.6, 7.4, 0, (px, py) => { const d = Math.hypot((px - h[0]) / 5.6, (py - h[1]) / 7.4); return d > 0.78 ? c2 : e && d < 0.38 ? e : c1; });
     } else {
       const K = 1.3, pts = [add(h, [-3.6 * K, -6.5 * K]), add(h, [3.6 * K, -6.5 * K]), add(h, [3.8 * K, 1 * K]), add(h, [0, 8 * K]), add(h, [-3.8 * K, 1 * K])];
@@ -784,6 +881,10 @@ const DFIG = (() => {
   function drawWeapon(J, S, P) {
     const w = S.wpn, k = w.k, h = J.hF, d = J.wd, a = P.w;
     if (k === 'none' || k === 'bow') return;
+    if (k === 'fist') {
+      if (w.glow) { part(FLAT); const r = (w.big ? 4.4 : 3.6) + Math.sin(NOW * 0.015) * 0.6; disc(h, r, pc(w.glow)); disc(J.hB, r * 0.85, pc(w.glow)); }
+      return;
+    }
     const c = pc(w.c || C.steel), g = pc(w.g || C.dSteel);
     if (w.glow) { part(FLAT); const gl = pc(w.glow), pulse = 0.4 + 0.4 * Math.sin(NOW * 0.012); if (k === 'sword' || k === 'katana') cap(add(h, d, 3), add(h, d, w.len + 0.5), 2.4 + pulse, 1.4 + pulse, gl); else if (k === 'lance') cap(add(h, d, w.len - 7), add(h, d, w.len + 1), 2.8 + pulse, 1.4, gl); }
     part(NF);
@@ -791,21 +892,28 @@ const DFIG = (() => {
       const big = w.big ? 1 : 0;
       cap(add(h, d, -3.6), add(h, d, 1.4), 1.3, 1.3, pc(w.grip || C.dLeather));
       if (!w.wood) { cap(add(add(h, d, 2), dv(a + 90), 3.4 + big), add(add(h, d, 2), dv(a - 90), 3.4 + big), 1.2 + big * 0.2, 1.2 + big * 0.2, g); disc(add(h, d, -4.2), 1.3, g); }
-      const bl = pc(w.c), rn = w.runes ? pc(C.cyan) : 0;
+      const bl = pc(w.c), rn = w.runes ? pc(w.twin || C.cyan) : 0;
       cap(add(h, d, 2.6), add(h, d, w.len), 1.9 + big * 0.4, 0.8, (px, py, t) => (rn && t > 0.2 && t < 0.8 && (Math.floor(t * 12) % 2) ? rn : bl));
     } else if (k === 'katana') {
       const pp = dv(a - 90);
       cap(add(h, d, -5.5), add(h, d, 1), 1, 1, (px, py, t) => ((Math.floor(t * 6) % 2) ? pc(C.red) : pc(C.dRed)));
       disc(add(h, d, 1.6), 1.7, g);
-      const m = add(add(h, d, w.len * 0.55), pp, -0.8), tip = add(add(h, d, w.len), pp, -2.4);
+      const m = add(add(h, d, w.len * 0.55), pp, w.straight ? 0 : -0.8), tip = add(add(h, d, w.len), pp, w.straight ? 0 : -2.4);
       cap(add(h, d, 2.4), m, 1.5, 1.4, c); cap(m, tip, 1.4, 0.6, c);
     } else if (k === 'axe') {
       cap(add(h, d, -4), add(h, d, w.len), 1.6, 1.5, pc(C.wood));
       const top = add(h, d, w.len - 1), side = dv(a - 90), H = [[4.5, 4], [6, 6.5], [7, 8], [8.5, 10]][w.h || 0];
+      if (w.cleaver) {
+        const bw = (w.h >= 3 ? 10 : 8), bl = (w.h >= 3 ? 14 : 11), hot = w.fire && Math.sin(NOW * 0.02) > 0;
+        poly([add(top, d, 1.5), add(add(top, d, 2.5), side, bw), add(add(top, d, -bl), side, bw + 1.5), add(top, d, -bl)], (px, py) => { const off = (px - top[0]) * side[0] + (py - top[1]) * side[1]; return off > bw - 2 ? pc(hot ? '#ffd040' : C.blade) : c; });
+        disc(add(add(top, d, -2), side, 3), 1.1, pc(C.dIron));
+        if (w.fire) { part(FLAT); for (let i = 0; i < 4; i++) { const ph = (NOW * 0.004 + i * 0.25) % 1; disc(add(add(top, d, -bl * (0.2 + i * 0.25)), side, bw + 2 + ph * 5), 2.2 * (1 - ph) + 0.5, pc(ph < 0.4 ? '#ffd040' : '#ff5020')); } part(NF); }
+      } else {
       const blade = sgn => poly([add(top, d, -1), add(add(top, d, 1.5), side, H[0] * sgn), add(add(top, d, -H[1] - 0.5), side, (H[0] + 0.8) * sgn), add(top, d, -H[1] + 1)], (px, py) => { const off = ((px - top[0]) * side[0] + (py - top[1]) * side[1]) * sgn; return off > H[0] - 1.6 ? pc(w.glow && Math.sin(NOW * 0.012) > 0 ? w.glow : C.blade) : c; });
       blade(1); if ((w.h || 0) >= 2) blade(-0.75);
       if (w.glow) { part(FLAT); const gl = pc(w.glow); for (let i = 0; i < 3; i++) dot(add(add(top, d, -1 - i * 3), side, H[0] + 0.6), gl); part(NF); }
       if ((w.h || 0) >= 3) { poly([add(top, d, 0), add(add(top, d, 5), side, 0.8), add(add(top, d, 0), side, 1.4)], c); }
+      }
       disc(add(top, d, -H[1] * 0.5), 1.5, pc(w.g || C.dIron));
     } else if (k === 'lance' || k === 'fork') {
       const base = add(h, d, -12), tip = add(h, d, w.len);
@@ -815,7 +923,11 @@ const DFIG = (() => {
         poly([add(add(tip, d, -6), dv(a + 90), 2.2), add(tip, d, 1), add(add(tip, d, -6), dv(a - 90), 2.2), add(tip, d, -7.5)], c);
         poly([add(add(h, d, 2), dv(a + 90), 1.3), add(add(h, d, 2), dv(a - 90), 1.3), add(add(h, d, 6.5), dv(a - 90), 3.2), add(add(h, d, 6.5), dv(a + 90), 3.2)], pc(w.gold ? C.gold : C.steel));
       }
-      if (w.flag) {
+      if (w.flag && w.banner) {
+        part(NF);
+        const fl = pc(w.flag), s1 = Math.sin(NOW * 0.012) * 1.5, f0 = add(tip, d, -7), f1 = add(tip, d, -19), back = dv(-90 + s1 * 3);
+        poly([f0, add(f0, back, 11), add(add(f1, back, 11), [0, s1]), add(add(f1, back, 6), d, 2), f1], (px, py) => { const cc = add(mix(f0, f1, 0.5), back, 5.5); return Math.hypot(px - cc[0], py - cc[1]) < 2.4 ? pc(C.gold) : fl; });
+      } else if (w.flag) {
         part(NF);
         const fl = pc(w.flag), s1 = Math.sin(NOW * 0.014) * 1.5, sp = Math.max(P.ga || 0, P.ra || 0);
         const f0 = add(tip, d, -7), f1 = add(tip, d, -13), back = dv(-62 - sp * 22 - (a < 120 ? 20 : 0));
@@ -833,6 +945,8 @@ const DFIG = (() => {
         case 'ring': ring(add(top, d, 3.2), 2.2, 3.8, tc); disc(add(top, d, 3.2), 1.2, gem); break;
         case 'crozier': chain([top, add(top, d, 5), add(add(top, d, 8), pp, 2.5), add(add(top, d, 6.5), pp, 5.5), add(add(top, d, 3.5), pp, 5)], 1.3, 1, tc); break;
         case 'sun': { ring(add(top, d, 4), 2.6, 4.2, tc); for (let i = 0; i < 8; i++) { const rr = dv(i * 45 + NOW * 0.05); cap(add(add(top, d, 4), rr, 4.4), add(add(top, d, 4), rr, 6.4), 0.8, 0.4, tc); } part(FLAT); disc(add(top, d, 4), 2.4, pc(w.glow || '#fff6b0')); break; }
+        case 'hourglass': { const c0 = add(top, d, 4); poly([add(add(c0, d, 3.5), pp, -2.6), add(add(c0, d, 3.5), pp, 2.6), c0], pc('#e8f6ff')); poly([add(add(c0, d, -3.5), pp, -2.6), add(add(c0, d, -3.5), pp, 2.6), c0], pc('#f4d070')); cap(add(add(c0, d, 4), pp, -3.2), add(add(c0, d, 4), pp, 3.2), 0.8, 0.8, tc); cap(add(add(c0, d, -4), pp, -3.2), add(add(c0, d, -4), pp, 3.2), 0.8, 0.8, tc); break; }
+        case 'clock': { const c0 = add(top, d, 4.5); ring(c0, 3.4, 4.6, tc); disc(c0, 3.4, pc('#f4f8ff')); part(NF); cap(c0, add(c0, dv(180 - NOW * 0.36), 2.8), 0.5, 0.5, pc(C.eye)); cap(c0, add(c0, dv(180 - NOW * 0.03), 2), 0.6, 0.6, pc(C.eye)); if (w.glow) { part(FLAT); ring(c0, 4.8, 5.6, pc(w.glow)); } break; }
         case 'gem': disc(add(top, d, 1.6), 2, gem); cap(add(top, pp, -2), add(top, pp, 2), 0.8, 0.8, tc); break;
         case 'crystal': poly([add(top, pp, -2.2), add(add(top, d, 3), pp, -2), add(top, d, 7), add(add(top, d, 3), pp, 2), add(top, pp, 2.2)], gem); break;
         case 'orb': { const big = w.big ? 1.3 : 1; chain([add(top, pp, -3 * big), add(add(top, d, 3), pp, -3.4 * big), add(add(top, d, 7 * big), pp, -1.5)], 0.9, 0.6, tc); chain([add(top, pp, 3 * big), add(add(top, d, 3), pp, 3.4 * big), add(add(top, d, 7 * big), pp, 1.5)], 0.9, 0.6, tc); part(FLAT); disc(add(top, d, 3.6 * big), 3 * big, pc(w.glow || '#e8d0ff')); part(NF); disc(add(top, d, 3.6 * big), 2.1 * big, gem); break; }
@@ -867,8 +981,8 @@ const DFIG = (() => {
     dot(tTop, tc); dot(tBot, tc);
     part(FLAT);
     const sp = P.sik > 0.5 ? J.hF : add(h, back, 2 + pull);
-    const sc = pc('#f4f0e0');
-    cap(tTop, sp, 0.45, 0.45, sc); cap(tBot, sp, 0.45, 0.45, sc);
+    const sc = pc(w.str || '#f4f0e0'), sw = w.str ? 0.7 : 0.45;
+    cap(tTop, sp, sw, sw, sc); cap(tBot, sp, sw, sw, sc);
     if (P.sik > 0.5) { part(NF); cap(sp, add(h, dv(aim), 4), 0.6, 0.6, pc(C.wood)); poly([add(add(h, dv(aim), 4), up, 1.2), add(h, dv(aim), 7), add(add(h, dv(aim), 4), dn, 1.2)], pc(C.steel)); }
   }
   function drawQuiver(J, S) {
@@ -980,6 +1094,34 @@ const DFIG = (() => {
     if (M.t === 'wyvern') batWing(add(R.wroot, [2, 0]), 190 + Math.sin(NOW * 0.007 + 0.4) * 24, 1.2, M.c2, M.c, NF, R.L([-5, -5]));
   }
 
+  // 环绕的精灵光球（front = 只画前半圈）
+  function drawOrbs(J, S, front) {
+    if (!S.orbs) return;
+    const c0 = T(J, 0, 10), n = S.orbs.length;
+    S.orbs.forEach((col, i) => {
+      const a = NOW * 0.003 + i * Math.PI * 2 / n, z = Math.sin(a);
+      if ((z > 0) !== front) return;
+      const p = add(c0, [Math.cos(a) * 15, z * 4 - 8 + Math.sin(NOW * 0.005 + i) * 2]);
+      part(FLAT); disc(p, 3.4, pc(col)); disc(add(p, [-0.6, -0.6]), 1.6, pc('#ffffff'));
+    });
+  }
+  function drawHalo(J, S) {
+    if (!S.halo) return;
+    part(FLAT);
+    const c0 = add(J.hc, [-3, -2]), R = HR + 4;
+    if (S.halo === 'moon') { const mc = pc('#e8f0ff'); disc(c0, R, (px, py) => (Math.hypot(px - c0[0] - 4, py - c0[1] + 3) > R - 2.5 ? mc : 0)); return; }
+    ring(c0, R - 1.4, R, pc(C.gold));
+    for (let i = 0; i < 12; i++) dot(add(c0, dv(i * 30, R - 2.6)), pc('#fff6c0'));
+    part(NF); cap(c0, add(c0, dv(180 - NOW * 0.12, R - 3)), 0.8, 0.5, pc(C.gold)); cap(c0, add(c0, dv(180 - NOW * 0.01, R - 6)), 1, 0.6, pc(C.gold));
+  }
+  function drawFloat(J, S) {
+    if (S.float !== 'hourglass') return;
+    part(NF);
+    const c0 = add(T(J, -9, 30), [0, Math.sin(NOW * 0.004) * 2]), a = NOW * 0.06, d = dv(180 + Math.sin(NOW * 0.002) * 20), pp = dv(270 + Math.sin(NOW * 0.002) * 20);
+    poly([add(add(c0, d, 4), pp, -3), add(add(c0, d, 4), pp, 3), c0], pc('#e8f6ff')); poly([add(add(c0, d, -4), pp, -3), add(add(c0, d, -4), pp, 3), c0], pc('#f4d070'));
+    cap(add(add(c0, d, 4.5), pp, -3.6), add(add(c0, d, 4.5), pp, 3.6), 0.9, 0.9, pc(C.gold)); cap(add(add(c0, d, -4.5), pp, -3.6), add(add(c0, d, -4.5), pp, 3.6), 0.9, 0.9, pc(C.gold)); void a;
+  }
+
   // ---------------- 整体绘制 ----------------
   function drawDoll(S, P, prevPoses, crit) {
     let R = null, J;
@@ -993,6 +1135,7 @@ const DFIG = (() => {
     drawCape(J, S, P, !!M);
     drawQuiver(J, S);
     drawTail(J, S);
+    drawOrbs(J, S, false);
     drawArm(J.sB, J.eB, J.hB, S, true, J.be);
     if (!M) drawLeg(J.hip, J.kB, J.fB, S, true);
     if (S.wings) featherWing(T(J, -2.5, 14), 195 + Math.sin(NOW * (P.wf > 0.5 ? 0.03 : 0.006) + 0.4) * (P.wf > 0.5 ? 55 : 14), S.wings.big ? 1.4 : 1.2, S.wings.c, S.wings.c2, NF);
@@ -1005,14 +1148,18 @@ const DFIG = (() => {
       drawSkirt(J, S, tid);
     }
     drawMantle(J, S);
+    if (S.beads) { part(NF); const bd = pc('#8a4a2a'); for (let i = 0; i < 6; i++) disc(T(J, -3 + i * 1.6, 15.5 - Math.sin(i / 5 * Math.PI) * 4), 1.1, i === 3 ? pc(C.gold) : bd); }
+    drawHalo(J, S);
     drawHead(J, S, P);
+    drawFloat(J, S);
     if (S.scarf) { part(NF); const n = J.neck; ell(add(n, J.up, -0.8), 5.2, 3, -P.lean, pc(S.scarf)); }
     drawShield(J, S);
+    if (S.wpn2) { const w2a = P.w + 22; drawWeapon(Object.assign({}, J, { hF: J.hB, wd: dv(w2a), fe: J.be }), Object.assign({}, S, { wpn: S.wpn2 }), Object.assign({}, P, { w: w2a })); part(BF); disc(J.hB, 3, pc(S.glove || S.skin)); }
     drawBow(J, S, P);
     // 拖影：用前几帧的姿势算出武器尖端轨迹
     if (prevPoses && prevPoses.length && P.tr > 0.05) {
       part(FLAT);
-      const cols = [pc(crit ? '#fff4b0' : '#ffffff'), pc(crit ? '#ffd040' : '#bfe8ff'), pc(crit ? '#e8a020' : '#7ab0e8')];
+      const cols = S.trail && !crit ? [pc('#ffffff'), pc(S.trail), pc(S.trail)] : [pc(crit ? '#fff4b0' : '#ffffff'), pc(crit ? '#ffd040' : '#bfe8ff'), pc(crit ? '#e8a020' : '#7ab0e8')];
       let last = weaponTip(J, S, P);
       prevPoses.forEach((pp, i) => {
         const J2 = S.mount ? rigHuman(pp, S, add(rigMount(pp, S.mount, NOW).seat, [0, -1.5])) : rigHuman(pp, S, null);
@@ -1023,6 +1170,8 @@ const DFIG = (() => {
     }
     drawWeapon(J, S, P);
     drawArm(J.sF, J.eF, J.hF, S, false, J.fe);
+    drawOrbs(J, S, true);
+    if (S.storm && Math.sin(NOW * 0.023) > 0.55) { part(FLAT); const c0 = T(J, -6, 22), cc = pc('#c8f8ff'); let q0 = add(c0, [Math.sin(NOW) * 8, -6]); for (let i = 0; i < 4; i++) { const q1 = add(q0, [(i % 2 ? 3 : -3), 3.5]); cap(q0, q1, 0.6, 0.6, cc); q0 = q1; } }
     // 闪光点缀（顶阶）
     if (S.sparkle) {
       part(FLAT);
@@ -1044,7 +1193,23 @@ const DFIG = (() => {
     return { tip: T(wt[1]), hand: T(J.hF), shot: T(bowP), head: T(J.hc), chest: T(add(J.hip, J.up, 5)), top: T(add(J.hc, [0, -HR - 4])) };
   }
 
-  const WHITE_SPR = {};
+  const WHITE_SPR = {}, ICE_SPR = new WeakMap();
+  // 冰龙：B 路线精灵图未就绪时，把龙的精灵图换成冰蓝色（保留深色描边）
+  function iceTint(spr) {
+    if (ICE_SPR.has(spr)) return ICE_SPR.get(spr);
+    const c = document.createElement('canvas'); c.width = spr.width; c.height = spr.height;
+    const x = c.getContext('2d'); x.drawImage(spr, 0, 0);
+    const d = x.getImageData(0, 0, c.width, c.height);
+    for (let i = 0; i < d.data.length; i += 4) {
+      if (!d.data[i + 3]) continue;
+      const l = d.data[i] * 0.3 + d.data[i + 1] * 0.59 + d.data[i + 2] * 0.11;
+      if (l < 45) continue;
+      d.data[i] = Math.min(255, 70 + l * 0.6); d.data[i + 1] = Math.min(255, 140 + l * 0.45); d.data[i + 2] = Math.min(255, 220 + l * 0.15);
+    }
+    x.putImageData(d, 0, 0);
+    ICE_SPR.set(spr, c);
+    return c;
+  }
   function whiteSprite(spr, col) {
     spr.__id = spr.__id || Math.random().toString(36).slice(2);
     const key = spr.__id + (col || '#fff');
@@ -1059,7 +1224,8 @@ const DFIG = (() => {
     const { x, feet, s, f, now, flash, prev, crit, sil } = opt;
     NOW = now; F = f;
     if (S.kind === 'sprite') {
-      const spr = typeof unitSprite === 'function' ? unitSprite(u) : null;
+      let spr = typeof unitSprite === 'function' ? unitSprite(u) : null;
+      if (S.ice && spr) spr = (typeof SPRITE_DEFS !== 'undefined' && SPRITE_DEFS[S.skB] && typeof getSprite === 'function') ? getSprite(S.skB, u.tier, u.team, u.hair, u.color) : iceTint(spr);
       if (!spr) return null;
       const size = 16 * S.scale * s, hov = S.fly ? (-8 + Math.sin(now * 0.004) * 2.5) * s : 0;
       const sqx = 1 + P.sq, sqy = 1 - P.sq;
@@ -1101,14 +1267,16 @@ const DFIG = (() => {
   // 蓄力：在挥击前的预备姿势上多停一拍（并在武器上闪光），让命中有反差
   function plan(S, ranged, crit) {
     const pl = planRaw(S, ranged, crit), ks = pl.keys;
+    if (S.fast) { ks.forEach(k => { k.t *= 0.8; }); for (const f of ['impact', 'release', 'dur']) if (pl[f] != null) pl[f] *= 0.8; }
     let wi = -1;
-    if (pl.impact != null) { const sw = ks.findIndex(k => k.p.tr > 0 || k.p.P > 0.5); wi = sw > 0 ? sw - 1 : 1; }
+    if (pl.wi != null) wi = pl.wi;
+    else if (pl.impact != null) { const sw = ks.findIndex(k => k.p.tr > 0 || k.p.P > 0.5); wi = sw > 0 ? sw - 1 : 1; }
     else wi = ks.reduce((b, k, i) => (k.t < pl.release - 30 ? i : b), 0);
     const ms = pl.impact != null ? (pl.style === 'iai' ? 60 : 100) : 60, tw = ks[wi].t;
     ks.splice(wi + 1, 0, { t: tw + ms, p: ks[wi].p, e: EASE.io });
     for (let i = wi + 2; i < ks.length; i++) ks[i].t += ms;
     for (const f of ['impact', 'release', 'puff']) if (pl[f] != null && pl[f] > tw) pl[f] += ms;
-    if (pl.streak) pl.streak = pl.streak.map(t => (t > tw ? t + ms : t));
+    for (const f of ['streak', 'smoke', 'jabs', 'chops']) if (pl[f]) pl[f] = pl[f].map(t => (t > tw ? t + ms : t));
     pl.dur += ms; pl.glint = [Math.max(0, tw - 40), ms + 100];
     return pl;
   }
@@ -1122,11 +1290,22 @@ const DFIG = (() => {
       return { style: 'bite', keys: mkKeys([[0, {}], [160, { X: -0.05, sq: -0.18, rot: -8 }], [290, { X: 1, sq: 0.12, rot: 10, mo: 1 }, 'in'], [330, { X: 1.03, sq: 0.25, rot: 6 }], [500, { X: 1, sq: 0 }], [720, { X: 0.3, Y: -10, sq: -0.1 }], [860, {}]]), dur: 860, impact: 310 };
     }
     const k = S.wpn.k;
-    if (k === 'bow') return { style: 'arrow', keys: mkKeys([[0, {}], [150, { ba: 80, be: 86, fa: 60, fe: 150, lean: -2 }], [170, { ba: 82, be: 88, sik: 1, dr: 0.1 }], [400, { ba: 92, be: 92, sik: 1, dr: 1, lean: -6, hd: -3 }], [440, { ba: 92, be: 92, sik: 1, dr: 1, lean: -6 }], [455, { ba: 92, be: 92, sik: 0, dr: 0, fa: -40, fe: -70, lean: -8 }, 'out'], [650, { ba: 88, be: 90, fa: -25, fe: -40 }], [860, {}]]), dur: 860, release: 450, fly: 230 };
+    // B 路线：忍者瞬身 / 手里剑、狂战士双连跳劈、武僧连打
+    if (S.style === 'ninja' && ranged) return { style: S.wpn2 ? 'shuriken3' : 'shuriken', keys: mkKeys([[0, {}], [140, { fa: 200, fe: 220, lean: -8 }], [220, { fa: 80, fe: 60, lean: 14 }, 'out'], [420, { fa: 70, fe: 55, lean: 10 }], [640, {}]]), dur: 640, release: 220, fly: 200 };
+    if (S.style === 'ninja') {
+      const CR = { lean: 22, lt: 45, ls: -25, bt: -45, bs: -70, fa: -15, fe: 30, w: -60, two: 0 }, B1 = { P: 1, fl: 1, two: 0 };
+      return { style: 'slash', wi: 4, smoke: [165, 285, 595, 700], keys: mkKeys([[0, {}], [130, CR], [170, Object.assign({ al: 0 }, CR)], [175, Object.assign({ dx: 20, al: 0, lean: -4, fa: 200, fe: 215, w: 240, Y: -8 }, B1)], [290, Object.assign({ dx: 20, al: 1, lean: -4, fa: 200, fe: 215, w: 240, Y: -8 }, B1)], [370, Object.assign({ dx: 18, lean: 24, fa: 70, fe: 80, w: 72, tr: 1, Y: 0, lt: 34, ls: -8, bt: -34, bs: -40 }, B1), 'in'], [410, Object.assign({ dx: 17, lean: 26, fa: 45, fe: 55, w: 35, tr: 1 }, B1)], [560, Object.assign({ dx: 17, lean: 20, fa: 45, fe: 55, w: 35 }, B1)], [600, Object.assign({ dx: 17, al: 0 }, B1)], [605, { al: 0 }], [720, { al: 1 }], [800, {}]]), dur: 800, impact: 380 };
+    }
+    if (S.style === 'rage' && !ranged) return { style: 'chop', heavy: 1, chops: [370], keys: mkKeys([[0, {}], [80, { ra: 1, lean: 15, X: 0.25 }], [220, { ra: 1, lean: 15, X: 0.75 }], [300, { X: 0.92, Y: -18, fa: 200, fe: 205, w: 225, ba: 190, be: 200, lean: -12, lt: 45, ls: -30, bt: -10, bs: -60 }], [370, { X: 1, Y: -4, fa: 80, fe: 70, w: 60, ba: 60, be: 50, lean: 30, tr: 1, lt: 35, ls: -5, bt: -38, bs: -45 }, 'in'], [430, { X: 1, Y: -14, fa: 205, fe: 210, w: 230, ba: 200, be: 210, lean: -8, lt: 45, ls: -30, bt: -10, bs: -60 }], [500, { X: 1.03, Y: 0, fa: 85, fe: 65, w: 50, ba: 80, be: 60, lean: 36, tr: 1, lt: 35, ls: -5, bt: -38, bs: -45 }, 'in'], [540, { X: 1.03, fa: 75, fe: 55, w: 40, ba: 70, be: 50, lean: 38, tr: 1, lt: 35, ls: -5, bt: -38, bs: -45 }], [700, { X: 1, fa: 75, fe: 55, w: 40, lean: 32 }], [860, { X: 0.35, Y: -8 }], [1000, {}]]), dur: 1000, impact: 505 };
+    if (k === 'fist' && !ranged) {
+      const JF = { X: 1, fa: 88, fe: 90, lean: 18 }, JB = { X: 1, ba: 88, be: 90, lean: 18 };
+      return { style: 'punch', jabs: [300, 360, 420, 480], keys: mkKeys([[0, {}], [80, { ra: 1, X: 0.25, lean: 14 }], [220, { ra: 1, X: 0.92, lean: 14 }], [260, { X: 1 }], [300, JF, 'out'], [330, { X: 1 }], [360, JB, 'out'], [390, { X: 1 }], [420, JF, 'out'], [450, { X: 1 }], [480, JB, 'out'], [540, { X: 1, lean: 8, lt: 40, ls: -30, bt: -40, bs: -60, fa: -10, fe: 40, Y: 2 }], [610, { X: 1.02, Y: -10, lean: -6, fa: 150, fe: 170, tr: 1, lt: 20, ls: 0, bt: -20, bs: -30 }, 'in'], [760, { X: 1, Y: -4, fa: 155, fe: 175, lean: -4 }], [920, { X: 0.35, Y: -6 }], [1040, {}]]), dur: 1040, impact: 610 };
+    }
+    if (k === 'bow') return { style: S.wpn.arrow ? 'marrow' : 'arrow', keys: mkKeys([[0, {}], [150, { ba: 80, be: 86, fa: 60, fe: 150, lean: -2 }], [170, { ba: 82, be: 88, sik: 1, dr: 0.1 }], [400, { ba: 92, be: 92, sik: 1, dr: 1, lean: -6, hd: -3 }], [440, { ba: 92, be: 92, sik: 1, dr: 1, lean: -6 }], [455, { ba: 92, be: 92, sik: 0, dr: 0, fa: -40, fe: -70, lean: -8 }, 'out'], [650, { ba: 88, be: 90, fa: -25, fe: -40 }], [860, {}]]), dur: 860, release: 450, fly: 230 };
     if (k === 'xbow') return { style: S.wpn.big ? 'bolt3' : 'bolt', keys: mkKeys([[0, {}], [200, { fa: 80, fe: 92, w: 90, lean: 6, hd: 4 }], [340, { fa: 80, fe: 92, w: 90, lean: 6, hd: 4 }], [370, { fa: 70, fe: 82, w: 100, lean: -6, dx: -3, ld: 0 }, 'out'], [520, { fa: 80, fe: 92, w: 90, ld: 0 }], [760, { ld: 0 }], [800, { ld: 1 }]]), dur: 800, release: 350, fly: 170 };
     // 近战武器隔空攻击：原地挥砍送出剑气
     if (ranged) {
-      if (k === 'staff') return { style: 'orb', keys: mkKeys([[0, {}], [220, { fa: 150, fe: 160, w: 175, lean: -6, glw: 1 }], [300, { fa: 95, fe: 95, w: 110, lean: 10 }, 'out'], [520, { fa: 90, fe: 95, w: 110 }], [760, {}]]), dur: 760, release: 300, fly: 240 };
+      if (k === 'staff') return { style: S.wpn.top === 'clock' || S.wpn.top === 'hourglass' ? 'clock' : 'orb', keys: mkKeys([[0, {}], [220, { fa: 150, fe: 160, w: 175, lean: -6, glw: 1 }], [300, { fa: 95, fe: 95, w: 110, lean: 10 }, 'out'], [520, { fa: 90, fe: 95, w: 110 }], [760, {}]]), dur: 760, release: 300, fly: 240 };
       return { style: 'wave', keys: mkKeys([[0, {}], [220, { fa: 200, fe: 215, w: 240, lean: -4 }], [320, { fa: 70, fe: 80, w: 65, lean: 22, tr: 1 }, 'in'], [360, { fa: 45, fe: 55, w: 35, lean: 24, tr: 1 }], [560, { fa: 45, fe: 55, w: 35, lean: 20 }], [800, {}]]), dur: 800, release: 330, fly: 220 };
     }
     if (S.mount) {

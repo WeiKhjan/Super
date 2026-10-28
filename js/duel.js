@@ -113,14 +113,21 @@ async function duelStrike(att, def, hit, dmg, crit, ranged) {
   cam.pushAt = A.anch ? A.anch.chest.slice() : [att === DUEL.left ? DUEL.W * 0.3 : DUEL.W * 0.7, DUEL.H * 0.5]; cam.pushT = 0.06;
   DUEL.fx.push({ type: 'glint', u: att, t0: now0 + T(pl.glint[0]), dur: T(pl.glint[1]), big: crit });
   if (pl.streak) DUEL.fx.push({ type: 'streak', u: att, from: null, t0: now0 + T(pl.streak[0]), dur: T(pl.streak[1] - pl.streak[0] + 260) });
-  if (pl.puff) DUEL.fx.push({ type: 'breath', from: att, to: def, t0: now0 + T(pl.puff), dur: T(160), col: BREATH_COL[att.color || 'red'] || BREATH_COL.red, parts: [], short: 1 });
+  const bcol = BREATH_COL[A.spec.breath || att.color || 'red'] || BREATH_COL.red;
+  if (pl.puff) DUEL.fx.push({ type: 'breath', from: att, to: def, t0: now0 + T(pl.puff), dur: T(160), col: bcol, parts: [], short: 1 });
+  for (const t of pl.smoke || []) DUEL.fx.push({ type: 'smoke', u: att, t0: now0 + T(t), dur: T(340) });
+  if (hit) for (const t of (pl.jabs || []).concat(pl.chops || [])) {
+    DUEL.fx.push({ type: 'burst', u: def, crit: false, dir: att === DUEL.left ? 1 : -1, t0: now0 + T(t), dur: T(140), small: 1 });
+    DUEL.fx.push({ type: 'kick', t0: now0 + T(t), dur: 1, dir: att === DUEL.left ? 1 : -1 });
+  }
   if (pl.release != null) {
     await duelWait(pl.release);
-    const t0 = duelNow(), color = att.color || 'red';
-    if (pl.style === 'breath') DUEL.fx.push({ type: 'breath', from: att, to: def, t0, dur: T(pl.fly + 200), col: BREATH_COL[color] || BREATH_COL.red, parts: [] });
+    const t0 = duelNow();
+    if (pl.style === 'breath') DUEL.fx.push({ type: 'breath', from: att, to: def, t0, dur: T(pl.fly + 200), col: bcol, parts: [] });
     else {
-      DUEL.fx.push({ type: pl.style === 'bolt3' ? 'bolt' : pl.style, from: att, to: def, t0, dur: T(pl.fly), col: A.spec.wpn && A.spec.wpn.gem });
-      if (pl.style === 'bolt3') for (const o of [70, 140]) DUEL.fx.push({ type: 'bolt', from: att, to: def, t0: t0 + T(o), dur: T(pl.fly), dy: o / 14 - 7 });
+      const multi = pl.style === 'bolt3' || pl.style === 'shuriken3', ty = pl.style.replace('3', '');
+      DUEL.fx.push({ type: ty, from: att, to: def, t0, dur: T(pl.fly), col: A.spec.wpn && (A.spec.wpn.arrow || A.spec.wpn.gem) });
+      if (multi) for (const o of [70, 140]) DUEL.fx.push({ type: ty, from: att, to: def, t0: t0 + T(o), dur: T(pl.fly), dy: o / 14 - 7 });
     }
     cam.pushT = 0.03;
     await duelWait(pl.fly);
@@ -229,12 +236,12 @@ function duelRender() {
   const order = DUEL.actor === DUEL.left ? [DUEL.right, DUEL.left] : [DUEL.left, DUEL.right];
   const drawn = [];
   for (const u of order) {
-    const st = duelFig(u), isLeft = u === DUEL.left, f = isLeft ? 1 : -1, s = st.spec.mount ? DUEL.sm : s0;
+    const st = duelFig(u), isLeft = u === DUEL.left, fB = isLeft ? 1 : -1, s = st.spec.mount ? DUEL.sm : s0;
     if (st.anim && !st.anim.hold && (now - st.anim.t0) / st.anim.k >= st.anim.dur) st.anim = null;
-    const P = duelPose(st, now);
+    const P = duelPose(st, now), f = fB * (P.fl > 0.5 ? -1 : 1);
     const foe = isLeft ? DUEL.right : DUEL.left;
     const approach = Math.max(0, sep - DFIG.gap(st.spec, duelFig(foe).spec) * s);
-    const xOf = Q => (isLeft ? W * 0.27 : W * 0.73) + f * (Q.X * approach + Q.P * sep + Q.dx * s);
+    const xOf = Q => (isLeft ? W * 0.27 : W * 0.73) + fB * (Q.X * approach + Q.P * sep + Q.dx * s);
     const x = xOf(P);
     if (st.lastNow != null && now > st.lastNow + 1) { const v = Math.hypot(x - st.lastX, (P.Y - st.lastY) * s) / ((now - st.lastNow) / 1000); st.v = (st.v || 0) * 0.5 + v * 0.5; }
     st.lastNow = now; st.lastX = x; st.lastY = P.Y;
@@ -247,7 +254,7 @@ function duelRender() {
       rg.addColorStop(0, st.spec.aura + '55'); rg.addColorStop(1, st.spec.aura + '00');
       g.globalCompositeOperation = 'lighter'; g.fillStyle = rg; g.beginPath(); g.arc(a[0], a[1], r, 0, 7); g.fill(); g.globalCompositeOperation = 'source-over';
     }
-    const fast = u === DUEL.actor && st.anim && (st.v || 0) > 230 * s / 2.33;
+    const fast = u === DUEL.actor && st.anim && P.al > 0.5 && (st.v || 0) > 230 * s / 2.33 && (st.v || 0) < 9000 * s / 2.33;
     if (fast) {
       // 速度线：在角色身后横向拉出
       g.fillStyle = 'rgba(255,255,255,0.6)';
@@ -256,7 +263,7 @@ function duelRender() {
       for (const k of [3, 2, 1]) {
         const Q = duelPose(st, now - k * 32);
         g.save(); g.globalAlpha = 0.14 * (4 - k);
-        DFIG.draw(g, u, st.spec, Q, { x: xOf(Q), feet, s, f, now, sil: '#a8dcff' });
+        if (Q.al > 0.3) DFIG.draw(g, u, st.spec, Q, { x: xOf(Q), feet, s, f: fB * (Q.fl > 0.5 ? -1 : 1), now, sil: '#a8dcff' });
         g.restore();
       }
     }
@@ -274,6 +281,7 @@ function duelRender() {
     const f = DUEL.fx[i];
     if (f.type === 'dmg') continue;
     if (now < f.t0) continue;
+    if (f.type === 'kick') { cam.trauma = Math.min(1, cam.trauma + 0.18); cam.kx += f.dir * 3; DUEL.fx.splice(i, 1); continue; }
     const p = (now - f.t0) / Math.max(1, f.dur); if (p >= 1) { DUEL.fx.splice(i, 1); continue; }
     duelDrawFx(g, f, p, now, anc, s);
   }
@@ -374,7 +382,7 @@ function duelDrawFx(g, f, p, now, anc, s) {
   } else if (f.type === 'burst') {
     // 像素爆闪：8 道锯齿光芒 + 中心方块
     if (!f.at) { const c = anc(f.u, 'chest'); f.at = [c[0] - f.dir * 5 * s, c[1]]; }
-    const q = Math.max(2, Math.round(s * 1.4)), e = 1 - (1 - p) * (1 - p), R = (10 + (f.crit ? 26 : 18) * e) * s;
+    const q = Math.max(2, Math.round(s * 1.4)), e = 1 - (1 - p) * (1 - p), R = (10 + (f.crit ? 26 : f.small ? 9 : 18) * e) * s * (f.small ? 0.7 : 1);
     g.globalAlpha = p < 0.5 ? 1 : 1 - (p - 0.5) / 0.5;
     g.fillStyle = p < 0.3 ? '#ffffff' : f.crit ? '#ffd040' : '#fff0b0';
     for (let k = 0; k < 8; k++) {
@@ -391,6 +399,39 @@ function duelDrawFx(g, f, p, now, anc, s) {
     const z = Math.max(1, Math.round(s));
     for (const [dx, dy, rr] of [[0, 0, 1], [-1.2, 0.4, 0.7], [1.1, 0.5, 0.6]]) g.fillRect(Math.round(f.at[0] + dx * r - rr * r), Math.round(y + dy * r - rr * r * 0.7), Math.round(rr * r * 2 / z) * z, Math.round(rr * r * 1.4 / z) * z);
     g.globalAlpha = 1;
+  } else if (f.type === 'smoke') {
+    // 忍者瞬身的烟雾
+    if (!f.at) { const c = anc(f.u, 'feet'); f.at = [c[0], c[1] - 16 * s]; }
+    const z = Math.max(1, Math.round(s * 1.2));
+    g.globalAlpha = 0.85 * (1 - p);
+    for (let k = 0; k < 7; k++) {
+      const a = k / 7 * Math.PI * 2 + 0.4, d = (6 + 14 * p) * s, r = (6 - k % 3) * s * (1 + p * 0.6);
+      const x = f.at[0] + Math.cos(a) * d, y = f.at[1] + Math.sin(a) * d * 0.8 - p * 8 * s;
+      g.fillStyle = k % 2 ? '#e8e4f0' : '#b8b0c8';
+      g.fillRect(Math.round((x - r) / z) * z, Math.round((y - r) / z) * z, Math.round(2 * r / z) * z, Math.round(2 * r / z) * z);
+    }
+    g.globalAlpha = 1;
+  } else if (f.type === 'shuriken' || f.type === 'marrow' || f.type === 'clock') {
+    if (!f.a) { f.a = anc(f.from, f.type === 'clock' ? 'tip' : f.type === 'marrow' ? 'shot' : 'hand').slice(); f.b = anc(f.to, 'chest').slice(); if (f.dy) { f.a[1] += f.dy * s; f.b[1] += f.dy * s; } }
+    const x = lerp(f.a[0], f.b[0], p), y = lerp(f.a[1], f.b[1], p) - (f.type === 'shuriken' ? Math.sin(p * Math.PI) * 6 * s : 0);
+    if (f.type === 'shuriken') {
+      g.save(); g.translate(Math.round(x), Math.round(y)); g.rotate(now * 0.04);
+      g.fillStyle = '#140a1e'; for (let k = 0; k < 4; k++) { g.rotate(Math.PI / 2); g.beginPath(); g.moveTo(-2.4 * s, -1.4 * s); g.lineTo(0, -7.5 * s); g.lineTo(2.4 * s, -1.4 * s); g.fill(); }
+      g.fillStyle = '#d8dce8'; for (let k = 0; k < 4; k++) { g.rotate(Math.PI / 2); g.beginPath(); g.moveTo(-1.4 * s, -1 * s); g.lineTo(0, -6 * s); g.lineTo(1.4 * s, -1 * s); g.fill(); }
+      g.fillStyle = '#140a1e'; g.fillRect(-s, -s, 2 * s, 2 * s); g.restore();
+    } else if (f.type === 'marrow') {
+      const c = f.col || '#c890ff', bx = lerp(f.a[0], f.b[0], Math.max(0, p - 0.35)), by = lerp(f.a[1], f.b[1], Math.max(0, p - 0.35));
+      const lg = g.createLinearGradient(bx, by, x, y); lg.addColorStop(0, c + '00'); lg.addColorStop(1, c);
+      g.strokeStyle = lg; g.lineWidth = 4 * s; g.lineCap = 'round'; g.beginPath(); g.moveTo(bx, by); g.lineTo(x, y); g.stroke();
+      g.strokeStyle = '#ffffff'; g.lineWidth = 1.4 * s; g.beginPath(); g.moveTo(lerp(bx, x, 0.5), lerp(by, y, 0.5)); g.lineTo(x, y); g.stroke();
+      g.fillStyle = '#ffffff'; duelStar(g, x, y, 4 * s);
+    } else {
+      // 时空术士：时钟法球（表盘 + 转动的指针）
+      const R = 8 * s; g.fillStyle = '#c8f4ff'; g.beginPath(); g.arc(x, y, R + 2 * s, 0, 7); g.fill();
+      g.fillStyle = '#f4f8ff'; g.beginPath(); g.arc(x, y, R, 0, 7); g.fill();
+      g.strokeStyle = '#2a8a8a'; g.lineWidth = Math.max(1, s); g.beginPath(); g.arc(x, y, R, 0, 7); g.stroke();
+      g.strokeStyle = '#140a1e'; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(now * 0.03) * R * 0.8, y + Math.sin(now * 0.03) * R * 0.8); g.moveTo(x, y); g.lineTo(x + Math.cos(now * 0.004) * R * 0.5, y + Math.sin(now * 0.004) * R * 0.5); g.stroke();
+    }
   } else if (f.type === 'whoosh') {
     const c = anc(f.u, 'chest');
     g.globalAlpha = 0.7 * (1 - p); g.fillStyle = '#e8f4ff';
