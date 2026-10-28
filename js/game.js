@@ -40,7 +40,7 @@ async function resolveNext(st, idx) {
   if (!opts.length) return idx + 1;
   let o = opts[0];
   if (opts.length > 1 && opts.some(o => o.label)) {
-    if (AUTO) o = opts.find(o => o.auto) || opts[0];
+    if (AUTO) o = opts.find(o => window.__routeChoose && o.to === window.__routeChoose[st.id]) || opts.find(o => o.auto) || opts[0];
     else { const v = await modal('前进的方向', `<p class="center">${esc(st.ask || '接下来要往哪里去？')}</p>`, opts.map((o, i) => ({ label: esc(o.label), value: String(i), cls: i ? '' : 'primary' }))); o = opts[+v || 0]; }
   }
   applyEffects(o);
