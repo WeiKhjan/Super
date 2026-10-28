@@ -393,7 +393,9 @@ function tintSprite(c, id, mode) {
   x.putImageData(d, 0, 0);
   return (GRAY[kk] = g);
 }
-function unitSprite(u) { return getSprite(spriteKey(u), u.tier, u.team, u.hair, u.color || u.element); }
+// 冰龙路线默认用蓝色身体
+const spriteVariant = u => u.color || u.element || (spriteKey(u) === 'dragon_b' ? 'blue' : undefined);
+function unitSprite(u) { return getSprite(spriteKey(u), u.tier, u.team, u.hair, spriteVariant(u)); }
 const TEAM_COLOR = { player: '#4a9aff', ally: '#4ad87a', enemy: '#ff4a4a', rogue: '#e0b040' };
 
 function render(now) {
@@ -446,7 +448,7 @@ function render(now) {
     ctx.strokeStyle = TEAM_COLOR[u.team]; ctx.lineWidth = Math.max(1.5, ts / 22);
     ctx.beginPath(); ctx.ellipse(ux + ts / 2, uy + ts * 0.86, ts * 0.36, ts * 0.13, 0, 0, 7); ctx.stroke();
     let spr = unitSprite(u);
-    const sid = `${spriteKey(u)}|${u.tier}|${u.team}|${u.hair}|${u.color || u.element}`;
+    const sid = `${spriteKey(u)}|${u.tier}|${u.team}|${u.hair}|${spriteVariant(u)}`;
     if (hasStatus(u, 'petrify')) spr = tintSprite(spr, sid, 'stone');
     else if (hasStatus(u, 'freeze')) spr = tintSprite(spr, sid, 'ice');
     else if (u.acted && B.phase === u.team) spr = tintSprite(spr, sid, 'gray');
@@ -693,7 +695,7 @@ function fillPathArt(m, u) {
   const C = clsOf(u), at = C.alt.at;
   for (const el of m.querySelectorAll('[data-art]')) {
     const p = el.dataset.art, key = p === 'b' ? C.alt.sprite : C.sprite;
-    const spr = getSprite(key, at, u.team || 'player', u.hair);
+    const spr = getSprite(key, at, u.team || 'player', u.hair, key === 'dragon_b' ? 'blue' : undefined);
     if (u.id && typeof getPortrait === 'function') {
       try { const pc = getPortrait(u.id, undefined, at, p); const c = document.createElement('canvas'); c.width = pc.width; c.height = pc.height; c.getContext('2d').drawImage(pc, 0, 0); c.className = 'pix pc-port'; el.appendChild(c); } catch (e) { }
     }

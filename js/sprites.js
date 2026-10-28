@@ -8,6 +8,7 @@ const PAL_BASE = {
   c: '#7ad8ff', C: '#2a8ad8', e: '#ff3030', O: '#b0702a', K: '#1a1020',
   // 转职外观用：银、暗金、淡金光、暗红、马棕、刃光、魔紫、白马阴影
   i: '#a4aec4', a: '#b07a1e', L: '#fff1a0', R: '#9a1e24', u: '#b0703a', v: '#eaf8ff', A: '#c66aff', j: '#c8ccd8',
+  T: '#2fb0a8', t: '#1a6a70', // 青色（时空术士、风鹰）
 };
 const TEAM_PAL = {
   player: { p: '#3a7bd5', q: '#1f4a8a' },
@@ -938,6 +939,250 @@ Object.assign(SPRITE_DEFS, {
       '...kGGoLLoGGk...',
       '..kGGGbLLbGGGk..',
       '..kGkGbbbbGkGGk.',
+      '..kGkGGbbGGkGGGk',
+      '..kk.kGkkGk.kGGk',
+      '.....kk..kk..kk.',
+    ]);
+  },
+});
+// ---------- 转职分支 B 路线：'<key>_b'，t 为绝对阶（从分支阶 at 起） ----------
+const tierB = (t, at, last) => Math.max(at, Math.min(last, t | 0));
+Object.assign(SPRITE_DEFS, {
+  // 剑士 B：魔法剑士（法师披肩 + 蓝色符文剑）→ 魔导剑士（奥术紫甲 + 符文火花）→ 圣魔剑士（白紫圣魔甲 + 双色光剑）
+  swordsman_b(t) {
+    t = tierB(t, 2, 4); const g = grid(BODY);
+    if (t === 2) {
+      GEAR.cape(g, 'D', 'd'); GEAR.circlet(g, 'm', 'c'); GEAR.pads(g, 'm', 'n'); put(g, 6, 9, 'W'); put(g, 9, 9, 'W');
+      GEAR.belt(g, 'w', 'c'); GEAR.boots(g, 'w'); blade(g, 1, 'c', 'C', 'i'); put(g, 13, 4, 'W'); put(g, 13, 7, 'W'); sparkle(g, [[15, 2]], 'c'); return g;
+    }
+    if (t === 3) {
+      GEAR.cape(g, 'd', 'D', 'A'); GEAR.circlet(g, 'g', 'A'); GEAR.plate(g, 'D', 'd', 'c'); GEAR.pads(g, 'D', 'A', true);
+      GEAR.belt(g, 'd', 'A'); GEAR.boots(g, 'D'); blade(g, 0, 'c', 'C', 'g', true); put(g, 13, 3, 'A'); put(g, 13, 6, 'A');
+      sparkle(g, [[15, 1], [12, 0], [0, 7], [15, 6]], 'A'); return g;
+    }
+    GEAR.cape(g, 'W', 'D', 'A'); GEAR.crown(g, 'W', 'A'); GEAR.plate(g, 'W', 'j', 'A'); put(g, 5, 10, 'D'); put(g, 10, 10, 'D');
+    GEAR.pads(g, 'W', 'D', true); GEAR.belt(g, 'D', 'A'); GEAR.boots(g, 'W');
+    put(g, 13, 0, 'W'); vline(g, 13, 1, 9, 'W'); vline(g, 14, 1, 9, 'A'); hline(g, 12, 15, 10, 'g'); put(g, 15, 9, 'g'); put(g, 13, 11, 'w'); put(g, 13, 12, 'g');
+    sparkle(g, [[15, 1], [12, 0], [15, 5]], 'L'); sparkle(g, [[0, 6], [11, 0]], 'A'); return g;
+  },
+
+  // 骑兵 B（始终骑马、无翼）：重装骑士（钢马铠 + 塔盾）→ 圣骑士（白金马衣 + 十字盾）→ 皇家骑士（王冠盔 + 王家马衣 + 枪旗）
+  knight_b(t) {
+    t = tierB(t, 2, 4); const g = grid([]);
+    const H = t === 2 ? { 1: 'u', 2: 'f', M: 'F', F: 'F' } : { 1: 'W', 2: 'j', M: 'g', F: 'a' };
+    paint(g, MOUNT_BODY, H);
+    if (t === 2) paint(g, ['', '', '', '', '', '', '', '', '', '', '', '...mmmmmmmmmm', '...mmmmmmmmmm', '...nnnnnnnnnn', '...k.k....k.k']);
+    if (t === 3) paint(g, ['', '', '', '', '', '', '', '', '', '', '', '...WWWWWWWWWW', '...WWWWpWWWWW', '...gggggggggg', '...W.W....W.W']);
+    if (t === 4) paint(g, ['', '', '', '', '', '', '', '', '', '', '', '...pppppppppp', '...ppgppppgpp', '...gggggggggg', '...p.p....p.p']);
+    const r = grid(BODY);
+    if (t === 2) { GEAR.helm(r, 'n', 'Y'); hline(r, 3, 12, 5, 'Y'); GEAR.plate(r, 'n', 'Y', 'p'); GEAR.pads(r, 'n', 'Y', true); }
+    if (t === 3) { GEAR.helm(r, 'W', 'g'); paint(r, ['.......gg.......', '.......gg.......']); GEAR.plate(r, 'W', 'j', 'g'); GEAR.pads(r, 'g', 'a', true); }
+    if (t === 4) { GEAR.helm(r, 'g', 'a'); GEAR.crown(r, 'g', 'c'); GEAR.plate(r, 'g', 'a', 'p'); GEAR.pads(r, 'p', 'g', true); }
+    seat(g, r, t === 2 ? 'Y' : 'g');
+    paint(g, MOUNT_HEAD, H);
+    if (t === 2) paint(g, ['', '', '', '', '', '', '', '', '.m', '.mm', '.mk', 'mm']);
+    else { put(g, 1, 12, 'g'); put(g, 3, 11, 'g'); put(g, 4, 10, 'g'); paint(g, ['', '', '', '', '', '', '', '', '.g', '.g']); }
+    // 盾：塔盾 / 十字盾 / 王家盾（挡在骑手胸前，不遮马头）
+    const shield = {
+      2: ['kkkk', 'kmmk', 'kmpk', 'kmpk', 'kmmk', 'knnk', '.kk.'],
+      3: ['kkkk', 'kWgk', 'kggk', 'kWgk', 'kWgk', 'kjjk', '.kk.'],
+      4: ['kkkk', 'kggk', 'kgcg', 'kppk', 'kppk', 'kggk', '.kk.'],
+    }[t];
+    shield.forEach((row, y) => row.split('').forEach((c, x) => { if (c !== '.') put(g, 6 + x, 9 + y, c); }));
+    // 骑枪
+    const tip = t === 2 ? 'm' : 'v', shaft = t === 2 ? 'Y' : 'g';
+    vline(g, 14, 1, 10, shaft); put(g, 14, 0, tip); put(g, 14, 1, tip); put(g, 14, 2, tip); put(g, 13, 1, tip); put(g, 13, 10, 's');
+    if (t === 4) paint(g, ['', '', '', '...............p', '...............g', '...............p', '...............q']);
+    else if (t === 3) { put(g, 15, 3, 'W'); put(g, 15, 4, 'g'); }
+    return g;
+  },
+
+  // 战士 B：狂战士（赤膊战纹 + 乱发 + 巨型砍刀）→ 斗神（兽皮披肩 + 角骨盔 + 双斧）→ 破坏神（红黑魔甲 + 火焰巨斧 + 红色气焰）
+  fighter_b(t) {
+    t = tierB(t, 2, 4); const g = grid(BODY);
+    const bare = () => { hline(g, 5, 10, 9, 's'); hline(g, 5, 10, 10, 's'); hline(g, 5, 10, 11, 'S'); put(g, 6, 10, 'r'); put(g, 9, 10, 'r'); };
+    if (t === 2) {
+      paint(g, ['...h..h..h..h...', '.h............h.', '', '.h............h.']); put(g, 4, 8, 'r'); put(g, 11, 8, 'r'); put(g, 4, 7, 'r'); put(g, 11, 7, 'r');
+      bare(); GEAR.belt(g, 'F', 'y'); GEAR.boots(g, 'F'); put(g, 4, 10, 'W'); put(g, 11, 10, 'W');
+      paint(g, ['', '.............mm.', '............mmmn', '............mmmn', '............mmmn', '............mmnn', '............mnn.', '.............w..', '.............w..', '.............w..', '.............w..']);
+      return g;
+    }
+    if (t === 3) {
+      GEAR.cape(g, 'f', 'F', 'b'); fill(g, 2, 1, 13, 4, 'b', 'h'); put(g, 5, 3, 'k'); put(g, 10, 3, 'k');
+      paint(g, ['.b............b.', 'bb............bb', '.bb..........bb.']);
+      bare(); paint(g, ['', '', '', '', '', '', '', '', '', '.bbBbb....bbBbb.', '..bb........bb..']);
+      GEAR.belt(g, 'F', 'g'); GEAR.boots(g, 'f'); axe(g, 1, 'm', 'n');
+      paint(g, ['', '', '', '', '', '', 'L...', 'LL..', 'LL..', 'LD..', 'D.w.', '..w.', '..w.', '..w.'], { L: 'm', D: 'n' }); return g;
+    }
+    GEAR.cape(g, 'R', 'd', 'e'); GEAR.helm(g, 'd', 'R'); paint(g, ['.r............r.', 'rr............rr', '.rr..........rr.']); eyes(g, 'e');
+    GEAR.plate(g, 'R', 'd', 'e'); GEAR.pads(g, 'd', 'R', true); put(g, 2, 8, 'W'); put(g, 13, 8, 'W'); fill(g, 5, 13, 10, 14, 'd', 'pq'); GEAR.belt(g, 'd', 'e');
+    axe(g, 3, 'o', 'r', 'd'); sparkle(g, [[12, 0], [15, 8], [14, 0]], 'L'); sparkle(g, [[0, 9], [0, 13], [15, 12], [1, 2]], 'e'); return g;
+  },
+
+  // 武士 B：忍者（头巾 + 面罩 + 忍刀 + 手里剑）→ 上忍（长围巾 + 护臂）→ 影忍（紫黑影装 + 发光眼 + 超长围巾 + 双刃）
+  samurai_b(t) {
+    t = tierB(t, 2, 4); const g = grid(BODY);
+    const hoodC = t === 4 ? 'd' : 'Y';
+    GEAR.hood(g, hoodC); hline(g, 3, 12, 4, 'p'); hline(g, 3, 12, 8, hoodC); put(g, 2, 8, 'k'); put(g, 13, 8, 'k');
+    fill(g, 4, 9, 11, 14, t === 4 ? 'd' : 'Y', 'pqg'); put(g, 6, 9, 'k'); put(g, 9, 9, 'k'); GEAR.belt(g, 'p');
+    const shuriken = (x, y) => { for (const [dx, dy] of [[1, 0], [0, 1], [2, 1], [1, 2]]) put(g, x + dx, y + dy, 'm'); put(g, x + 1, y + 1, 'k'); };
+    if (t === 2) { katana(g, 3, 'm', 'n', 'k'); shuriken(0, 10); return g; }
+    if (t === 3) {
+      paint(g, ['', '', '', '', '', '', '', '', '', '...pp', '..ppq', '.pq', 'pq', 'q']); put(g, 3, 10, 'm'); put(g, 12, 10, 'm'); put(g, 4, 11, 'm'); put(g, 11, 11, 'm');
+      katana(g, 1, 'v', 'm', 'k'); shuriken(0, 4); return g;
+    }
+    eyes(g, 'A'); put(g, 5, 6, 'c'); put(g, 9, 6, 'c');
+    paint(g, ['', '', '', '', '', '', '', '', '', '...pp', '..ppq', '.ppq', 'ppq', 'pq', 'q.']); paint(g, ['', '', '', 'p', 'pq', '.q']);
+    put(g, 3, 10, 'D'); put(g, 12, 10, 'D');
+    katana(g, 0, 'v', 'A', 'k'); vline(g, 1, 6, 11, 'v'); vline(g, 2, 8, 11, 'A'); hline(g, 0, 2, 12, 'k'); put(g, 1, 13, 'r');
+    sparkle(g, [[15, 2], [12, 0], [15, 7]], 'A'); return g;
+  },
+
+  // 弓箭 B：游侠（绿色兜帽斗篷 + 长弓）→ 魔弓手（发光弦奥术弓 + 法师披肩 + 符文箭）→ 天弓使（白金 + 羽翼头环 + 光之弓）
+  archer_b(t) {
+    t = tierB(t, 2, 4); const g = grid(BODY);
+    const bowS = (top, bot, wood, str, tip) => { vline(g, 1, top + 1, bot - 1, wood); put(g, 2, top, tip); put(g, 2, bot, tip); vline(g, 3, top + 1, bot - 1, str); };
+    if (t === 2) {
+      GEAR.cape(g, 'G', 'H'); GEAR.hood(g, 'G'); put(g, 7, 0, 'H'); put(g, 8, 0, 'H');
+      paint(g, ['', '', '', '', '', '..............W.', '.............W..', '.............kw.', '.............ww.', '.............wf.']);
+      GEAR.belt(g, 'w', 'g'); GEAR.boots(g, 'F'); bowS(2, 15, 'w', 'W', 'f'); return g;
+    }
+    if (t === 3) {
+      GEAR.cape(g, 'd', 'D', 'A'); GEAR.hood(g, 'D'); GEAR.circlet(g, 'D', 'A'); put(g, 6, 9, 'A'); put(g, 9, 9, 'A');
+      GEAR.belt(g, 'd', 'A'); GEAR.boots(g, 'D'); bowS(1, 15, 'D', 'A', 'A');
+      paint(g, ['', '', '', '', '', '', '', '', '', '...........AAAc', '']); sparkle(g, [[15, 3], [13, 6]], 'A'); return g;
+    }
+    GEAR.cape(g, 'W', 'j', 'g'); GEAR.circlet(g, 'g', 'c'); paint(g, ['', 'W..............W', 'WW............WW', '.WW..........WW.']);
+    GEAR.plate(g, 'W', 'j', 'g'); GEAR.pads(g, 'g', 'a'); GEAR.belt(g, 'g', 'c'); GEAR.boots(g, 'g'); bowS(0, 15, 'L', 'W', 'g');
+    paint(g, ['', '', '', '', '', '', '', '', '', '...........LLLW']); sparkle(g, [[15, 3], [14, 6], [15, 12]], 'L'); return g;
+  },
+
+  // 牧师 B：武僧（橙黄道服 + 念珠 + 缠手）→ 圣拳士（白道服 + 金腰带 + 金拳套）→ 拳圣（金色气场 + 圣光拳 + 宗师长袍）
+  priest_b(t) {
+    t = tierB(t, 2, 4); const g = grid(BODY);
+    const beads = () => { for (const x of [4, 6, 9, 11]) put(g, x, 9, 'F'); put(g, 7, 9, 'w'); put(g, 8, 9, 'w'); };
+    if (t === 2) {
+      paint(g, ['......khhk......']); fill(g, 4, 9, 11, 12, 'o', 'pq'); put(g, 5, 11, 'O'); put(g, 10, 11, 'O'); beads();
+      GEAR.belt(g, 'p'); put(g, 3, 10, 'W'); put(g, 4, 10, 'W'); put(g, 11, 10, 'W'); put(g, 12, 10, 'W'); return g;
+    }
+    if (t === 3) {
+      GEAR.band(g, 'p', true); fill(g, 4, 9, 11, 12, 'W', 'pq'); put(g, 5, 11, 'j'); put(g, 10, 11, 'j'); beads(); GEAR.belt(g, 'g', 'g'); hline(g, 5, 6, 13, 'g');
+      paint(g, ['', '', '', '', '', '', '', '', '', '', '..ggk......kgg..', '..gak......kag..']); return g;
+    }
+    GEAR.cape(g, 'W', 'g', 'g'); GEAR.circlet(g, 'g', 'c'); paint(g, ['......khhk......']);
+    fill(g, 4, 9, 11, 12, 'W', 'pq'); GEAR.skirt(g, 'W', 'g'); vline(g, 7, 9, 14, 'p'); vline(g, 8, 9, 14, 'p'); beads(); GEAR.belt(g, 'g', 'c');
+    paint(g, ['', '', '', '', '', '', '', '', '', '.L............L.', 'LWWk........kWWL', '.LL..........LL.']);
+    sparkle(g, [[0, 3], [15, 3], [1, 0], [14, 0], [0, 14], [15, 14]], 'L'); return g;
+  },
+
+  // 法师 B（时空系）：时空术士（青银长袍 + 沙漏杖 + 钟面头环）→ 时空法师（齿轮纹斗篷 + 浮空沙漏）→ 时空贤者（星空长袍 + 钟针光环）
+  mage_b(t) {
+    t = tierB(t, 2, 4); const g = grid(BODY);
+    const glass = (x, y, frame) => { ['fff', 'kck', '.b.', 'kbk', 'fff'].forEach((r, dy) => r.split('').forEach((c, dx) => { if (c !== '.') put(g, x + dx, y + dy, c === 'f' ? frame : c); })); };
+    if (t === 2) {
+      GEAR.circlet(g, 'm', 'W'); put(g, 8, 4, 'k'); GEAR.robe(g, 'T', 't'); hline(g, 4, 11, 14, 'm'); vline(g, 7, 9, 12, 'p'); vline(g, 8, 9, 12, 'p'); GEAR.belt(g, 'm', 'W');
+      staff(g, 5, 'm'); glass(12, 0, 'm'); return g;
+    }
+    if (t === 3) {
+      GEAR.cape(g, 't', 'T', 'g'); GEAR.circlet(g, 'g', 'W'); put(g, 8, 4, 'k'); GEAR.robe(g, 'T', 'g'); vline(g, 7, 9, 12, 'p'); vline(g, 8, 9, 12, 'p');
+      put(g, 2, 12, 'g'); put(g, 13, 12, 'g'); put(g, 5, 13, 'g'); put(g, 10, 13, 'g'); GEAR.belt(g, 'g', 'W');
+      staff(g, 5, 'g'); glass(12, 0, 'g'); glass(0, 1, 'g'); sparkle(g, [[1, 7]], 'c'); return g;
+    }
+    GEAR.cape(g, 'd', 'D', 'g'); paint(g, ['..g..gLLg..g....', '.g............g.']); GEAR.circlet(g, 'g', 'W'); put(g, 8, 4, 'k');
+    GEAR.robe(g, 'd', 'D'); for (const [x, y] of [[5, 10], [9, 11], [6, 13], [10, 14], [2, 11], [13, 13], [1, 14]]) put(g, x, y, 'W'); vline(g, 7, 9, 11, 'p'); vline(g, 8, 9, 11, 'p');
+    GEAR.belt(g, 'g', 'c'); staff(g, 5, 'g'); glass(12, 0, 'g'); put(g, 13, 2, 'L'); glass(0, 2, 'L'); sparkle(g, [[15, 6], [0, 8]], 'c'); return g;
+  },
+
+  // 咒术师 B：召唤士（符文长袍 + 水晶杖 + 精灵光团）→ 召唤王（王冠 + 大魔导书 + 环绕精灵球）
+  sorcerer_b(t) {
+    t = tierB(t, 1, 2); const g = grid(BODY);
+    const crystal = () => paint(g, ['............c...', '...........cWc..', '...........cCc..', '............c...']);
+    if (t === 1) {
+      GEAR.circlet(g, 'c', 'C'); GEAR.robe(g, 'p', 'q'); put(g, 6, 10, 'c'); put(g, 9, 11, 'c'); put(g, 6, 13, 'c'); put(g, 9, 13, 'c'); GEAR.belt(g, 'c');
+      staff(g, 4, 'w'); crystal(); paint(g, ['', '', '.c', 'cWc', '.c']); return g;
+    }
+    GEAR.cape(g, 'D', 'd', 'g'); GEAR.crown(g, 'g', 'c'); GEAR.robe(g, 'p', 'g'); put(g, 6, 10, 'c'); put(g, 9, 11, 'c'); GEAR.belt(g, 'g', 'c');
+    staff(g, 4, 'g'); crystal(); put(g, 11, 2, 'g'); put(g, 15, 2, 'g');
+    paint(g, ['', '', '', '', '', '', '', '', '', 'kkkk', 'kRgR', 'kRWR', 'kRgR', 'kkkk']);
+    paint(g, ['', '', '.o', 'oLo', '.o', '', '', '', '...............', '', '', '', '', '', 'G']); put(g, 15, 8, 'G'); put(g, 14, 15, 'c'); put(g, 0, 15, 'G'); return g;
+  },
+
+  // 鹰族 B：风鹰术士（青羽 + 风杖）→ 风暴之翼（闪电风暴巨翼）
+  hawkman_b(t) {
+    t = tierB(t, 1, 2); const g = grid(BODY);
+    if (t === 1) paint(g, ['', '', '', '', '', '', '', '', '', 'kk............kk', 'kTk..........kTk', 'kTTk........kTTk', '.ktTk......kTtk.', '..kck......kck..']);
+    else paint(g, ['', '', '', '', 'k..............k', 'Tk............kT', 'TTk..........kTT', 'tLTk........kTLt', 'TtLTk......kTLtT', 'TTtLk......kLtTT', 'cTLTk......kTLTc', 'ccLtk......ktLcc', '.cLck......kcLc.', '..ck........kc..', '...k........k...']);
+    paint(g, [
+      '.....kkkkkk.....',
+      '...kkTTTTTTkk...',
+      '..kTTTTTTTTTTk..',
+      '..kTTTTTTTTTTk..',
+      '..kTTTTTTTTTTk..',
+      '..kTbbbbbbbbTk..',
+      '..kTbWkbbWkbTk..',
+      '..kbbkkookkbbk..',
+      '...kbbbOObbbk...',
+    ]);
+    GEAR.robe(g, 'p', 't'); GEAR.belt(g, 'T', 'c'); staff(g, 4, 'w'); paint(g, ['', '', '.............c..', '............cGc.', '.............c..']);
+    if (t === 2) { paint(g, ['......cccc......', '.......cc.......']); hline(g, 4, 11, 14, 'c'); put(g, 12, 3, 'L'); put(g, 14, 3, 'L'); sparkle(g, [[15, 7], [0, 9]], 'L'); }
+    return g;
+  },
+
+  // 狼族 B：月影狼（银蓝毛 + 新月纹）→ 月神狼（白色发光毛 + 月环）
+  wolfman_b(t) {
+    t = tierB(t, 1, 2); const g = grid(BODY);
+    const fur = t === 1 ? 'i' : 'W', fur2 = t === 1 ? 'C' : 'j';
+    if (t === 2) paint(g, ['..L..........L..', '.L............L.', 'L..............L', 'L..............L', '.L............L.']);
+    paint(g, [
+      '.kk..........kk.',
+      '.kPk........kPk.',
+      '.kyyyyyyyyyyyyk.',
+      '..kyyyyyyyyyyk..',
+      '..kyyyyyyyyyyk..',
+      '..kyyWkyyWkyyk..',
+      '..kyykkyykkyyk..',
+      '..kyyybbbbyyyk..',
+      '...kyybkkbyyk...',
+    ], { y: fur, b: t === 1 ? 'j' : 'i' });
+    paint(g, ['', '', '.......LL.......', '......L.........', '.......LL.......']); put(g, 3, 10, fur); put(g, 12, 10, fur);
+    if (t === 1) { fill(g, 4, 9, 11, 9, fur2, 'pq'); GEAR.belt(g, 'C', 'L'); GEAR.cape(g, 'C', 'q', 'i', true); return g; }
+    for (const [x, y] of [[6, 5], [5, 6], [6, 6], [10, 5], [9, 6], [10, 6]]) put(g, x, y, 'c');
+    GEAR.cape(g, 'W', 'j', 'L'); GEAR.plate(g, 'm', 'i', 'p'); fill(g, 4, 9, 11, 9, 'W'); GEAR.belt(g, 'i', 'L');
+    paint(g, ['', '', '', '', '', '', '', '', '', '', '', '..vvv......vvv..', '..v.v......v.v..']); sparkle(g, [[15, 8], [0, 11]], 'L'); return g;
+  },
+
+  // 龙族 B：冰龙（蓝膜翼 + 冰晶背刺 + 寒气）→ 冰晶龙王（冰晶王冠 + 巨翼 + 冰息）；身体仍用 G/H 通道
+  dragon_b(t) {
+    t = tierB(t, 2, 3);
+    if (t === 2) return grid([
+      'W..............W',
+      'Ck....kWkW....kC',
+      'cCk..kGGGGk..kCc',
+      'cCCk.kGcGcGk.kCC',
+      'ccCCkGGGGGGkCCcc',
+      'kccCGkGWWGkGCcck',
+      '.kcCGGkGGkGGCck.',
+      '..kkGkGbbGkGkk..',
+      '...WkGbbbbGkW...',
+      '...kGGbbbbGGk...',
+      '...kGkGbbGkGGkW.',
+      '...kk.kGGk.kGGkc',
+      '......kk....kGGk',
+      '.............kk.',
+    ]);
+    return grid([
+      'W.cWc......cWc.W',
+      'CW..ck.kk.kc..WC',
+      'CCW.kcWGGWck.WCC',
+      'cCCWkGGGGGGkWCCc',
+      'ccCCGGcGGcGGCCcc',
+      'kccCGGGGGGGGCcck',
+      '.kcCGkGWWGkGCck.',
+      '.kkCGGkGGkGGCkk.',
+      '..kkGkGccGkGkk..',
+      '..WkGGcWWcGGkW..',
+      '..kGGGbWWbGGGk..',
+      '.WkGkGbbbbGkGGkW',
       '..kGkGGbbGGkGGGk',
       '..kk.kGkkGk.kGGk',
       '.....kk..kk..kk.',
