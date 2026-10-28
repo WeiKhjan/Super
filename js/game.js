@@ -1,16 +1,15 @@
 // 超时空英雄传说 · 移动重制版 —— 存档、营地、出击、剧情流程、结局
 'use strict';
 
-const SAVE_KEY = 'cskyxcs_save_v2';
+const saveKey = () => curCampaign().saveKey;
 const OPT_KEY = 'cskyxcs_opt_v1';
 let S = null; // { stage, gold, roster: {id: data}, order: [id], inv: {itemId: n}, cleared }
 
-STAGES.sort((a, b) => a.no - b.no);
 
 function newSave() { S = { stage: 0, gold: 150, roster: {}, order: [], inv: { herb: 3 } }; }
-function persist() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) { /* 隐私模式等 */ } }
+function persist() { try { localStorage.setItem(saveKey(), JSON.stringify(S)); } catch (e) { /* 隐私模式等 */ } }
 function readSave() {
-  try { const s = JSON.parse(localStorage.getItem(SAVE_KEY)); if (s && s.roster) return s; } catch (e) { }
+  try { const s = JSON.parse(localStorage.getItem(saveKey())); if (s && s.roster) return s; } catch (e) { }
   return null;
 }
 function loadOpt() { try { Object.assign(OPT, JSON.parse(localStorage.getItem(OPT_KEY)) || {}); } catch (e) { } }
@@ -334,10 +333,43 @@ async function chooseDeploy(st) {
 // =====================================================================
 // 标题 / 结局
 // =====================================================================
+// 主画面：系列作品选择
+function showSelect() {
+  B = null;
+  show('select');
+  music('title');
+  const list = $('#select-list');
+  list.innerHTML = CAMPAIGN_ORDER.map(id => {
+    const c = CAMPAIGNS[id];
+    let prog = '';
+    try { const s = JSON.parse(localStorage.getItem(c.saveKey)); if (s && s.roster) { const n = (CAMPAIGN_STAGES[id] || []).length; prog = s.stage >= n && n ? '已通关' : `进行到第 ${s.stage + 1} 关`; } } catch (e) { }
+    return `<button class="game-card ${c.soon ? 'soon' : ''}" data-game="${id}" style="--gc:${c.color}">
+      <span class="gc-no">${c.no}</span>
+      <span class="gc-main"><b>${esc(c.full || c.title)}</b><small>${c.year} · ${esc(c.tag)}${prog ? ' · ' + prog : ''}</small><em>${esc(c.desc)}</em></span>
+      <span class="gc-go">${c.soon ? '制作中' : '▶'}</span>
+    </button>`;
+  }).join('');
+}
+$('#select-list').addEventListener('click', e => {
+  const b = e.target.closest('[data-game]');
+  if (!b) return;
+  const c = CAMPAIGNS[b.dataset.game];
+  if (c.soon) { sfx('miss'); toast(`《${c.full || c.title}》制作中，敬请期待`); return; }
+  sfx('select');
+  useCampaign(c.id);
+  showTitle();
+});
+$('#btn-select').addEventListener('click', () => { sfx('select'); showSelect(); });
 function showTitle() {
   B = null;
   show('title');
   music('title');
+  const c = curCampaign();
+  $('#logo-sub').textContent = c.subtitle;
+  $('#logo-title').innerHTML = c.id === 'g1' ? '超时空<br>英雄传说' : `<small class="logo-pre">超时空英雄传说${c.id === 'g3' ? '外传' : ''}</small>${esc(c.title)}`;
+  $('#logo-tag').textContent = `移动重制版 · ${c.tag}`;
+  const row = $('#title-heroes'); row.innerHTML = '';
+  for (const id of c.titleHeroes || []) { const pc = portraitCanvas(id, 64); if (pc) row.appendChild(pc); }
   const sv = readSave();
   $('#btn-continue').hidden = !sv;
   if (sv) $('#btn-continue').textContent = `继续旅程（${sv.stage >= STAGES.length ? '已通关' : `第 ${STAGES[sv.stage].no} 关`}）`;
@@ -413,7 +445,9 @@ $('#btn-sound').addEventListener('click', () => { OPT.sound = OPT.music = !(OPT.
   const stars = Array.from({ length: 140 }, () => ({ a: Math.random() * Math.PI * 2, r: Math.random(), s: 0.2 + Math.random() * 0.8 }));
   const loop = now => {
     requestAnimationFrame(loop);
-    if ($('#title').hidden) return;
+    if ($('#title').hidden && $('#select').hidden) return;
+    if (!$('#select').hidden && c.parentNode.id !== 'select') $('#select').prepend(c);
+    else if (!$('#title').hidden && c.parentNode.id !== 'title') $('#title').prepend(c);
     const w = c.width = c.clientWidth, h = c.height = c.clientHeight;
     g.fillStyle = '#07041a'; g.fillRect(0, 0, w, h);
     const cx = w / 2, cy = h * 0.36, R = Math.max(w, h) * 0.7;
@@ -429,10 +463,6 @@ $('#btn-sound').addEventListener('click', () => { OPT.sound = OPT.music = !(OPT.
   };
   requestAnimationFrame(loop);
 })();
-(function titleHeroes() {
-  const row = $('#title-heroes');
-  for (const id of ['yangtie', 'mengqi', 'xueer', 'wushuang']) { const c = portraitCanvas(id, 64); if (c) row.appendChild(c); }
-})();
 
 // =====================================================================
 // 启动
@@ -445,12 +475,14 @@ const unlockAudio = () => {
   audioUnlocked = true;
   try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { } // iPhone 静音键开着也能听到音乐
   try { AUDIO.unlock(); AUDIO.setMusicOn(OPT.music); AUDIO.setSfxOn(OPT.sound); } catch (e) { }
-  if (!$('#title').hidden) music('title'); else if (!$('#camp').hidden) music('camp');
+  if (!$('#title').hidden || !$('#select').hidden) music('title'); else if (!$('#camp').hidden) music('camp');
 };
 for (const ev of ['pointerdown', 'touchend', 'keydown']) document.addEventListener(ev, unlockAudio, { passive: true });
 $('#btn-sound').textContent = (OPT.sound || OPT.music) ? '🔊' : '🔇';
 diffLabel();
-showTitle();
+// 启动：先到系列作品选择画面（记住上次选的作品）
+try { const last = localStorage.getItem('cskyxcs_campaign'); if (last && CAMPAIGNS[last] && !CAMPAIGNS[last].soon) useCampaign(last); } catch (e) { }
+showSelect();
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });
 
 // 测试接口：AI 自动打完全部关卡（每关最多重试 retries 次），返回每关结果

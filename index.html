@@ -18,14 +18,27 @@
 <body>
 <div id="app">
 
+  <!-- 作品选择（主画面） -->
+  <section id="select" class="screen">
+    <div class="select-inner">
+      <div class="select-head">
+        <div class="logo-sub">HEROES OF TIME &amp; SPACE · 系列合集</div>
+        <h1>超时空英雄传说</h1>
+        <div class="dim small">请选择要游玩的作品</div>
+      </div>
+      <div id="select-list"></div>
+      <div class="title-foot">粉丝重制 · 致敬 宇峻科技<br><span class="dim">最佳体验：手机竖屏</span></div>
+    </div>
+  </section>
+
   <!-- 标题 -->
-  <section id="title" class="screen">
+  <section id="title" class="screen" hidden>
     <canvas id="title-bg"></canvas>
     <div class="title-inner">
       <div class="logo">
-        <div class="logo-sub">HEROES OF TIME &amp; SPACE</div>
-        <h1>超时空<br>英雄传说</h1>
-        <div class="logo-tag">移动重制版 · 全 35 关</div>
+        <div class="logo-sub" id="logo-sub">HEROES OF TIME &amp; SPACE</div>
+        <h1 id="logo-title">超时空<br>英雄传说</h1>
+        <div class="logo-tag" id="logo-tag">移动重制版 · 全 35 关</div>
       </div>
       <div id="title-heroes"></div>
       <div class="title-menu">
@@ -33,6 +46,7 @@
         <button class="btn big" id="btn-new">新的旅程</button>
         <button class="btn big" id="btn-help">游戏说明</button>
         <button class="btn" id="btn-diff">难度：标准</button>
+        <button class="btn" id="btn-select">◀ 选择其他作品</button>
       </div>
       <div class="title-foot">粉丝重制 · 致敬 宇峻科技 1996<br><span class="dim">最佳体验：手机竖屏</span></div>
     </div>
@@ -102,6 +116,7 @@
 <script src="js/stages/stages_19_27.js"></script>
 <script src="js/stages/stages_28_35.js"></script>
 <script src="js/story.js"></script>
+<script src="js/campaigns.js"></script>
 <script src="js/sprites.js"></script>
 <script src="js/sprites3.js"></script>
 <script src="js/portraits.js"></script>

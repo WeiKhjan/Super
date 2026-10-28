@@ -225,3 +225,21 @@ button { font: inherit; color: inherit; }
 .pick.sk .sk-diag { grid-row: 1 / span 3; width: 56px; height: 56px; border-radius: 4px; border: 1px solid #5a4fa8; }
 .pick.sk .sk-shape { grid-column: 2 / -1; font-style: normal; font-size: 12px; color: #ffd84a; }
 .pick.sk small { grid-column: 2 / -1; }
+
+/* 主画面：系列作品选择 */
+#select { overflow: hidden; }
+.select-inner { position: relative; flex: 1; display: flex; flex-direction: column; align-items: center; gap: 14px; padding: calc(28px + var(--safe-t)) 16px calc(16px + var(--safe-b)); overflow-y: auto; }
+.select-head { text-align: center; }
+.select-head h1 { margin: 6px 0 4px; font-size: clamp(32px, 10vw, 46px); letter-spacing: 4px; background: linear-gradient(#fff6c8, #f4c542 55%, #c87a1a); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 3px 0 #3a1a50); }
+#select-list { display: flex; flex-direction: column; gap: 12px; width: min(420px, 100%); }
+.game-card { position: relative; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px; text-align: left; padding: 14px 14px; border-radius: 14px; color: #fff; cursor: pointer;
+  background: linear-gradient(110deg, color-mix(in srgb, var(--gc) 38%, #150e36) 0%, #150e36 70%); border: 2px solid var(--gc); box-shadow: 0 0 18px color-mix(in srgb, var(--gc) 40%, transparent); }
+.game-card:active { transform: scale(.98); }
+.game-card.soon { filter: saturate(.45) brightness(.8); }
+.gc-no { width: 48px; height: 48px; display: grid; place-items: center; font-size: 26px; font-weight: 900; border-radius: 50%; background: #0a0620; border: 2px solid var(--gc); color: var(--gc); }
+.gc-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.gc-main b { font-size: 17px; letter-spacing: 1px; }
+.gc-main small { color: var(--gc); font-size: 12px; }
+.gc-main em { font-style: normal; color: #c8c0e8; font-size: 12px; line-height: 1.4; }
+.gc-go { font-size: 13px; color: var(--gc); font-weight: 900; white-space: nowrap; }
+.logo-pre { display: block; font-size: 15px; letter-spacing: 3px; color: #e8deff; -webkit-text-fill-color: #e8deff; }
