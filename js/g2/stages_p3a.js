@@ -664,7 +664,7 @@
       ['crossbow', 23, 11, 5, E('杀手弩手', { ai: 'hold' })],
       ['assassin', 23, 5, 7, E('皇家杀手')],
       ['assassin', 23, 8, 7, E('皇家杀手')],
-      ['assassin', 23, 2, 9, E('皇家杀手')],
+      ['assassin', 23, 2, 9, E('皇家杀手', { ai: 'hold' })],
       ['assassin', 23, 11, 9, E('皇家杀手')],
     ],
     chests: [[1, 1, 'mindHelm'], [12, 1, 'wisdomFruit'], [11, 13, 'healFruit', 2000]],

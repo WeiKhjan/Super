@@ -34,7 +34,7 @@ Object.assign(SPELLS, {
   tideSlash:   { name: '潮斩',     school: '技', mp: 8,  power: 18, range: [1, 2], kind: 'phys', sure: true, style: 'dash', fx: 'ice', desc: '鱼人的快斩' },
   bloodBite:   { name: '吸血',     school: '技', mp: 8,  power: 18, range: [1, 1], kind: 'phys', sure: true, style: 'blade', fx: 'dark', desc: '吸取敌人的鲜血' },
   charm:       { name: '魅惑',     school: '幻', mp: 10, range: [1, 3], kind: 'status', status: 'freeze', turns: 2, chance: 65, fx: 'dark', desc: '女妖的魅惑，令敌人无法行动' },
-  juggle:      { name: '丑角戏法', school: '技', mp: 10, power: 16, range: [1, 4], area: 1, kind: 'magic', fx: 'fire', desc: '抛出会爆炸的彩球' },
+  juggle:      { name: '丑角戏法', school: '技', mp: 10, power: 10, range: [1, 4], area: 1, kind: 'magic', fx: 'fire', desc: '抛出会爆炸的彩球' },
   // 合击（需关系值）
   youwu:       { name: '有无相生', school: '双', mp: 30, power: 60, range: [1, 6], area: 3, kind: 'pair', sure: true, partner: 'qiuyue', rel: 60, fx: 'slash', desc: '刑天与秋月心意相通的合击，剑气笼罩整个战场' },
   northStar:   { name: '北斗交辉', school: '双', mp: 18, power: 46, range: [1, 4], line: true, kind: 'pair', sure: true, partner: 'natalia', rel: 70, fx: 'holy', desc: '白志超与娜塔莉亚的剑弩合击，贯穿一列' },
