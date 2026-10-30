@@ -556,3 +556,41 @@ const HEROES = {
 };
 // 能与孟祈等人施展双人剑式的职业（剑术系；骑兵、武士等有各自的专属战技）
 const PAIR_CLASSES = ['writer', 'swordsman', 'master', 'spellblade'];
+
+// =====================================================================
+// 装备外观：武器 / 防具换了，地图小人、头像、战斗演出都要跟着变
+// gearLook(itemId) → { kind, grade 0–4, metal: [暗, 中, 亮], glow?, weight? }
+//   grade：0 铁木 · 1 钢 · 2 银 · 3 金 · 4 传说
+//   weight（防具）：'cloth' 布袍 · 'leather' 皮甲 · 'mail' 锁甲鳞甲 · 'plate' 板甲 · 'shield' 盾
+// =====================================================================
+const GEAR_METAL = [['#4a4038', '#7a6a58', '#a89478'], ['#5a6068', '#8a929c', '#c0c8d0'], ['#7a8494', '#c4ccd8', '#f4f8ff'], ['#8a6418', '#d8a838', '#fff0a0'], ['#5a2a8a', '#a868e8', '#f0d8ff']];
+const GEAR_GLOW = {
+  holySword: '#fff4a0', dragonSword: '#ff6030', flameLance: '#ff7030', frostSword: '#80d0ff', blueDragonBlade: '#60a0ff', thunderHammer: '#ffe040',
+  sunBow: '#ffd040', elfBow: '#80ff80', lightSword: '#fffbe0', sacredSword: '#ffe890', yinSwordItem: '#a0b0ff', ancientSword: '#c060ff', tianqing: '#80e0ff',
+  shadowDagger: '#a040ff', energySword: '#60f0ff', griffinBlade: '#ff5050', divineLance: '#ffffff', starStaff: '#fff080', spiritStaff: '#a0ffd0', earthStaff: '#d0a060',
+  elementRod: '#ff80ff', xuanmingBow: '#7070e0', meteorXbow: '#ff9040', oriScepter: '#ffd860', crystalStaff: '#a0e0ff', spiritBell: '#e0f0a0',
+  dragonScale: '#e04020', goldArmor: '#ffd040', holyHelm: '#fff0a0', mindHelm: '#c080ff', spiritCape: '#80c0ff', mirrorShield: '#e0e0ff', dragonSinew: '#c03020',
+  manaRobe: '#8060e0', senseArmor: '#60e0c0',
+};
+const GEAR_CACHE = {};
+function gearLook(id) {
+  if (!id || !ITEMS[id]) return null;
+  if (GEAR_CACHE[id]) return GEAR_CACHE[id];
+  const it = ITEMS[id];
+  let look;
+  if (it.type === 'weapon') {
+    const p = it.kind === 'staff' ? (it.mag || 0) * 1.6 + (it.atk || 0) : (it.atk || 0) + (it.mag || 0) * 0.6;
+    const grade = p >= 21 ? 4 : p >= 15 ? 3 : p >= 10 ? 2 : p >= 6 ? 1 : 0;
+    look = { kind: it.kind, grade, metal: GEAR_METAL[grade], glow: GEAR_GLOW[id] || (grade >= 4 ? '#e0c0ff' : null) };
+  } else if (it.type === 'armor') {
+    const n = id.toLowerCase();
+    const weight = /shield/.test(n) ? 'shield' : /robe|cape|cloak|cap|silk/.test(n) ? 'cloth' : /leather/.test(n) ? 'leather' : /chain|ring|scale|mail|sinew/.test(n) ? 'mail' : 'plate';
+    const d = it.def || 0, grade = d >= 16 ? 4 : d >= 12 ? 3 : d >= 8 ? 2 : d >= 4 ? 1 : 0;
+    look = { kind: 'armor', weight, grade, metal: GEAR_METAL[grade], glow: GEAR_GLOW[id] || null };
+  } else look = { kind: 'acc', grade: 0, metal: GEAR_METAL[0], glow: GEAR_GLOW[id] || null };
+  look.id = id;
+  return (GEAR_CACHE[id] = look);
+}
+// 一个单位（或英雄存档）的装备外观；用作快取键的一部分
+function gearOf(u) { return u ? { w: gearLook(u.weapon), a: gearLook(u.armor) } : { w: null, a: null }; }
+function gearKey(u) { return u ? `${u.weapon || '-'}/${u.armor || '-'}` : '-/-'; }

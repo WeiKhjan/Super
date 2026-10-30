@@ -359,6 +359,27 @@ function skillCalc(a, d, sp, partner) {
   if (sp.crit) c.crit = clamp(c.crit + sp.crit, 0, 75);
   return c;
 }
+// 技能清单上的预估：对射程内最好的目标（没有就对最近的敌人）算出伤害 / 回复 / 成功率
+function skillEstimate(u, id) {
+  const sp = SPELLS[id];
+  if (sp.kind === 'summon') return `<em class="sk-dmg">召唤${CLASSES[sp.unit] ? CLASSES[sp.unit].tiers[0].name : ''} · ${sp.turns} 回合</em>`;
+  if (sp.kind === 'heal') return `<em class="sk-dmg heal">回复 ${healAmount(u, sp)}${sp.area ? '（范围）' : ''}</em>`;
+  if (['buff', 'cure', 'refresh'].includes(sp.kind)) return '';
+  const foes = alive().filter(o => hostile(u, o));
+  if (!foes.length) return sp.power ? `<em class="sk-dmg">威力 ${sp.power}</em>` : '';
+  let t = null;
+  const best = bestSpellTarget(u, id);
+  if (best) t = spellAffected(u, id, best.x, best.y).filter(o => hostile(u, o)).sort((a, b) => b.hp - a.hp)[0];
+  const inRange = !!t;
+  if (!t) t = foes.slice().sort((a, b) => mdist(a.x, a.y, u.x, u.y) - mdist(b.x, b.y, u.x, u.y))[0];
+  const who = `${inRange ? '对' : '对最近的'}${esc(t.name)}`;
+  if (sp.kind === 'status') return `<em class="sk-dmg">${who} ${STATUS_NAME[sp.status]} ${statusChance(u, t, sp)}%</em>`;
+  if (sp.kind === 'death') return `<em class="sk-dmg">${who} 即死 ${deathChance(u, t, sp)}%</em>`;
+  if (sp.kind === 'debuff') return `<em class="sk-dmg">${who} ${BUFF_NAME[sp.stat]}下降</em>`;
+  const c = skillCalc(u, t, sp, sp.kind === 'pair' ? pairPartner(u, sp) : null);
+  const kill = c.dmg >= t.hp ? ' · 可击倒' : '';
+  return `<em class="sk-dmg">威力 ${sp.power || 0} · ${who} 约 <b>${c.dmg}</b> 伤害${c.hit < 100 ? `（命中 ${c.hit}%）` : ''}${sp.area || sp.line || sp.cone ? ' · 范围' : ''}${kill}</em>`;
+}
 function healAmount(a, sp) { return sp.power + Math.round(magOf(a) * 0.8); }
 function statusChance(a, d, sp) {
   if (d.boss && ['petrify', 'freeze', 'blind'].includes(sp.status)) return 0;
@@ -438,7 +459,7 @@ function tintSprite(c, id, mode) {
 }
 // 冰龙路线默认用蓝色身体
 const spriteVariant = u => u.color || u.element || (altOf(u) || clsOf(u)).spriteVariant || (spriteKey(u) === 'dragon_b' ? 'blue' : undefined);
-function unitSprite(u) { const C = altOf(u) || clsOf(u); return getSprite(spriteKey(u), C.spriteTier ?? u.tier, u.team, u.hair, spriteVariant(u)); }
+function unitSprite(u) { const C = altOf(u) || clsOf(u); return getSprite(spriteKey(u), C.spriteTier ?? u.tier, u.team, u.hair, spriteVariant(u), gearOf(u)); }
 const TEAM_COLOR = { player: '#4a9aff', ally: '#4ad87a', enemy: '#ff4a4a', rogue: '#e0b040' };
 
 function render(now) {
@@ -755,7 +776,7 @@ function fillPathArt(m, u) {
   const C = clsOf(u), at = C.alt.at;
   for (const el of m.querySelectorAll('[data-art]')) {
     const p = el.dataset.art, key = p === 'b' ? C.alt.sprite : C.sprite;
-    const spr = getSprite(key, at, u.team || 'player', u.hair, key === 'dragon_b' ? 'blue' : undefined);
+    const spr = getSprite(key, at, u.team || 'player', u.hair, key === 'dragon_b' ? 'blue' : undefined, gearOf(u));
     if (u.id && typeof getPortrait === 'function') {
       try { const pc = getPortrait(u.id, undefined, at, p); const c = document.createElement('canvas'); c.width = pc.width; c.height = pc.height; c.getContext('2d').drawImage(pc, 0, 0); c.className = 'pix pc-port'; el.appendChild(c); } catch (e) { }
     }
@@ -791,7 +812,7 @@ function portraitCanvas(who, size, variant) {
   }
   if (!src) {
     if (who.startsWith('enemy:')) { const k = who.slice(6), cls = KIND_ALIAS[k] || k; if (CLASSES[cls]) src = getSprite(CLASSES[cls].sprite, 0, 'enemy'); }
-    else if (HEROES[who]) { const d = (S && S.roster[who]) || heroData(who); src = getSprite(CLASSES[d.cls].sprite, d.tier, 'player', d.hair); }
+    else if (HEROES[who]) { const d = (S && S.roster[who]) || heroData(who); src = getSprite(CLASSES[d.cls].sprite, d.tier, 'player', d.hair, undefined, gearOf(d)); }
   }
   if (!src) return null;
   const c = document.createElement('canvas'); c.width = src.width; c.height = src.height; c.className = 'pix';
@@ -1558,7 +1579,7 @@ async function onAction(act) {
         const sp = SPELLS[id];
         const ok = canCastNow(u, id) && spellTiles(u, id).length > 0;
         const why = !ok && sp.kind === 'pair' && !pairPartner(u, sp) ? (sp.partner ? `（需与${(HEROES[sp.partner] || {}).name || ''}相邻，且好感度 ${sp.rel || 0} 以上）` : '（需相邻且未行动的剑术系伙伴：作家、剑士、魔剑使、大剑师）') : '';
-        return `<button class="pick sk" data-pick="${id}" ${ok ? '' : 'disabled'}><canvas class="sk-diag pix" data-diag="${id}"></canvas><b>${sp.name}</b><span>MP ${sp.mp}</span><em class="sk-shape">${skillShapeText(sp)}</em><small>${sp.desc}${why}</small></button>`;
+        return `<button class="pick sk" data-pick="${id}" ${ok ? '' : 'disabled'}><canvas class="sk-diag pix" data-diag="${id}"></canvas><b>${sp.name}</b><span>MP ${sp.mp}</span><em class="sk-shape">${skillShapeText(sp)}</em>${skillEstimate(u, id)}<small>${sp.desc}${why}</small></button>`;
       }).join('')).join('');
       const id = await modal(hasStatus(u, 'silence') ? '法术（被禁锢）' : '法术 / 战技', `<div class="pick-list">${html}</div>`, [{ label: '返回', value: null }], { dismiss: null, onOpen: m => { for (const c of m.querySelectorAll('[data-diag]')) drawSkillDiagram(c, SPELLS[c.dataset.diag]); } });
       if (!id) return;

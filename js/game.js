@@ -187,7 +187,7 @@ function renderCamp() {
     body.innerHTML = S.order.map(id => {
       const d = S.roster[id], u = Object.assign({ status: {}, buffs: [] }, d);
       const away = next && !next.heroes.includes(id);
-      const sk = skillsOf(u).map(s => SPELLS[s].name).join('、') || '—';
+      const sk = skillsOf(u).map(s => { const sp = SPELLS[s]; return sp.power ? `${sp.name}<i class="pw">${sp.kind === 'heal' ? '回' : '威'}${sp.power}</i>` : sp.name; }).join('、') || '—';
       return `<div class="card ${away ? 'away' : ''}">
         <div class="card-top"><div class="port" data-hero="${id}"></div>
           <div><b>${esc(d.name)}</b> <span class="dim">${className(u)} Lv${d.lv}</span>${(S.rel || {})[id] !== undefined ? ` <span class="rel">♥ ${S.rel[id]}</span>` : ''}${(S.left || {})[id] ? ' <span class="tag t-away">已离队</span>' : ''}${away ? ' <span class="tag t-away">本关不在队中</span>' : ''}<br>
