@@ -30,12 +30,13 @@ function shade([r, g, b], f) {
 const SPRITE3_CACHE = {};
 const _getSprite16 = getSprite;
 // 覆盖 sprites.js 的 getSprite：返回 32×32 的着色版本
-getSprite = function (key, tier, team, hair, variant) {
-  const id = `${key}|${tier}|${team}|${hair || ''}|${variant || ''}`;
+// gear（第 6 参数，可省）：gearOf(u) 的装备外观，由 sprites.js 的 spriteGrid / gearPal 叠加武器与防具
+getSprite = function (key, tier, team, hair, variant, gear) {
+  const gs = gearSig(gear);
+  const id = `${key}|${tier}|${team}|${hair || ''}|${variant || ''}` + (gs ? '|' + gs : '');
   if (SPRITE3_CACHE[id]) return SPRITE3_CACHE[id];
-  const def = SPRITE_DEFS[key] || SPRITE_DEFS.swordsman;
-  const g = scale2x(def(tier || 0));
-  const pal = Object.assign({}, PAL_BASE, TEAM_PAL[team] || TEAM_PAL.enemy, { h: hair || '#3a2a1a' }, VARIANT_PAL[variant] || {});
+  const g = scale2x(spriteGrid(key, tier, gear));
+  const pal = Object.assign({}, PAL_BASE, TEAM_PAL[team] || TEAM_PAL.enemy, { h: hair || '#3a2a1a' }, VARIANT_PAL[variant] || {}, gs ? gearPal(gear) : {});
   const N = 32;
   // 外轮廓的 2px 黑线先去掉（稍后重描 1px）
   const trans = (x, y) => x < 0 || y < 0 || x >= N || y >= N || g[y][x] === '.';
