@@ -544,6 +544,25 @@ function render(now) {
     ctx.globalAlpha = 1;
   }
 
+  // 选中我方角色时：标出哪些敌人被我克制（绿「克」）、哪些克制我（红「危」）
+  const sel = B.sel;
+  if (sel && sel.team === 'player' && sel.hp > 0 && ['move', 'move2', 'action', 'target', 'spell'].includes(B.mode)) {
+    const pulse = 0.75 + 0.25 * Math.sin(now / 220);
+    ctx.font = `bold ${Math.round(ts * 0.5)}px sans-serif`; ctx.textAlign = 'center';
+    for (const e of alive()) {
+      if (!hostile(sel, e)) continue;
+      const up = advMult(sel, e) > 1, down = advMult(e, sel) > 1;
+      if (!up && !down) continue;
+      const lab = up && down ? '互克' : up ? '克' : '危', col = up && down ? '#f0c030' : up ? '#3ad86a' : '#ff4a4a';
+      const ex = ((e.px ?? e.x) + 0.5) * ts, ey = (e.py ?? e.y) * ts + ts * (e.boss ? -0.25 : -0.12);
+      const w = ts * (lab.length > 1 ? 1.05 : 0.6), h = ts * 0.58;
+      ctx.fillStyle = col; ctx.beginPath(); ctx.roundRect ? ctx.roundRect(ex - w / 2, ey - h / 2, w, h, h / 2) : ctx.rect(ex - w / 2, ey - h / 2, w, h); ctx.fill();
+      ctx.strokeStyle = `rgba(255,255,255,${pulse})`; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = '#ffffff'; ctx.fillText(lab, ex, ey + h * 0.34);
+    }
+    ctx.textAlign = 'left';
+  }
+
   if (B.cursor) {
     const { x, y } = B.cursor, p = (Math.sin(now / 150) + 1) / 2;
     ctx.strokeStyle = `rgba(255,255,255,${0.6 + p * 0.4})`; ctx.lineWidth = 2;
