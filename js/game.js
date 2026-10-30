@@ -156,6 +156,11 @@ function shopStock() {
   for (let i = 0; i < S.stage; i++) for (const id of STAGES[i].shop || []) if (!list.includes(id) && ITEMS[id].price) list.push(id);
   return list.filter(id => ITEMS[id].price > 0);
 }
+// 装备的能力加成（简短）：攻+4 · 暴击+5
+function gearStatText(it) {
+  const P = [['atk', '攻'], ['def', '防'], ['mag', '魔'], ['spd', '速'], ['mov', '移'], ['crit', '暴击'], ['hit', '命中']];
+  return P.filter(([k]) => it[k]).map(([k, l]) => `${l}${it[k] > 0 ? '+' : ''}${it[k]}`).join(' ') || (it.immune ? '免疫异常' : '');
+}
 function itemDesc(it) {
   if (it.desc && it.type !== 'acc') return it.desc;
   const parts = [];
@@ -199,17 +204,18 @@ function renderCamp() {
     body.innerHTML = S.order.map(id => {
       const d = S.roster[id], u = Object.assign({ status: {}, buffs: [] }, d);
       const away = next && !next.heroes.includes(id);
-      const sk = skillsOf(u).map(s => { const sp = SPELLS[s]; return sp.power ? `${sp.name}<i class="pw">${sp.kind === 'heal' ? '回' : '威'}${sp.power}</i>` : sp.name; }).join('、') || '—';
+      const gear = [['weapon', '武器'], ['armor', '防具'], ['acc', '饰品']].filter(([k]) => d[k]).map(([k, l]) => `<span class="eq-item"><b>${esc(ITEMS[d[k]].name)}</b> <i>${esc(gearStatText(ITEMS[d[k]]))}</i></span>`).join('');
       return `<div class="card ${away ? 'away' : ''}">
         <div class="card-top"><div class="port mapchar" data-mapchar="${id}"></div>
           <div><b>${esc(d.name)}</b> <span class="dim">${className(u)} Lv${d.lv}</span>${(S.rel || {})[id] !== undefined ? ` <span class="rel">♥ ${S.rel[id]}</span>` : ''}${(S.left || {})[id] ? ' <span class="tag t-away">已离队</span>' : ''}${away ? ' <span class="tag t-away">本关不在队中</span>' : ''}<br>
           <span class="small">HP ${d.mhp} · MP ${d.mmp} · 攻 ${atkOf(u)} · 防 ${defOf(u)} · 魔 ${magOf(u)} · 速 ${spdOf(u)} · 移 ${movOf(u)}</span><br>
           <span class="small dim">EXP ${d.exp}/100 · ${CLASSES[d.cls].line} · ${typeOf(u)}</span></div></div>
-        <p class="small skills">技能：${sk}</p>${(() => { const pk = [...new Set([...(CLASSES[d.cls].passive || []), ...(d.perks || [])])]; return pk.length ? `<p class="small skills">特殊能力：${pk.map(p => PERK_NAME[p] || p).join('、')}</p>` : ''; })()}${d.mastery && Object.keys(d.mastery).length ? `<p class="small skills">职业经历：${Object.keys(Object.assign({}, d.mastery, { [d.cls]: 1 })).map(k => `${CLASSES[k].line.replace(/系$/, '')} ${masteryOf(d, k)}`).join(' · ')}</p>` : ''}
+        <p class="small eq-line">装备：${gear || '<span class="dim">无</span>'}</p>${(() => { const pk = [...new Set([...(CLASSES[d.cls].passive || []), ...(d.perks || [])])]; return pk.length ? `<p class="small skills">特殊能力：${pk.map(p => PERK_NAME[p] || p).join('、')}</p>` : ''; })()}${d.mastery && Object.keys(d.mastery).length ? `<p class="small skills">职业经历：${Object.keys(Object.assign({}, d.mastery, { [d.cls]: 1 })).map(k => `${CLASSES[k].line.replace(/系$/, '')} ${masteryOf(d, k)}`).join(' · ')}</p>` : ''}
         <div class="card-btns">
           ${CLASSES[d.cls].weapon ? `<button class="btn small" data-equip="${id}" data-slot="weapon">武器：${d.weapon ? ITEMS[d.weapon].name : '无'}</button>` : ''}
           <button class="btn small" data-equip="${id}" data-slot="armor">防具：${d.armor ? ITEMS[d.armor].name : '无'}</button>
           <button class="btn small" data-equip="${id}" data-slot="acc">饰品：${d.acc ? ITEMS[d.acc].name : '无'}</button>
+          <button class="btn small" data-skills="${id}">技能（${skillsOf(u).length}）</button>
           ${ruleOn('freeClass') && d.lv >= reclassLv() && (reclassPool(d).length || hiddenInfo(d).length) ? `<button class="btn small primary" data-reclass="${id}">转职所</button>` : ''}
           <button class="btn small purple" data-tree="${id}">职业树${CLASSES[d.cls].alt && !d.path && d.tier >= CLASSES[d.cls].alt.at ? ' ⚑' : ''}</button>
         </div>
@@ -293,6 +299,14 @@ $('#camp').addEventListener('click', async e => {
     if (d.weapon && !canUseWeapon(u2, d.weapon)) { S.inv[d.weapon] = (S.inv[d.weapon] || 0) + 1; d.weapon = null; }
     sfx('promote'); toast(`${d.name} 转职为「${CLASSES[k].tiers[0].name}」`); persist();
     return renderCamp();
+  }
+  const skb = e.target.closest('[data-skills]');
+  if (skb) { // 技能一览：威力、范围、MP、说明
+    const d = S.roster[skb.dataset.skills], u = Object.assign({ status: {}, buffs: [] }, d);
+    sfx('select');
+    const html = skillsOf(u).map(id => { const sp = SPELLS[id]; return `<div class="pick sk" style="cursor:default"><canvas class="sk-diag pix" data-diag="${id}"></canvas><b>${esc(sp.name)}</b><span>MP ${sp.mp}</span><em class="sk-shape">${skillShapeText(sp)}</em>${sp.power ? `<em class="sk-dmg${sp.kind === 'heal' ? ' heal' : ''}">${sp.kind === 'heal' ? '回复' : '威力'} ${sp.power}${sp.kind === 'heal' ? ` + 魔力×0.8 ≈ ${healAmount(u, sp)}` : sp.kind === 'magic' ? ` + 魔力×0.85（魔 ${magOf(u)}）` : ` + 攻击（攻 ${atkOf(u)}）`}</em>` : ''}<small>${esc(sp.desc || '')}</small></div>`; }).join('') || '<p class="center dim">还没有学会任何招式</p>';
+    await modal(`${esc(d.name)} · 技能`, `<div class="pick-list">${html}</div>`, [{ label: '关闭', value: null }], { dismiss: null, wide: true, onOpen: m => { for (const c of m.querySelectorAll('[data-diag]')) drawSkillDiagram(c, SPELLS[c.dataset.diag]); } });
+    return;
   }
   const tr = e.target.closest('[data-tree]');
   if (tr) {

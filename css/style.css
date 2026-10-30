@@ -252,3 +252,6 @@ button { font: inherit; color: inherit; }
 .skills .pw { font-style: normal; font-size: 10px; color: #ffb070; margin-left: 2px; }
 .port.mapchar { background: radial-gradient(circle at 50% 70%, #3f5a3a, #1c2a1a 70%); }
 .port.mapchar canvas { width: 48px; height: 48px; image-rendering: pixelated; }
+.eq-line .eq-item { display: inline-block; margin-right: 10px; }
+.eq-line .eq-item b { color: #ffe08a; font-weight: 600; }
+.eq-line .eq-item i { font-style: normal; color: #9ad8ff; font-size: 11px; }
