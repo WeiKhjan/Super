@@ -1,5 +1,5 @@
 // 离线缓存：首次打开后即可离线游玩
-const CACHE = 'cskyxcs-v15';
+const CACHE = 'cskyxcs-v16';
 const FILES = ['./', 'index.html', 'css/style.css', 'js/data.js', 'js/stages/stages_01_09.js', 'js/stages/stages_10_18.js', 'js/stages/stages_19_27.js', 'js/stages/stages_28_35.js',
   'js/story.js', 'js/campaigns.js', 'js/g2/data2.js', 'js/g2/stages_p1n.js', 'js/g2/stages_p1e2a.js', 'js/g2/stages_p2.js', 'js/g2/stages_p3a.js', 'js/g2/stages_p3b.js', 'js/g2/stages_p4.js', 'js/g3/data3.js', 'js/g3/stages_m1.js', 'js/g3/stages_m2.js', 'js/g3/stages_m3.js', 'js/g3/stages_f1.js', 'js/g3/stages_f2.js', 'js/g3/stages_f3.js', 'js/g3/stages_p4.js', 'js/g4/data4.js', 'js/g4/stages_c1.js', 'js/g4/stages_a2.js', 'js/g4/stages_b2.js', 'js/g4/stages_c3.js', 'js/g4/stages_bf.js', 'js/g4/stages_u4.js', 'js/g4/stages_i4.js', 'js/g4/stages_c5.js', 'js/sprites.js', 'js/sprites3.js', 'js/portraits.js', 'js/audio.js', 'js/battle.js', 'js/duelfig.js', 'js/duel.js', 'js/spellfx.js', 'js/promote.js', 'js/game.js',
   'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
