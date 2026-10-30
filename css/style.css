@@ -250,3 +250,5 @@ button { font: inherit; color: inherit; }
 .rel { color: #ff8ab0; font-weight: 900; font-size: 13px; }
 
 .skills .pw { font-style: normal; font-size: 10px; color: #ffb070; margin-left: 2px; }
+.port.mapchar { background: radial-gradient(circle at 50% 70%, #3f5a3a, #1c2a1a 70%); }
+.port.mapchar canvas { width: 48px; height: 48px; image-rendering: pixelated; }

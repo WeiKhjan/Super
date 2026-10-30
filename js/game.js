@@ -170,6 +170,18 @@ function itemDesc(it) {
   const kind = { sword: '剑', blade: '刀', lance: '枪', bow: '弓', staff: '杖', axe: '斧', claw: '爪' }[it.kind];
   return parts.join(' · ') + (kind ? `（${kind}）` : it.type === 'acc' ? '（饰品）' : it.type === 'armor' ? '（防具）' : '');
 }
+// 营地队伍卡：显示角色在地图上的样子（含目前的装备），换装备后立即看得到
+function mapCharCanvas(id, scale) {
+  const d = S.roster[id];
+  if (!d || typeof unitSprite !== 'function') return null;
+  const src = unitSprite(Object.assign({ status: {}, buffs: [] }, d, { team: 'player' }));
+  if (!src) return null;
+  const c = document.createElement('canvas');
+  c.width = src.width * scale; c.height = src.height * scale; c.className = 'pix';
+  const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+  g.drawImage(src, 0, 0, c.width, c.height);
+  return c;
+}
 function showCamp() {
   B = null;
   show('camp');
@@ -189,7 +201,7 @@ function renderCamp() {
       const away = next && !next.heroes.includes(id);
       const sk = skillsOf(u).map(s => { const sp = SPELLS[s]; return sp.power ? `${sp.name}<i class="pw">${sp.kind === 'heal' ? '回' : '威'}${sp.power}</i>` : sp.name; }).join('、') || '—';
       return `<div class="card ${away ? 'away' : ''}">
-        <div class="card-top"><div class="port" data-hero="${id}"></div>
+        <div class="card-top"><div class="port mapchar" data-mapchar="${id}"></div>
           <div><b>${esc(d.name)}</b> <span class="dim">${className(u)} Lv${d.lv}</span>${(S.rel || {})[id] !== undefined ? ` <span class="rel">♥ ${S.rel[id]}</span>` : ''}${(S.left || {})[id] ? ' <span class="tag t-away">已离队</span>' : ''}${away ? ' <span class="tag t-away">本关不在队中</span>' : ''}<br>
           <span class="small">HP ${d.mhp} · MP ${d.mmp} · 攻 ${atkOf(u)} · 防 ${defOf(u)} · 魔 ${magOf(u)} · 速 ${spdOf(u)} · 移 ${movOf(u)}</span><br>
           <span class="small dim">EXP ${d.exp}/100 · ${CLASSES[d.cls].line} · ${typeOf(u)}</span></div></div>
@@ -205,6 +217,7 @@ function renderCamp() {
       </div>`;
     }).join('');
     for (const p of body.querySelectorAll('[data-hero]')) { const c = portraitCanvas(p.dataset.hero, 52); if (c) p.appendChild(c); }
+    for (const p of body.querySelectorAll('[data-mapchar]')) { const c = mapCharCanvas(p.dataset.mapchar, 3); if (c) p.appendChild(c); }
   } else if (campTab === 'items') {
     const ids = Object.keys(S.inv).filter(id => S.inv[id] > 0);
     body.innerHTML = ids.length ? ids.map(id => {
