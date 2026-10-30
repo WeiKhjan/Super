@@ -596,6 +596,71 @@ const DFIG = (() => {
     if (S.robe) { S.robe.c2 = S.robe.c2 || S.robe.c; if (!base.sleeve) S.sleeve = S.robe.c; if (!base.bracer) S.bracer = S.robe.trim; }
     return S;
   }
+  // ---------------- 装备外观（我方 / 友军）：武器种类、品级金属色与光芒；护甲改变身体层 ----------------
+  const ROBE_CLOTH = ['#8a7a5a', '#6a5a8a', '#4a5aa8', '#8a3aa8', '#5a2a8a'];
+  function gearWeapon(cur, W, S) {
+    const [dk, md, lt] = W.metal, gr = W.grade, gold = gr >= 3;
+    const MAP = { sword: 'sword', blade: 'katana', lance: 'lance', bow: 'bow', staff: 'staff', axe: 'axe', claw: 'claw' };
+    let k = MAP[W.kind]; if (!k) return cur;
+    if (k === 'bow' && cur.k === 'xbow') k = 'xbow';
+    if (k === 'claw' && cur.k === 'fist') k = 'fist';
+    const DEF = { sword: () => SW(18, C.steel, C.dSteel), katana: () => ({ k: 'katana', len: 24, c: C.blade, g: C.dIron }), lance: () => ({ k: 'lance', len: 36, c: C.steel, flag: S.p }),
+      bow: () => ({ k: 'bow', size: 14, c: C.wood }), xbow: () => ({ k: 'xbow', c: C.wood, m: C.steel }), staff: () => STAFF(30, 'gem', { gem: C.cyan }), axe: () => ({ k: 'axe', len: 20, h: 1, c: C.steel }),
+      claw: () => ({ k: 'claw', c: C.steel }), fist: () => ({ k: 'fist' }) };
+    const w = cur.k === k ? Object.assign({}, cur) : DEF[k]();
+    w.glow = W.glow || null;
+    switch (k) {
+      case 'sword': w.c = lt; w.g = gold ? C.gold : md; w.big = gr >= 3 ? 1 : 0; w.wood = gr === 0 && cur.wood ? 1 : 0; w.len = Math.max(w.len || 18, 15 + gr * 2); if (!W.glow) w.runes = 0; break;
+      case 'katana': w.c = lt; w.g = gold ? C.gold : dk; break;
+      case 'axe': w.c = lt; w.g = gold ? C.gold : md; if (gr >= 3 && (w.h || 0) < 2) w.h = 2; if (gr >= 4) w.h = 3; break;
+      case 'lance': w.c = lt; w.gold = gold ? 1 : 0; w.dark = 0; w.len = Math.max(w.len || 34, 32 + gr * 2); break;
+      case 'bow': w.c = [C.wood, '#6a4a2a', '#c4ccd8', C.gold, '#a868e8'][gr]; w.tip = lt; w.size = Math.max(w.size || 14, 13 + gr); if (W.glow) { w.str = W.glow; w.arrow = W.glow; } else { delete w.str; delete w.arrow; } break;
+      case 'xbow': w.c = gold ? C.gold : C.wood; w.m = lt; w.big = gr >= 3 ? 1 : w.big; break;
+      case 'staff': w.wood = gr <= 1 ? C.wood : gr === 2 ? '#c4ccd8' : C.gold; w.tc = gold ? C.gold : md; if (W.glow) w.gem = W.glow; w.len = Math.max(w.len || 30, 28 + gr * 2); break;
+      case 'claw': w.c = lt; w.big = gr >= 2 ? 1 : w.big; break;
+      case 'fist': w.glow = W.glow || (gr >= 2 ? lt : null); break;
+    }
+    return w;
+  }
+  function gearArmor(S, A) {
+    const [dk, md, lt] = A.metal, gr = A.grade, legend = gr >= 4 || !!A.glow;
+    const isCape = /cape|cloak/i.test(A.id || '');
+    switch (A.weight) {
+      case 'shield':
+        if (!['bow', 'xbow', 'katana'].includes(S.wpn.k) && !(S.wpn.k === 'axe' && !S.wpn2) && !S.book) S.shield = { s: /round/i.test(A.id || '') || /圆/.test((ITEMS[A.id] || {}).name || '') ? 'round' : gr >= 2 ? 'kite' : 'round', c: md, c2: legend ? C.gold : dk, e: S.p };
+        break;
+      case 'cloth':
+        if (isCape) S.cape = Object.assign({}, S.cape || {}, { c: ROBE_CLOTH[gr], c2: dk, trim: legend ? C.gold : lt, len: (S.cape && S.cape.len) || 26 });
+        else if (S.robe) S.mantle = { c: ROBE_CLOTH[gr], trim: legend ? C.gold : lt };
+        else { S.armor = { t: 'coat', c: ROBE_CLOTH[gr] }; S.mantle = gr >= 2 ? { c: ROBE_CLOTH[gr], trim: lt } : S.mantle; }
+        break;
+      case 'leather':
+        if (S.robe) { S.belt = C.leather; S.bracer = C.leather; }
+        else { S.armor = { t: 'leather', c: gr >= 1 ? '#7a4a2a' : C.leather, c2: gr >= 1 ? lt : C.dLeather }; S.bracer = C.leather; }
+        break;
+      case 'mail':
+        if (S.robe) S.pads = { c: md };
+        else { S.armor = { t: 'chain', c: lt, c2: md }; S.tabard = S.p; S.emblem = legend ? C.gold : S.emblem; S.pads = gr >= 2 ? { c: md } : S.pads; S.sleeve = lt; }
+        break;
+      default: // plate
+        if (S.robe) { S.pads = { c: md, big: gr >= 2 ? 1 : 0 }; S.bracer = md; }
+        else {
+          S.armor = { t: 'plate', c: md, c2: dk, trim: legend ? C.gold : null };
+          S.emblem = legend ? (A.glow || C.gold) : S.p;
+          S.pads = { c: gr >= 3 ? lt : md, big: gr >= 2 ? 1 : 0 };
+          S.greave = md; S.bracer = md; S.glove = dk; S.sleeve = md; S.boots = md;
+        }
+    }
+    if (legend && A.glow && !S.aura) S.aura = A.glow;
+  }
+  function applyGear(S, u, CL, alt, isB) {
+    const W = u.weapon ? gearLook(u.weapon) : null, A = u.armor ? gearLook(u.armor) : null;
+    if (W && W.kind !== 'armor' && W.kind !== 'acc') {
+      const allowed = (isB && alt && alt.weapon) || (CL && CL.weapon) || [];
+      if (allowed.includes(W.kind)) S.wpn = gearWeapon(S.wpn, W, S);
+    }
+    if (A && A.kind === 'armor') gearArmor(S, A);
+  }
   const SPEC_CACHE = {};
   function specOf(u) {
     const cls = u.cls, CL = typeof CLASSES !== 'undefined' && CLASSES[cls];
@@ -604,7 +669,7 @@ const DFIG = (() => {
     const n = Math.max(CL ? CL.tiers.length : 1, alt && alt.tiers ? at + alt.tiers.length : 0), t = clamp(u.tier | 0, 0, n - 1);
     const isB = u.path === 'b' && at != null && t >= at;
     const wk = (typeof ITEMS !== 'undefined' && u.weapon && ITEMS[u.weapon] && ITEMS[u.weapon].kind) || '';
-    const key = [cls, t, team, u.hair || '', u.id || '', wk, u.element || '', u.color || '', isB ? 'b' : 'a', u.sex || ''].join('|');
+    const key = [cls, t, team, u.hair || '', u.id || '', wk, u.element || '', u.color || '', isB ? 'b' : 'a', u.sex || '', u.weapon || '', u.armor || ''].join('|');
     if (SPEC_CACHE[key]) return SPEC_CACHE[key];
     const fn = (isB && LINES_B[cls]) || LINES[cls] || (CL && LINES[CL.sprite]);
     let S;
@@ -622,7 +687,9 @@ const DFIG = (() => {
       if (isB && cls === 'hawk' && base.hair) S.hair = base.hair;
       S.wpn = Object.assign({}, S.wpn || { k: 'none' });
       // 装备的武器种类可覆盖默认（如武士改拿剑、鹰族拿爪）
-      if (!isB && !base.scaleK && !base.fixW && wk && wk !== S.wpn.k && !(S.wpn.k === 'xbow' && wk === 'bow') && !(cls === 'prayer' && wk === 'staff')) {
+      const ally = team === 'player' || team === 'ally';
+      if (ally && typeof gearLook === 'function') applyGear(S, u, CL, alt, isB);
+      else if (!isB && !base.scaleK && !base.fixW && wk && wk !== S.wpn.k && !(S.wpn.k === 'xbow' && wk === 'bow') && !(cls === 'prayer' && wk === 'staff')) {
         if (wk === 'sword') S.wpn = SW(19, C.steel, C.dSteel);
         else if (wk === 'blade') S.wpn = { k: 'katana', len: 24, c: C.blade, g: C.dIron };
         else if (wk === 'claw') S.wpn = { k: 'claw', c: C.steel };
@@ -662,7 +729,7 @@ const DFIG = (() => {
     if (S.mount) Object.assign(st, { lt: 62, ls: -8, ba: 40, be: 80, lean: 4 }, k === 'lance' ? { fa: 18, fe: 85, w: 158 } : {});
     if (S.robe) Object.assign(st, { lt: 6, ls: 0, bt: -8, bs: -8 });
     if (S.wings) Object.assign(st, { wf: 0.25 }, k === 'claw' ? { fa: 50, fe: 100, ba: 40, be: 95 } : {});
-    if (S.shield) Object.assign(st, { ba: 35, be: 100 });
+    if (S.shield) Object.assign(st, S.mount ? { ba: 35, be: 100 } : { ba: 70, be: 92 });
     if (S.wpn2) Object.assign(st, { two: 0, ba: 25, be: 110, fa: 35, fe: 120 });
     if (S.book) Object.assign(st, { ba: 40, be: 95 });
     if (S.hover) Object.assign(st, { Y: -9, lt: 25, ls: 10, bt: -10, bs: 20 });
@@ -1189,7 +1256,7 @@ const DFIG = (() => {
     }
     const sd = S.shield; if (!sd) return;
     part(NF);
-    const c1 = pc(sd.c), c2 = pc(sd.c2), e = sd.e ? pc(sd.e) : 0, h = add(J.hB, J.fw, 1.5);
+    const c1 = pc(sd.c), c2 = pc(sd.c2), e = sd.e ? pc(sd.e) : 0, h = add(add(J.hB, J.fw, sd.s === 'tower' ? 1.5 : 4), J.up, sd.s === 'tower' ? 0 : 1);
     if (sd.s === 'tower') {
       const w2 = 7, ht = 12, hh = add(add(h, J.fw, 3), [0, 3]);
       poly([add(hh, [-w2, -ht]), add(hh, [w2, -ht]), add(hh, [w2, ht - 3]), add(hh, [0, ht]), add(hh, [-w2, ht - 3])], (px, py) => {
@@ -1199,7 +1266,7 @@ const DFIG = (() => {
         return Math.floor(y + 20) % 6 === 0 ? c2 : c1;
       });
     } else if (sd.s === 'round') {
-      ell(h, 5.6, 7.4, 0, (px, py) => { const d = Math.hypot((px - h[0]) / 5.6, (py - h[1]) / 7.4); return d > 0.78 ? c2 : e && d < 0.38 ? e : c1; });
+      ell(h, 6.2, 8, 0, (px, py) => { const d = Math.hypot((px - h[0]) / 6.2, (py - h[1]) / 8); return d > 0.78 ? c2 : e && d < 0.38 ? e : c1; });
     } else {
       const K = 1.3, pts = [add(h, [-3.6 * K, -6.5 * K]), add(h, [3.6 * K, -6.5 * K]), add(h, [3.8 * K, 1 * K]), add(h, [0, 8 * K]), add(h, [-3.8 * K, 1 * K])];
       poly(pts, (px, py) => { const x = (px - h[0]) / K, y = (py - h[1]) / K; const edge = Math.abs(x) > 2.8 || y < -5.6 || y > 6.2 - Math.abs(x) * 1.2; if (edge) return c2; if (e && (Math.abs(x) < 1 || (y > -3.2 && y < -1.4))) return e; return c1; });
@@ -1505,7 +1572,7 @@ const DFIG = (() => {
     drawHead(J, S, P);
     drawFloat(J, S);
     if (S.scarf) { part(NF); const n = J.neck; ell(add(n, J.up, -0.8), 5.2, 3, -P.lean, pc(S.scarf)); }
-    drawShield(J, S);
+    if (S.book) drawShield(J, Object.assign({}, S, { shield: null }));
     if (S.wpn2) { const w2a = P.w + 22; drawWeapon(Object.assign({}, J, { hF: J.hB, wd: dv(w2a), fe: J.be }), Object.assign({}, S, { wpn: S.wpn2 }), Object.assign({}, P, { w: w2a })); part(BF); disc(J.hB, 3, pc(S.glove || S.skin)); }
     drawBow(J, S, P);
     // 拖影：用前几帧的姿势算出武器尖端轨迹
@@ -1522,6 +1589,7 @@ const DFIG = (() => {
     }
     drawWeapon(J, S, P);
     drawArm(J.sF, J.eF, J.hF, S, false, J.fe);
+    if (S.shield) drawShield(J, Object.assign({}, S, { book: null }));
     drawOrbs(J, S, true);
     if (S.storm && Math.sin(NOW * 0.023) > 0.55) { part(FLAT); const c0 = T(J, -6, 22), cc = pc('#c8f8ff'); let q0 = add(c0, [Math.sin(NOW) * 8, -6]); for (let i = 0; i < 4; i++) { const q1 = add(q0, [(i % 2 ? 3 : -3), 3.5]); cap(q0, q1, 0.6, 0.6, cc); q0 = q1; } }
     // 闪光点缀（顶阶）
