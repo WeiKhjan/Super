@@ -354,6 +354,7 @@ const EYES = { // Q 版大眼：高瞳、大高光（dy = 相对 ey 的下移行
 // 人物绘制
 // =====================================================================
 function drawHuman(S) {
+  if (CUR_GEAR) { S = applyGear(S, CUR_GEAR); CUR_GEAR = null; } // 仅作用于本次英雄立绘
   const p = new Pic();
   const F = Object.assign({}, FACES[S.face] || FACES.m);
   const skin = SKIN[S.skin] || SKIN.fair;
@@ -1399,6 +1400,9 @@ const HERO_SPECS = {
   zhangqing: { face: 'old', skin: 'old', hair: '#ececf2', hairStyle: 'sage', iris: '#3a3a4a', eyes: 'stern', brow: 'stern', thickBrow: true, mouth: 'neutral', nose: 'long', beard: 'long', body: 'master', cloth: '#3a4a6a', lines: c => oldLines(c, false), back: c => sword(c, 53, 34) },
 };
 
+for (const k of ['oz', 'liu', 'zhangqing']) HERO_SPECS[k].back.isWeapon = true;
+function tagW(f) { f.isWeapon = true; return f; }
+bow.isWeapon = true; quiver.isWeapon = true;
 // 敌方人类兵种
 function enemyHuman(kind, v) {
   const vc = VCOL[v];
@@ -2276,6 +2280,7 @@ const GEAR = {
     if (rep) piece(c, poly([50, 41, 57, 36, 60, 40, 53, 45]), mt, 'metal', { s: 1, hl: 1 }); // 连弩弹匣
   },
 };
+GEAR.crossbow = ((f0) => (...a) => tagW(f0(...a)))(GEAR.crossbow); // 装备系统：武器层可被替换
 // —— 头部层（脸部坐标）——
 const HG = {
   // 额环：mt 金属色阶；gem 宝石；wings 两侧羽翼
@@ -2353,7 +2358,7 @@ const HG = {
 const GOLD = METAL.gold, SILVER = METAL.silver, STEEL = METAL.steel;
 const STEEL_BLUE = ['#10162a', '#2e4470', '#46649c', '#6a8ac4', '#a8c4ec', '#eef6ff'];
 // 每位英雄：native = 当前设定对应的阶（tier 未指定时即此外观）；t[i] = 第 i 阶的覆盖项
-const SW = (x, y, bl, gd) => c => sword(c, x, y, bl, gd);
+const SW = (x, y, bl, gd) => tagW(c => sword(c, x, y, bl, gd));
 const TIER_LOOK = {
   // 作家 → 侠客 → 剑道家 → 圣剑士 → 剑侠 → 剑王 → 剑圣（红围巾贯穿始终）
   mengqi: { native: 0, t: [
@@ -2646,6 +2651,7 @@ const GB = {
     piece(c, ell(31, 57, 2.2, 2.2), METAL.gold, 'acc', { s: 1, hl: 1 });
   },
 };
+for (const k of ['bigBlade', 'twinBlades', 'bow']) GB[k] = ((f0) => (...a) => tagW(f0(...a)))(GB[k]);
 // —— B 路线头部层（脸部坐标）——
 const HB = {
   // 脸颊战纹
@@ -3414,6 +3420,7 @@ const GB4 = {
   // 精灵翅膀（薄翅）
   fairyWings: (col) => c => { for (const d of [-1, 1]) { const X = (x) => 31.5 + d * x; const w = piece(c, union(ell(X(22), 40, 8, 13, d * 0.5), ell(X(20), 56, 6, 8, -d * 0.4)), rp(col, { lit: 0.55 }), 'wing', { s: 0, d: 0, hl: 1 }); c.p.line([X(16), 52, X(24), 32], w, 5, true); } },
 };
+for (const k of ['halberd', 'spear']) GB4[k] = ((f0) => (...a) => tagW(f0(...a)))(GB4[k]);
 const NAVY_G = '#1e2a5a';
 // —— g4 职业（加入 CLASS_A / CLASS_B）——
 Object.assign(CLASS_A, {
@@ -3632,6 +3639,90 @@ const G4_ENEMY = {
 };
 
 // =====================================================================
+// 装备外观：英雄立绘反映当前武器 / 防具（gearLook 由 data.js 提供）
+// =====================================================================
+let CUR_GEAR = null; // getPortrait 构建英雄立绘时设置
+const gearRamp = (m, glow) => {
+  const r = [mix(m[0], '#000000', 0.55), m[0], mix(m[0], m[1], 0.5), m[1], m[2], mix(m[2], '#ffffff', 0.6)];
+  if (glow) { r[4] = mix(m[2], glow, 0.55); r[5] = mix(glow, '#ffffff', 0.5); }
+  return r;
+};
+// 浮光点（画面坐标）
+function gearSparks(c, col, pts) {
+  const id = c.p.obj(rp(col, { lit: 0.55 }), 'glow', { ol: false });
+  for (const [x, y] of pts) { c.p.px(x, y, id, 5); c.p.px(x - 1, y, id, 3); c.p.px(x + 1, y, id, 3); c.p.px(x, y - 1, id, 3); c.p.px(x, y + 1, id, 3); }
+}
+// 法杖（背后右上，画面坐标）
+function gearStaff(c, mt, glow, grade) {
+  const { p } = c;
+  piece(c, lock(45, 74, 58.5, 26, 2.2, 0, 2), grade >= 2 ? mt : rp('#7a4a22'), 'acc', { s: 0, hl: 1 });
+  if (grade >= 1) piece(c, union(lock(58.5, 28, 54, 20, 1.6, 1.5, 0.6), lock(58.5, 28, 63, 20, 1.6, -1.5, 0.6)), mt, 'metal', { s: 0, hl: 1 });
+  const orb = piece(c, ell(58.5, 22, 3 + grade * 0.4, 3 + grade * 0.4), rp(glow || ['#c08040', '#40c0ff', '#60e0c0', '#ffd040', '#e080ff'][grade], { lit: 0.5 }), 'acc', { s: 1, d: 0, hl: 1 });
+  p.px(57.5, 21, orb, 5);
+}
+// 爪 / 拳刃（画面左下）
+function gearClaw(c, mt) {
+  GB.fist(mt)(c);
+  for (const x of [4.5, 8.5, 12.5]) piece(c, poly([x - 1, 58, x + 1, 58, x + 0.6, 49, x - 0.2, 47]), mt, 'metal', { s: 0, hl: 1 });
+}
+function gearWeapon(w) {
+  const mt = gearRamp(w.metal, w.glow), gd = w.grade >= 3 ? METAL.gold : w.grade === 2 ? METAL.silver : null;
+  const glowFx = w.glow ? (c) => { const o = TF; TF = null; gearSparks(c, w.glow, [[60, 22], [56, 32], [62, 12]]); TF = o; } : null;
+  let f;
+  switch (w.kind) {
+    case 'sword': f = c => { sword(c, 52, 36, mt, gd); if (glowFx) glowFx(c); }; break;
+    case 'blade': f = c => { sword(c, 52, 36, mt, w.grade >= 3 ? METAL.gold : METAL.black); if (glowFx) glowFx(c); }; break;
+    case 'lance': f = c => { GB4.spear(mt, w.grade >= 2 ? (w.glow || '#c02a2a') : null)(c); if (glowFx) glowFx(c); }; break;
+    case 'axe': f = c => { GB.bigBlade(mt, 'axe', !!w.glow && w.grade >= 3)(c); }; break;
+    case 'bow': f = /xbow/i.test(w.id || '') ? null : c => { GB.bow(w.grade >= 2 ? mt : w.grade === 1 ? '#6a3a1a' : '#9a5a24', w.glow ? gearRamp(w.metal, w.glow) : null)(c); }; break;
+    case 'staff': f = c => { const o = TF; TF = null; gearStaff(c, mt, w.glow, w.grade); if (glowFx) glowFx(c); TF = o; }; break;
+    default: f = null;
+  }
+  return f && tagW(f);
+}
+// 连弩（属于前景层）
+function gearXbow(w) { return tagW(GEAR.crossbow(gearRamp(w.metal, w.glow), w.grade >= 3 ? '#5a2a1a' : '#6a3a1a', w.grade >= 2)); }
+function gearArmor(a) {
+  const mt = gearRamp(a.metal, a.glow), out = [];
+  switch (a.weight) {
+    case 'cloth': out.push(GEAR.mantle(['#6a5a4a', '#4a5a8a', '#6a4a9a', '#8a2a3a', '#3a2a6a'][a.grade], a.grade >= 2 ? mt : null)); break;
+    case 'leather': out.push(GEAR.pauldrons(rp(a.grade >= 2 ? '#5a3418' : '#8a5a2c'), 'L'), GEAR.strap(a.grade >= 2 ? '#3a1e0e' : '#6a4020'), GEAR.bracer(rp('#7a4a22'))); if (a.grade >= 1) out.push(c => { rivet(c, 7, 58); rivet(c, 12, 57); }); break;
+    case 'mail': out.push(c => { const id = c.p.obj(mt, 'mail', { ol: false }); for (let y = 60; y < 74; y += 2) for (let x = 20 + (y % 4 ? 0 : 1); x < 44; x += 2) c.p.spx(x + 0.5, y + 0.5, ['cloth', 'metal', 'skin'], 2); }, GEAR.pauldrons(mt, 'L')); break;
+    case 'shield': out.push(GB.shield(rp(['#6a4a2a', '#4a5a7a', '#c8ccd8', '#2a4aa8', '#5a2a8a'][a.grade]), mt, a.grade >= 3 ? 'cross' : 'boss')); break;
+    default: out.push(GEAR.breast(mt), GEAR.pauldrons(mt, null, a.grade >= 3));
+  }
+  if (a.glow || a.grade >= 4) out.push(GEAR.emblem(a.glow || '#e0c0ff', 31.5, 62, 1.8), c => { const o = TF; TF = null; gearSparks(c, a.glow || '#e0c0ff', [[4, 56], [60, 58], [8, 66]]); TF = o; });
+  return out;
+}
+// 把装备层套到立绘设定上（不修改原设定）
+function applyGear(S, g) {
+  if (!g || (!g.w && !g.a)) return S;
+  const T = Object.assign({}, S);
+  const keep = (v) => [].concat(v || []).filter(f => !(f && f.isWeapon));
+  if (g.w && g.w.kind !== 'acc') {
+    const wf = gearWeapon(g.w);
+    if (wf || /xbow/i.test(g.w.id || '')) {
+      T.back = keep(T.back); T.over = keep(T.over);
+      T.over.push(wf || gearXbow(g.w)); // 前景层：压在后发之上，仍在脸与前发之下
+      if (g.w.kind === 'claw') T.over.push(c => gearClaw(c, gearRamp(g.w.metal, g.w.glow)));
+    } else if (g.w.kind === 'claw') { T.over = keep(T.over).concat([c => gearClaw(c, gearRamp(g.w.metal, g.w.glow))]); T.back = keep(T.back); }
+  }
+  if (g.a && g.a.kind === 'armor') T.over = gearArmor(g.a).concat([].concat(T.over || []));
+  return T;
+}
+// 英雄当前装备（存档优先，其次初始设定）
+function heroGearSrc(id) {
+  try { if (typeof S !== 'undefined' && S && S.roster && S.roster[id]) return S.roster[id]; } catch (e) { /* 无存档 */ }
+  try { if (typeof HEROES !== 'undefined' && HEROES[id]) return HEROES[id]; } catch (e) { /* 无 HEROES */ }
+  return null;
+}
+function heroGear(id) {
+  if (typeof gearOf !== 'function' || typeof gearLook !== 'function') return null;
+  const src = heroGearSrc(id); if (!src || (!src.weapon && !src.armor)) return null;
+  try { const g = gearOf(src); return (g.w || g.a) ? { g, key: typeof gearKey === 'function' ? gearKey(src) : (src.weapon || '-') + '/' + (src.armor || '-') } : null; } catch (e) { return null; }
+}
+
+// =====================================================================
 // 对外接口
 // =====================================================================
 const CACHE = {};
@@ -3691,10 +3782,13 @@ function getPortrait(id, variant, tier, path) {
   if (laterCamp() && G2_OLDER[id]) { key += '|' + CUR_CAMPAIGN; try { if (HEROES[id] && HEROES[id].cls !== HERO_CLS[id]) key += '|' + HEROES[id].cls; } catch (e) { /* 无 HEROES */ } }
   if (id === 'guluru') { try { key += '|' + HEROES.guluru.cls; } catch (e) { /* 无 HEROES */ } }
   if (G2_HEROES[id] && !HERO_SPECS[id]) { key += '|' + g2Cls(id); if (tier == null) { try { key += '|lv' + HEROES[id].lv; } catch (e) { /* 无 HEROES */ } } }
+  const hg = typeof id === 'string' && !id.startsWith('enemy:') ? heroGear(id) : null;
+  if (hg) key += '|' + hg.key; // 换装后重新绘制
   if (CACHE[key]) return CACHE[key];
   let c = null;
+  CUR_GEAR = hg && hg.g;
   try { c = build(id, variant, tier, path); } catch (e) { TF = null; if (G.console) console.warn('portrait', id, e); c = null; }
-  TF = null;
+  TF = null; CUR_GEAR = null;
   if (!c) c = CACHE['?'] || (CACHE['?'] = silhouette());
   else c.className = 'pix portrait';
   CACHE[key] = c;
