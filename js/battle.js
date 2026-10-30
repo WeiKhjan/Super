@@ -339,8 +339,9 @@ function physCalc(a, d, power = 0, sure = false) {
 function magCalc(a, d, sp) {
   let dmg = sp.power + magOf(a) * 0.85 - (defOf(d) * 0.35 + magOf(d) * 0.35);
   if (sp.vsDark && DARK_TYPES.includes(typeOf(d))) dmg *= sp.vsDark;
-  if (sp.school === '技') dmg = Math.round(dmg * advMult(a, d)); // 喷火等天生攻击也受相克影响
-  return { dmg: Math.max(1, Math.round(dmg)), hit: 100, crit: 0, adv: 1 };
+  const adv = advMult(a, d); // 兵种相克：魔法攻击也一样有加成 / 减成
+  dmg *= adv;
+  return { dmg: Math.max(1, Math.round(dmg)), hit: 100, crit: 0, adv };
 }
 // 合击伙伴：一般双人剑式要剑术系伙伴；情侣合技（sp.partner）要指定角色相邻且好感度足够
 function pairPartner(u, sp) {
@@ -377,7 +378,7 @@ function skillEstimate(u, id) {
   if (sp.kind === 'death') return `<em class="sk-dmg">${who} 即死 ${deathChance(u, t, sp)}%</em>`;
   if (sp.kind === 'debuff') return `<em class="sk-dmg">${who} ${BUFF_NAME[sp.stat]}下降</em>`;
   const c = skillCalc(u, t, sp, sp.kind === 'pair' ? pairPartner(u, sp) : null);
-  const kill = c.dmg >= t.hp ? ' · 可击倒' : '';
+  const kill = (c.adv > 1 ? ' · <span style="color:#5ae05a">克制</span>' : c.adv < 1 ? ' · <span style="color:#ff7070">被克</span>' : '') + (c.dmg >= t.hp ? ' · 可击倒' : '');
   return `<em class="sk-dmg">威力 ${sp.power || 0} · ${who} 约 <b>${c.dmg}</b> 伤害${c.hit < 100 ? `（命中 ${c.hit}%）` : ''}${sp.area || sp.line || sp.cone ? ' · 范围' : ''}${kill}</em>`;
 }
 function healAmount(a, sp) { return sp.power + Math.round(magOf(a) * 0.8); }
@@ -1854,7 +1855,7 @@ function forecastHtml() {
         case 'debuff': return `${esc(o.name)} ${BUFF_NAME[sp.stat]}下降 ${sp.turns} 回合`;
         case 'status': return `${esc(o.name)} ${STATUS_NAME[sp.status]} 成功率 <em>${statusChance(u, o, sp)}%</em>`;
         case 'death': return `${esc(o.name)} 即死率 <em>${deathChance(u, o, sp)}%</em>`;
-        default: { const c = skillCalc(u, o, sp, partner); const dd = Math.round(c.dmg * (sp.area && !shaped(sp) && (o.x !== p.x || o.y !== p.y) ? 0.7 : 1)); return `${ally ? '<span class="warn">误伤</span> ' : ''}${esc(o.name)} 伤害 <em>${dd}</em>${c.hit < 100 ? ` (${c.hit}%)` : ''}`; }
+        default: { const c = skillCalc(u, o, sp, partner); const dd = Math.round(c.dmg * (sp.area && !shaped(sp) && (o.x !== p.x || o.y !== p.y) ? 0.7 : 1)); return `${ally ? '<span class="warn">误伤</span> ' : ''}${esc(o.name)} 伤害 <em>${dd}</em>${c.hit < 100 ? ` (${c.hit}%)` : ''}${advText(c.adv, c.pos)}`; }
       }
     }).join('<br>');
     return `<div class="fc"><div class="fc-side"><b>${sp.name}</b> <span class="dim">MP ${sp.mp}${partner ? ` · 与${esc(partner.name)}合击` : ''}</span><div class="fc-rows">${rows || '<span class="dim">范围内没有目标</span>'}</div></div></div>`;
