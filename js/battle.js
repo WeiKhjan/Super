@@ -14,7 +14,9 @@ const STATUS_COLOR = { petrify: '#9a9aa8', freeze: '#7ad8ff', blind: '#f4e04a', 
 const BUFF_NAME = { atk: '攻击', def: '防御', mag: '魔力', mov: '移动', skill: '战技', fly: '飞行', bless: '祝福' };
 const LEVEL_CAP = 40;
 
-const OPT = { sound: true, music: true, fast: false, easy: false, anim: true };
+const OPT = { sound: true, music: true, fast: false, easy: false, anim: true, art: 'hd' };
+// 画风：'hd' 高清（默认）| 'pixel' 原像素风
+const artHD = () => OPT.art !== 'pixel';
 let AUTO = false; // 自动对战（测试用）：我方也由 AI 控制，跳过动画与对话
 const T = ms => (AUTO ? 0 : OPT.fast ? ms / 2.5 : ms);
 const wait = ms => (T(ms) > 0 ? sleep(T(ms)) : Promise.resolve());
