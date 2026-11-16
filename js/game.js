@@ -112,6 +112,7 @@ async function battleMenu() {
     { label: `音效：${OPT.sound ? '开' : '关'}`, value: 'sound' },
     { label: `战斗速度：${OPT.fast ? '快' : '标准'}`, value: 'fast' },
     { label: `战斗画面：${OPT.anim ? '开' : '关'}`, value: 'anim' },
+    { label: `画风：${artHD() ? '高清' : '像素'}`, value: 'art' },
     { label: `难度：${OPT.easy ? '简单' : '标准'}（下次进入战斗生效）`, value: 'easy' },
     { label: '重新开始本关', value: 'restart' },
     { label: '返回营地', value: 'camp' },
@@ -121,6 +122,7 @@ async function battleMenu() {
   if (v === 'music') { OPT.music = !OPT.music; saveOpt(); music(battleTheme(B && B.phase)); return battleMenu(); }
   if (v === 'fast') { OPT.fast = !OPT.fast; saveOpt(); return battleMenu(); }
   if (v === 'anim') { OPT.anim = !OPT.anim; saveOpt(); return battleMenu(); }
+  if (v === 'art') { toggleArt(); return battleMenu(); }
   if (v === 'easy') { OPT.easy = !OPT.easy; saveOpt(); return battleMenu(); }
   if (['restart', 'camp', 'title'].includes(v)) {
     const ok = await modal('确认', '<p class="center">当前战斗进度将会丢失，确定吗？</p>', [{ label: '确定', value: 1, cls: 'red' }, { label: '取消', value: 0 }]);
@@ -179,11 +181,14 @@ function itemDesc(it) {
 function mapCharCanvas(id, scale) {
   const d = S.roster[id];
   if (!d || typeof unitSprite !== 'function') return null;
-  const src = unitSprite(Object.assign({ status: {}, buffs: [] }, d, { team: 'player' }));
+  const u = Object.assign({ status: {}, buffs: [] }, d, { team: 'player' });
+  const hd = typeof unitSpriteHD === 'function' ? unitSpriteHD(u) : null; // 高清画风：平滑缩放的高清小人
+  const src = hd || unitSprite(u);
   if (!src) return null;
   const c = document.createElement('canvas');
-  c.width = src.width * scale; c.height = src.height * scale; c.className = 'pix';
-  const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
+  if (hd) { c.width = c.height = Math.min(hd.width, 16 * scale * 2); c.className = 'hdp'; }
+  else { c.width = src.width * scale; c.height = src.height * scale; c.className = 'pix'; }
+  const g = c.getContext('2d'); g.imageSmoothingEnabled = !!hd; if (hd) g.imageSmoothingQuality = 'high';
   g.drawImage(src, 0, 0, c.width, c.height);
   return c;
 }
@@ -576,7 +581,15 @@ $('#btn-help').addEventListener('click', () => {
     <p class="dim">提示：在手机浏览器中「添加到主屏幕」，即可像 App 一样全屏游玩。</p>
     </div>`, [{ label: '明白了', value: 1, cls: 'primary' }], { dismiss: 1, wide: true });
 });
-function diffLabel() { $('#btn-diff').textContent = `难度：${OPT.easy ? '简单' : '标准'}`; }
+function diffLabel() { $('#btn-diff').textContent = `难度：${OPT.easy ? '简单' : '标准'}`; if ($('#btn-art')) $('#btn-art').textContent = `画风：${artHD() ? '高清' : '像素'}`; }
+// 画风：高清 / 像素（存在设定里；战斗中切换会重建地图层并重画）
+function toggleArt() {
+  OPT.art = artHD() ? 'pixel' : 'hd'; saveOpt(); diffLabel();
+  if (typeof applyArt === 'function') applyArt();
+  if (!$('#camp').hidden && S) renderCamp();
+  if (!$('#title').hidden) showTitle();
+}
+if ($('#btn-art')) $('#btn-art').addEventListener('click', () => { sfx('select'); toggleArt(); toast(artHD() ? '画风：高清（平滑手绘风）' : '画风：像素（原版风格）'); });
 $('#btn-diff').addEventListener('click', () => { OPT.easy = !OPT.easy; saveOpt(); diffLabel(); sfx('select'); toast(OPT.easy ? '简单：敌人较弱，经验值 +25%' : '标准：接近原作的难度'); });
 $('#btn-sound').addEventListener('click', () => { OPT.sound = OPT.music = !(OPT.sound || OPT.music); saveOpt(); $('#btn-sound').textContent = OPT.sound ? '🔊' : '🔇'; sfx('select'); music('title'); });
 
@@ -590,10 +603,10 @@ $('#btn-sound').addEventListener('click', () => { OPT.sound = OPT.music = !(OPT.
     if (!$('#select').hidden && c.parentNode.id !== 'select') $('#select').prepend(c);
     else if (!$('#title').hidden && c.parentNode.id !== 'title') $('#title').prepend(c);
     const w = c.width = c.clientWidth, h = c.height = c.clientHeight;
-    g.fillStyle = '#07041a'; g.fillRect(0, 0, w, h);
+    g.fillStyle = '#050b1e'; g.fillRect(0, 0, w, h);
     const cx = w / 2, cy = h * 0.36, R = Math.max(w, h) * 0.7;
     const grd = g.createRadialGradient(cx, cy, 0, cx, cy, R * 0.5);
-    grd.addColorStop(0, 'rgba(160,110,255,0.55)'); grd.addColorStop(0.3, 'rgba(80,40,180,0.25)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
+    grd.addColorStop(0, 'rgba(120,150,255,0.55)'); grd.addColorStop(0.3, 'rgba(50,70,190,0.28)'); grd.addColorStop(1, 'rgba(0,0,0,0)');
     g.fillStyle = grd; g.fillRect(0, 0, w, h);
     for (const s of stars) {
       s.r += 0.0015 * s.s; if (s.r > 1) s.r = 0.02;

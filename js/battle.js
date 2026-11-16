@@ -413,7 +413,9 @@ const CAM = { trauma: 0, last: 0 };
 function addTrauma(v) { if (!AUTO) CAM.trauma = Math.min(1, CAM.trauma + v); }
 // 手机震动回馈
 function haptic(p) { if (AUTO || !OPT.sound) return; try { if (navigator.vibrate) navigator.vibrate(p); } catch (e) { } }
-let mapLayers = null;
+let mapLayers = null, mapHD = false;
+// 高清资源（hd_units.js / hd_map.js）出错时只停用出错的那一项，其余照常
+const HD_FAIL = {};
 
 function resize() {
   if (!B) return;
@@ -424,6 +426,15 @@ function resize() {
   DPR = Math.min(3, window.devicePixelRatio || 1);
   cv.style.width = TS * B.w + 'px'; cv.style.height = TS * B.h + 'px';
   cv.width = Math.round(TS * B.w * DPR); cv.height = Math.round(TS * B.h * DPR);
+  resetOverlayCache();
+  // 高清画风：手绘地图（js/hd_map.js）；未提供或出错时退回像素地图
+  mapHD = false;
+  if (artHD() && typeof buildMapHD === 'function' && !HD_FAIL.map) {
+    try {
+      const layers = [0, 1].map(frame => buildMapHD(B, TS * DPR, frame));
+      if (layers.every(c => c && c.width > 0 && c.height > 0)) { mapLayers = layers; mapHD = true; return; }
+    } catch (e) { HD_FAIL.map = 1; console.warn('buildMapHD 失败，改用像素地图', e); }
+  }
   mapLayers = [0, 1].map(frame => {
     const c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height;
     const g = c.getContext('2d'); g.imageSmoothingEnabled = false;
@@ -442,7 +453,8 @@ function resize() {
     return c;
   });
 }
-window.addEventListener('resize', () => setTimeout(resize, 50));
+let resizeT = 0;
+window.addEventListener('resize', () => { clearTimeout(resizeT); resizeT = setTimeout(resize, 80); }); // 高清地图重建较慢：连续的 resize 只做最后一次
 
 const GRAY = {};
 function tintSprite(c, id, mode) {
@@ -463,7 +475,332 @@ function tintSprite(c, id, mode) {
 // 冰龙路线默认用蓝色身体
 const spriteVariant = u => u.color || u.element || (altOf(u) || clsOf(u)).spriteVariant || (spriteKey(u) === 'dragon_b' ? 'blue' : undefined);
 function unitSprite(u) { const C = altOf(u) || clsOf(u); return getSprite(spriteKey(u), C.spriteTier ?? u.tier, u.team, u.hair, spriteVariant(u), gearOf(u)); }
+// 高清精灵（hd_units.js 的 getSpriteHD，框位与 getSprite 相同）；没有时回传 null，由呼叫端退回像素精灵
+const HD_SPR = new Map();
+function spriteHD(k, tier, team, hair, variant, gear) {
+  if (!artHD() || typeof getSpriteHD !== 'function' || HD_FAIL.sprite) return null;
+  const id = `${k}|${tier}|${team}|${hair || ''}|${variant || ''}|${gear && gear.w ? gear.w.id : '-'}/${gear && gear.a ? gear.a.id : '-'}`;
+  const hit = HD_SPR.get(id);
+  if (hit && hit.c) return hit.c;
+  if (hit && performance.now() < hit.retry) return null;
+  let c = null;
+  try { c = getSpriteHD(k, tier, team, hair, variant, gear) || null; } catch (e) { HD_FAIL.sprite = 1; console.warn('getSpriteHD 失败，改用像素精灵', e); }
+  if (c && !(c.width > 0)) c = null;
+  HD_SPR.set(id, c ? { c } : { retry: performance.now() + 2000 });
+  return c;
+}
+let FIT = new WeakMap();
+function fitSprite(src, px) {
+  let m = FIT.get(src);
+  if (!m) FIT.set(src, (m = {}));
+  if (m[px]) return m[px];
+  const c = document.createElement('canvas'); c.width = c.height = px;
+  const g = c.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+  g.drawImage(src, 0, 0, px, px);
+  return (m[px] = c);
+}
+function unitSpriteHD(u) { const C = altOf(u) || clsOf(u); return spriteHD(spriteKey(u), C.spriteTier ?? u.tier, u.team, u.hair, spriteVariant(u), gearOf(u)); }
+// 营地 / 转职预览用：依画风给出地图小人（hd: true 时需平滑缩放）
+function previewSprite(k, tier, team, hair, variant, gear) {
+  const c = spriteHD(k, tier, team, hair, variant, gear);
+  return c ? { c, hd: true } : { c: getSprite(k, tier, team, hair, variant, gear), hd: false };
+}
 const TEAM_COLOR = { player: '#4a9aff', ally: '#4ad87a', enemy: '#ff4a4a', rogue: '#e0b040' };
+
+// =====================================================================
+// 高清画风的地图叠加层：格子高亮、HP 数字与血条、武器类型徽章（全部预先画在离屏画布上，每帧只贴图）
+// =====================================================================
+const HD_TEAM = {
+  player: { main: '#38a4ff', hi: '#a8deff', dark: '#0c3a7a', text: '#e8f6ff' },
+  enemy: { main: '#ff4048', hi: '#ffb0b0', dark: '#6a0c14', text: '#fff0f0' },
+  ally: { main: '#3ad870', hi: '#b0ffc8', dark: '#0c5a26', text: '#efffef' },
+  rogue: { main: '#f0bc2a', hi: '#fff0a0', dark: '#6a4a06', text: '#fffbe8' },
+};
+const HL_STYLE = {
+  move: { rgb: [22, 108, 255], a: 0.54, glow: [120, 190, 255], edge: [200, 232, 255] },
+  attack: { rgb: [255, 28, 48], a: 0.50, glow: [255, 120, 120], edge: [255, 200, 200] },
+  heal: { rgb: [20, 200, 95], a: 0.48, glow: [120, 255, 170], edge: [200, 255, 220] },
+  area: { rgb: [255, 190, 20], a: 0.52, glow: [255, 236, 130], edge: [255, 248, 205] },
+  danger: { rgb: [235, 30, 45], a: 0.34, glow: [255, 95, 95], edge: [255, 150, 150] },
+  areaTop: { rgb: [255, 200, 40], a: 0.12, glow: [255, 236, 130], edge: [255, 246, 170], ring: true }, // 叠在单位上方的作用范围外框
+  attackTop: { rgb: [255, 40, 60], a: 0.0, glow: [255, 120, 120], edge: [255, 120, 130], ring: true },
+  dangerAll: { rgb: [225, 20, 40], a: 0.30, glow: [255, 70, 80], edge: [255, 120, 130], flat: true },
+  range: { rgb: [255, 255, 255], a: 0.10, glow: [255, 255, 255], edge: [255, 255, 255], soft: true },
+};
+let OVL = null;
+const OVQ = []; // 每帧重用：[单位, x, y, 透明度, …]
+function resetOverlayCache() { OVL = { s: TS * DPR, tile: {}, text: {}, badge: {}, pill: {}, unit: new Map(), danger: null }; }
+const hlRgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+function rrPath(g, x, y, w, h, r) {
+  g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+}
+// 一格高亮：半透明饱和色 + 内发光 + 上半部光泽 + 亮边
+function hlTile(kind) {
+  if (OVL.tile[kind]) return OVL.tile[kind];
+  const st = HL_STYLE[kind], s = Math.max(4, Math.round(OVL.s));
+  const c = document.createElement('canvas'); c.width = c.height = s;
+  const g = c.getContext('2d');
+  const m = st.flat ? 0 : Math.max(1, s * 0.035), r = st.flat ? 0.01 : s * 0.14, w = s - m * 2; // flat：整格无缝（危险区域连成一片）
+  rrPath(g, m, m, w, w, r);
+  g.save(); g.clip();
+  const lg = g.createLinearGradient(0, m, 0, s - m);
+  lg.addColorStop(0, hlRgba(st.rgb, st.a * 0.85)); lg.addColorStop(1, hlRgba(st.rgb, st.a * 1.12));
+  g.fillStyle = lg; g.fillRect(0, 0, s, s);
+  if (!st.soft) {
+    for (let i = 0; i < 6; i++) { // 内发光：由边缘往内渐淡
+      g.strokeStyle = hlRgba(st.glow, (st.flat ? 0.16 : 0.26) * (1 - i / 6)); g.lineWidth = s * 0.05 * (i + 1);
+      rrPath(g, m, m, w, w, r); g.stroke();
+    }
+  }
+  if (!st.soft && !st.flat && !st.ring) {
+    const gl = g.createLinearGradient(0, m, 0, s * 0.55); // 上半部光泽
+    gl.addColorStop(0, 'rgba(255,255,255,0.24)'); gl.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = gl; rrPath(g, m + s * 0.06, m + s * 0.05, w - s * 0.12, s * 0.42, r * 0.8); g.fill();
+  }
+  g.restore();
+  g.strokeStyle = hlRgba(st.edge, st.soft ? 0.32 : st.flat ? 0.16 : st.ring ? 1 : 0.92); g.lineWidth = Math.max(1, s * (st.ring ? 0.075 : 0.035));
+  if (st.ring) { g.shadowColor = hlRgba(st.rgb, 0.9); g.shadowBlur = s * 0.12; }
+  rrPath(g, m + g.lineWidth / 2, m + g.lineWidth / 2, w - g.lineWidth, w - g.lineWidth, r); g.stroke();
+  return (OVL.tile[kind] = c);
+}
+function drawHlHD(set, kind, skip) {
+  if (!set || !set.size) return;
+  const t = hlTile(kind), ts = TS;
+  for (const k of set) { if (skip && skip.has(k)) continue; const i = k.indexOf(','); ctx.drawImage(t, +k.slice(0, i) * ts, +k.slice(i + 1) * ts, ts, ts); }
+}
+// 文字（HP 数字、徽章）：粗体白字 + 深色描边，依内容快取
+const NUM_FONT = '900 {px}px "Arial Black", "Helvetica Neue", Arial, "PingFang SC", sans-serif';
+let MEASURE = null;
+function ovlText(text, fill, stroke, cssPx) {
+  const id = text + '|' + fill + '|' + stroke + '|' + cssPx;
+  if (OVL.text[id]) return OVL.text[id];
+  const px = Math.max(6, Math.round(cssPx * DPR)), lw = Math.max(2, Math.round(px * 0.24));
+  MEASURE = MEASURE || document.createElement('canvas').getContext('2d');
+  const font = NUM_FONT.replace('{px}', px);
+  MEASURE.font = font;
+  const w = Math.ceil(MEASURE.measureText(text).width + lw * 2 + 2), h = Math.ceil(px * 1.18 + lw);
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.font = font; g.textBaseline = 'alphabetic'; g.lineJoin = 'round';
+  const by = Math.round(px * 0.92 + lw / 2);
+  g.lineWidth = lw; g.strokeStyle = stroke; g.strokeText(text, lw + 1, by);
+  g.fillStyle = fill; g.fillText(text, lw + 1, by);
+  return (OVL.text[id] = { c, w: w / DPR, h: h / DPR });
+}
+// 武器类型：依装备的武器（gearLook().kind），没有就看职业可用武器；无武器的魔物显示「魔物」
+const WTYPE_OF_KIND = { sword: 'sword', blade: 'sword', lance: 'lance', axe: 'axe', bow: 'bow', staff: 'staff', claw: 'claw' };
+const CASTER_TYPES = ['法师', '咒术师'], HUMAN_TYPES = ['剑士', '骑兵', '战士', '武士', '弓箭手', '牧师', '咒术师', '法师', '魔剑使', '士兵', '村民'];
+function weaponType(u) {
+  let k = (u.weapon && gearLook(u.weapon) || {}).kind;
+  if (!k) { const w = (altOf(u) && altOf(u).weapon) || clsOf(u).weapon; k = w && w[0]; }
+  if (!k) return HUMAN_TYPES.includes(typeOf(u)) ? null : 'monster';
+  if (k === 'staff' && CASTER_TYPES.includes(typeOf(u))) return 'tome';
+  return WTYPE_OF_KIND[k] || null;
+}
+// 原创的小图示（单位方格 0~1 座标；白色本体 + 深色外框）
+function drawWeaponIcon(g, type, n, accent) {
+  const L = (pts, w) => { g.lineWidth = w * n; g.beginPath(); g.moveTo(pts[0] * n, pts[1] * n); for (let i = 2; i < pts.length; i += 2) g.lineTo(pts[i] * n, pts[i + 1] * n); g.stroke(); };
+  const P = pts => { g.beginPath(); g.moveTo(pts[0] * n, pts[1] * n); for (let i = 2; i < pts.length; i += 2) g.lineTo(pts[i] * n, pts[i + 1] * n); g.closePath(); g.fill(); g.stroke(); };
+  const O = (x, y, r) => { g.beginPath(); g.arc(x * n, y * n, r * n, 0, 7); g.fill(); g.stroke(); };
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  for (const pass of [0, 1]) {
+    g.strokeStyle = pass ? '#ffffff' : 'rgba(8,10,30,0.9)'; g.fillStyle = pass ? '#ffffff' : 'rgba(8,10,30,0.9)';
+    const ow = pass ? 0 : 0.09;
+    g.lineWidth = ow * n;
+    switch (type) {
+      case 'sword':
+        L([0.27, 0.73, 0.74, 0.26], 0.11 + ow); L([0.24, 0.52, 0.48, 0.76], 0.08 + ow); L([0.17, 0.83, 0.27, 0.73], 0.09 + ow);
+        break;
+      case 'lance':
+        L([0.16, 0.84, 0.6, 0.4], 0.07 + ow); g.lineWidth = Math.max(1, ow * n); P([0.5, 0.42, 0.86, 0.14, 0.58, 0.5]); L([0.4, 0.5, 0.5, 0.6], 0.06 + ow);
+        break;
+      case 'axe':
+        L([0.28, 0.82, 0.62, 0.22], 0.08 + ow);
+        g.lineWidth = Math.max(1, ow * n); g.beginPath(); g.moveTo(0.5 * n, 0.24 * n); g.quadraticCurveTo(0.92 * n, 0.22 * n, 0.82 * n, 0.58 * n); g.lineTo(0.56 * n, 0.4 * n); g.closePath(); g.fill(); g.stroke();
+        break;
+      case 'bow':
+        g.lineWidth = (0.08 + ow) * n; g.beginPath(); g.arc(0.3 * n, 0.5 * n, 0.36 * n, -1.15, 1.15); g.stroke();
+        L([0.44, 0.17, 0.44, 0.83], 0.035 + ow); L([0.16, 0.5, 0.78, 0.5], 0.05 + ow); g.lineWidth = Math.max(1, ow * n); P([0.86, 0.5, 0.72, 0.41, 0.72, 0.59]);
+        break;
+      case 'staff':
+        L([0.3, 0.86, 0.58, 0.36], 0.08 + ow); g.lineWidth = Math.max(1, ow * n); O(0.64, 0.27, 0.15);
+        if (pass) { g.fillStyle = accent; g.beginPath(); g.arc(0.64 * n, 0.27 * n, 0.07 * n, 0, 7); g.fill(); }
+        break;
+      case 'tome':
+        g.lineWidth = Math.max(1, ow * n); P([0.2, 0.26, 0.48, 0.32, 0.48, 0.8, 0.2, 0.74]); P([0.8, 0.26, 0.52, 0.32, 0.52, 0.8, 0.8, 0.74]);
+        if (pass) { g.fillStyle = accent; g.beginPath(); g.arc(0.66 * n, 0.53 * n, 0.07 * n, 0, 7); g.fill(); g.fillRect(0.26 * n, 0.44 * n, 0.15 * n, 0.04 * n); g.fillRect(0.26 * n, 0.55 * n, 0.15 * n, 0.04 * n); }
+        break;
+      case 'claw':
+        for (let i = 0; i < 3; i++) { const o = (i - 1) * 0.17; g.lineWidth = (0.075 + ow) * n; g.beginPath(); g.moveTo((0.3 + o) * n, (0.2 - o * 0.2) * n); g.quadraticCurveTo((0.72 + o) * n, (0.3 + o * 0.2) * n, (0.62 + o) * n, (0.82 + o * 0.1) * n); g.stroke(); }
+        break;
+      case 'monster':
+        g.lineWidth = Math.max(1, ow * n);
+        P([0.22, 0.42, 0.14, 0.12, 0.38, 0.32]); P([0.78, 0.42, 0.86, 0.12, 0.62, 0.32]); O(0.5, 0.56, 0.27);
+        if (pass) { g.fillStyle = accent; g.beginPath(); g.moveTo(0.33 * n, 0.5 * n); g.lineTo(0.46 * n, 0.56 * n); g.lineTo(0.35 * n, 0.6 * n); g.fill(); g.beginPath(); g.moveTo(0.67 * n, 0.5 * n); g.lineTo(0.54 * n, 0.56 * n); g.lineTo(0.65 * n, 0.6 * n); g.fill(); g.fillRect(0.4 * n, 0.7 * n, 0.2 * n, 0.05 * n); }
+        break;
+    }
+  }
+}
+// 圆形徽章：队伍色渐层底 + 亮边 + 图示
+function badge(kind, team, cssSize) {
+  const id = kind + '|' + team + '|' + cssSize;
+  if (OVL.badge[id]) return OVL.badge[id];
+  const n = Math.max(8, Math.round(cssSize * DPR)), T = HD_TEAM[team] || HD_TEAM.enemy;
+  const c = document.createElement('canvas'); c.width = c.height = n;
+  const g = c.getContext('2d'), r = n / 2;
+  if (kind === 'boss') {
+    const pts = []; for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, rr = (i % 2 ? 0.2 : 0.47) * n; pts.push(r + Math.cos(a) * rr, r + 0.03 * n + Math.sin(a) * rr); }
+    const gr = g.createLinearGradient(0, 0, 0, n); gr.addColorStop(0, '#fff6b0'); gr.addColorStop(0.5, '#ffc83a'); gr.addColorStop(1, '#c87a10');
+    g.beginPath(); g.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) g.lineTo(pts[i], pts[i + 1]); g.closePath();
+    g.lineJoin = 'round'; g.lineWidth = Math.max(1.5, n * 0.08); g.strokeStyle = '#3a1a00'; g.stroke(); g.fillStyle = gr; g.fill();
+    return (OVL.badge[id] = c);
+  }
+  if (kind === 'buff' || kind === 'debuff') {
+    const up = kind === 'buff';
+    g.fillStyle = up ? '#1a8a3a' : '#a8202a'; g.strokeStyle = 'rgba(255,255,255,0.9)'; g.lineWidth = Math.max(1, n * 0.08);
+    g.beginPath(); g.arc(r, r, r - g.lineWidth, 0, 7); g.fill(); g.stroke();
+    g.fillStyle = '#fff'; g.beginPath();
+    const d = up ? 1 : -1;
+    g.moveTo(r, r - d * n * 0.28); g.lineTo(r + n * 0.24, r + d * n * 0.02); g.lineTo(r + n * 0.09, r + d * n * 0.02); g.lineTo(r + n * 0.09, r + d * n * 0.26); g.lineTo(r - n * 0.09, r + d * n * 0.26); g.lineTo(r - n * 0.09, r + d * n * 0.02); g.lineTo(r - n * 0.24, r + d * n * 0.02); g.closePath(); g.fill();
+    return (OVL.badge[id] = c);
+  }
+  const lw = Math.max(1, n * 0.07);
+  const gr = g.createRadialGradient(r * 0.8, r * 0.6, r * 0.1, r, r, r);
+  gr.addColorStop(0, T.hi); gr.addColorStop(0.45, T.main); gr.addColorStop(1, T.dark);
+  g.fillStyle = gr; g.beginPath(); g.arc(r, r, r - lw, 0, 7); g.fill();
+  g.strokeStyle = 'rgba(255,255,255,0.92)'; g.lineWidth = lw; g.stroke();
+  g.strokeStyle = 'rgba(0,0,0,0.55)'; g.lineWidth = lw * 0.8; g.beginPath(); g.arc(r, r, r - lw * 0.4 + 0.3, 0, 7); g.stroke();
+  const inner = n * 0.74, o = (n - inner) / 2;
+  g.save(); g.translate(o, o); drawWeaponIcon(g, kind, inner, T.dark); g.restore();
+  return (OVL.badge[id] = c);
+}
+// 相克提示（克 / 危 / 互克）的胶囊标签
+function advPill(lab, col, h) {
+  const id = lab + '|' + col + '|' + h;
+  if (OVL.pill[id]) return OVL.pill[id];
+  const t = ovlText(lab, '#ffffff', 'rgba(0,0,0,0.55)', h * 0.62);
+  const w = Math.max(h * 1.05, t.w + h * 0.35);
+  const c = document.createElement('canvas'); c.width = Math.ceil(w * DPR); c.height = Math.ceil(h * DPR);
+  const g = c.getContext('2d'), W = c.width, H = c.height, lw = Math.max(1.5, H * 0.08);
+  const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.18, col); gr.addColorStop(1, col);
+  rrPath(g, lw / 2, lw / 2, W - lw, H - lw, (H - lw) / 2); g.fillStyle = gr; g.fill();
+  g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(0, H * 0.62, W, H); // 下半部稍暗（光泽）
+  rrPath(g, lw / 2, lw / 2, W - lw, H - lw, (H - lw) / 2); g.strokeStyle = '#ffffff'; g.lineWidth = lw; g.stroke();
+  g.drawImage(t.c, (W - t.c.width) / 2, (H - t.c.height) / 2 + H * 0.04);
+  return (OVL.pill[id] = { c, w, h });
+}
+// 宝箱：高清画风用 hd_map.js 的 drawChestHD
+function drawChestArt(x, y, ts, opened) {
+  if (artHD() && typeof drawChestHD === 'function' && !HD_FAIL.chest) {
+    ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+    try { drawChestHD(ctx, x, y, ts, opened); ctx.restore(); return; } catch (e) { HD_FAIL.chest = 1; console.warn('drawChestHD 失败，改用像素宝箱', e); }
+    ctx.restore();
+  }
+  drawChest(ctx, x, y, ts, opened);
+}
+// 单位叠加资讯（高清画风）：下方 HP 数字 + 队伍色血条、左上武器徽章、右上首领星 / 召唤回合、右侧异常状态、左侧增减益
+function paintUnitOverlay(g, u, ux, uy, ts) {
+  const T = HD_TEAM[u.team] || HD_TEAM.enemy;
+  g.imageSmoothingEnabled = true;
+  if (u.hp > 0) {
+    // HP 数字（依数值与队伍快取）+ 血条
+    const t = ovlText(String(u.hp), T.text, T.dark, Math.max(8, ts * 0.34));
+    const dw = Math.min(t.w, Math.max(ts * 0.5, t.w * 0.72)); // 三位数时略为压窄
+    const tx = ux - ts * 0.04, ty = uy + ts - t.h * 0.86;
+    g.drawImage(t.c, tx, ty, dw, t.h);
+    const bh = Math.max(3, Math.round(ts * 0.1)), bx = tx + dw - ts * 0.04, bw = Math.max(ts * 0.3, ux + ts * 0.97 - bx), by = uy + ts - bh - Math.max(1.5, ts * 0.05);
+    const r = clamp(u.hp / u.mhp, 0, 1);
+    g.fillStyle = 'rgba(6,10,24,0.92)'; g.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+    g.fillStyle = 'rgba(255,255,255,0.10)'; g.fillRect(bx, by, bw, bh);
+    g.fillStyle = T.main; g.fillRect(bx, by, bw * r, bh);
+    g.fillStyle = T.hi; g.fillRect(bx, by, bw * r, Math.max(1, bh * 0.38));
+    // 武器类型徽章（左上）
+    const wt = weaponType(u);
+    if (wt) { const bs = Math.max(10, ts * 0.38); g.drawImage(badge(wt, u.team, Math.round(bs)), ux - ts * 0.05, uy - ts * (u.boss ? 0.14 : 0.04), bs, bs); }
+    // 增益 / 减益（左侧，徽章下方）
+    const bf = u.buffs || [];
+    if (bf.length) {
+      const up = bf.some(b => b.amount >= 0), dn = bf.some(b => b.amount < 0), cs = Math.max(8, Math.round(ts * 0.26));
+      let yy = uy + ts * 0.36;
+      if (up) { g.drawImage(badge('buff', u.team, cs), ux, yy, cs, cs); yy += cs * 0.9; }
+      if (dn) g.drawImage(badge('debuff', u.team, cs), ux, yy, cs, cs);
+    }
+    // 右上：首领星 或 召唤剩余回合
+    let sy = uy + ts * 0.1;
+    if (u.boss) { const bs = Math.max(10, ts * 0.4); g.drawImage(badge('boss', u.team, Math.round(bs)), ux + ts * 0.66, uy - ts * 0.16, bs, bs); sy = uy + ts * 0.34; }
+    else if (u.summonLeft && u.summonLeft < 90) {
+      const rr = Math.max(5, ts * 0.15), cx = ux + ts * 0.84, cy = uy + ts * 0.12;
+      g.fillStyle = '#5a2a9a'; g.strokeStyle = '#ffffff'; g.lineWidth = Math.max(1, ts * 0.04);
+      g.beginPath(); g.arc(cx, cy, rr, 0, 7); g.fill(); g.stroke();
+      const n = ovlText(String(u.summonLeft), '#ffffff', '#2a0a4a', rr * 1.3);
+      g.drawImage(n.c, cx - n.w / 2, cy - n.h / 2 + rr * 0.08, n.w, n.h);
+      sy = uy + ts * 0.36;
+    }
+    // 异常状态：右侧一列彩色圆点
+    const rr = Math.max(2.5, ts * 0.075);
+    for (const s in u.status) if (u.status[s] > 0) {
+      g.fillStyle = STATUS_COLOR[s]; g.strokeStyle = 'rgba(10,10,30,0.9)'; g.lineWidth = Math.max(1, ts * 0.03);
+      g.beginPath(); g.arc(ux + ts * 0.9, sy, rr, 0, 7); g.fill(); g.stroke();
+      sy += rr * 2.3;
+    }
+  } else if (u.boss) {
+    const bs = Math.max(10, ts * 0.4); g.drawImage(badge('boss', u.team, Math.round(bs)), ux + ts * 0.66, uy - ts * 0.16, bs, bs);
+  }
+  g.imageSmoothingEnabled = false;
+}
+// 每个单位的叠加资讯合成为一张小图快取（依 HP、状态等），每帧只贴一次图
+const OV_PAD_X = 0.12, OV_PAD_T = 0.22, OV_W = 1.24, OV_H = 1.26;
+function drawUnitOverlayHD(u, ux, uy, ts) {
+  let k = u.team + '|' + u.hp + '|' + u.mhp + '|' + (u.boss ? 1 : 0) + '|' + (u.summonLeft || 0) + '|' + (u.weapon || '') + '|' + u.cls + '|';
+  for (const st in u.status) if (u.status[st] > 0) k += st[0] + st[1];
+  const bf = u.buffs; if (bf && bf.length) k += '|' + (bf.some(b => b.amount >= 0) ? 'u' : '') + (bf.some(b => b.amount < 0) ? 'd' : '');
+  let c = OVL.unit.get(k);
+  if (!c) {
+    if (OVL.unit.size > 600) OVL.unit.clear();
+    c = document.createElement('canvas'); c.width = Math.ceil(ts * OV_W * DPR); c.height = Math.ceil(ts * OV_H * DPR);
+    const g = c.getContext('2d'); g.setTransform(DPR, 0, 0, DPR, 0, 0);
+    paintUnitOverlay(g, u, ts * OV_PAD_X, ts * OV_PAD_T, ts);
+    OVL.unit.set(k, c);
+  }
+  const x = Math.round((ux - ts * OV_PAD_X) * DPR) / DPR, y = Math.round((uy - ts * OV_PAD_T) * DPR) / DPR;
+  ctx.drawImage(c, x, y, c.width / DPR, c.height / DPR);
+}
+// 危险区域：所有敌对单位的威胁范围合并；单位位置 / 存活 / MP / 增益改变时才重算，并预先画成一张图
+function dangerHash() {
+  let h = 7;
+  for (const u of B.units) if (u.hp > 0) h = (h * 31 + u.uid * 97 + u.x * 7 + u.y * 131 + (u.mp | 0) * 3 + (u.buffs ? u.buffs.length : 0) * 17 + (side(u.team) === 'P' ? 1 : 2)) | 0;
+  return h;
+}
+function dangerAll() {
+  if (!B || !B.showDanger) return null;
+  const h = dangerHash();
+  if (B.dangerCache && B.dangerCache.h === h) return B.dangerCache.set;
+  const set = new Set();
+  for (const u of alive()) if (side(u.team) !== 'P' && canAct(u)) for (const k of threatTiles(u).set) set.add(k);
+  B.dangerCache = { h, set };
+  if (OVL) OVL.danger = null;
+  return set;
+}
+function drawDangerHD(set) {
+  if (!set || !set.size) return;
+  if (!OVL.danger || OVL.danger.set !== set) {
+    const c = document.createElement('canvas'); c.width = cv.width; c.height = cv.height;
+    const g = c.getContext('2d'), s = TS * DPR, t = hlTile('dangerAll');
+    for (const k of set) { const [x, y] = k.split(',').map(Number); g.drawImage(t, Math.round(x * s), Math.round(y * s), Math.ceil(s), Math.ceil(s)); }
+    // 外框：只描整片区域的边界，让范围一眼可见
+    g.strokeStyle = 'rgba(255,70,80,0.95)'; g.lineWidth = Math.max(2, s * 0.06); g.lineCap = 'round'; g.beginPath();
+    for (const k of set) {
+      const [x, y] = k.split(',').map(Number), x0 = x * s, y0 = y * s;
+      if (!set.has(key(x, y - 1))) { g.moveTo(x0, y0); g.lineTo(x0 + s, y0); }
+      if (!set.has(key(x, y + 1))) { g.moveTo(x0, y0 + s); g.lineTo(x0 + s, y0 + s); }
+      if (!set.has(key(x - 1, y))) { g.moveTo(x0, y0); g.lineTo(x0, y0 + s); }
+      if (!set.has(key(x + 1, y))) { g.moveTo(x0 + s, y0); g.lineTo(x0 + s, y0 + s); }
+    }
+    g.stroke();
+    OVL.danger = { set, c };
+  }
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(OVL.danger.c, 0, 0); ctx.restore();
+}
 
 function render(now) {
   requestAnimationFrame(render);
@@ -474,13 +811,18 @@ function render(now) {
   const sh = CAM.trauma * CAM.trauma, shx = Math.round((Math.random() * 2 - 1) * sh * TS * 0.45 * DPR), shy = Math.round((Math.random() * 2 - 1) * sh * TS * 0.35 * DPR);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
+  CAM.shx = shx; CAM.shy = shy;
   ctx.setTransform(1, 0, 0, 1, shx, shy);
+  const HD = artHD();
+  if (!OVL || OVL.s !== TS * DPR) resetOverlayCache();
+  const layer = mapLayers[Math.floor(now / 600) % 2];
+  ctx.imageSmoothingEnabled = mapHD; if (mapHD) ctx.imageSmoothingQuality = 'high';
+  if (layer.width === cv.width && layer.height === cv.height) ctx.drawImage(layer, 0, 0); else ctx.drawImage(layer, 0, 0, cv.width, cv.height);
   ctx.imageSmoothingEnabled = false;
-  ctx.drawImage(mapLayers[Math.floor(now / 600) % 2], 0, 0);
   ctx.setTransform(DPR, 0, 0, DPR, shx, shy);
   const ts = TS;
 
-  for (const c of B.chests) if (!c.hidden || c.opened || searcherOn()) { drawChest(ctx, c.x * ts, c.y * ts, ts, c.opened); if (c.locked && !c.opened) { ctx.fillStyle = '#ffd25a'; ctx.font = `${Math.round(ts * 0.36)}px sans-serif`; ctx.fillText('🔒', c.x * ts + ts * 0.55, c.y * ts + ts * 0.4); } }
+  for (const c of B.chests) if (!c.hidden || c.opened || searcherOn()) { drawChestArt(c.x * ts, c.y * ts, ts, c.opened); if (c.locked && !c.opened) { ctx.fillStyle = '#ffd25a'; ctx.font = `${Math.round(ts * 0.36)}px sans-serif`; ctx.fillText('🔒', c.x * ts + ts * 0.55, c.y * ts + ts * 0.4); } }
   // 目标地点
   if (B.def.win.type === 'reach') {
     const [gx, gy] = B.def.win.at, p = (Math.sin(now / 200) + 1) / 2;
@@ -494,14 +836,36 @@ function render(now) {
     ctx.fillStyle = fill; ctx.strokeStyle = stroke; ctx.lineWidth = 1;
     for (const k of set) { const [x, y] = k.split(',').map(Number); ctx.fillRect(x * ts + 1, y * ts + 1, ts - 2, ts - 2); ctx.strokeRect(x * ts + 1.5, y * ts + 1.5, ts - 3, ts - 3); }
   };
-  hl(B.hlDanger, 'rgba(255,60,60,0.22)', 'rgba(255,90,90,0.5)');
-  hl(B.hlRange, 'rgba(255,255,255,0.10)', 'rgba(255,255,255,0.28)');
-  hl(B.hlMove, 'rgba(70,150,255,0.33)', 'rgba(140,200,255,0.75)');
-  hl(B.hlAttack, 'rgba(255,60,60,0.30)', 'rgba(255,120,120,0.85)');
-  hl(B.hlHeal, 'rgba(60,230,120,0.30)', 'rgba(120,255,160,0.85)');
-  hl(B.hlArea, 'rgba(255,220,60,0.35)', 'rgba(255,240,120,0.9)');
+  const dz = dangerAll();
+  if (HD) {
+    drawDangerHD(dz);
+    drawHlHD(B.hlDanger, B.mode === 'move' ? 'attack' : 'danger', B.hlMove); // 选中我方时 hlDanger 是它的攻击范围
+    drawHlHD(B.hlRange, 'range');
+    drawHlHD(B.hlMove, 'move');
+    drawHlHD(B.hlAttack, 'attack');
+    drawHlHD(B.hlHeal, 'heal');
+    drawHlHD(B.hlArea, 'area');
+  } else {
+    hl(dz, 'rgba(255,40,40,0.20)', 'rgba(255,80,80,0.6)');
+    hl(B.hlDanger, 'rgba(255,60,60,0.22)', 'rgba(255,90,90,0.5)');
+    hl(B.hlRange, 'rgba(255,255,255,0.10)', 'rgba(255,255,255,0.28)');
+    hl(B.hlMove, 'rgba(70,150,255,0.33)', 'rgba(140,200,255,0.75)');
+    hl(B.hlAttack, 'rgba(255,60,60,0.30)', 'rgba(255,120,120,0.85)');
+    hl(B.hlHeal, 'rgba(60,230,120,0.30)', 'rgba(120,255,160,0.85)');
+    hl(B.hlArea, 'rgba(255,220,60,0.35)', 'rgba(255,240,120,0.9)');
+  }
+  // 选中我方角色时：标出哪些敌人被我克制（绿「克」）、哪些克制我（红「危」）
+  const sel = B.sel, ADV_LAB = new Map();
+  if (sel && sel.team === 'player' && sel.hp > 0 && ['move', 'move2', 'action', 'target', 'spell'].includes(B.mode)) {
+    for (const e of alive()) {
+      if (!hostile(sel, e)) continue;
+      const up = advMult(sel, e) > 1, down = advMult(e, sel) > 1;
+      if (up || down) ADV_LAB.set(e, up && down ? ['互克', '#e8a818'] : up ? ['克', '#22b858'] : ['危', '#e8303a']);
+    }
+  }
 
   const list = B.units.filter(u => u.hp > 0 || u.dying).sort((a, b) => (a.py ?? a.y) - (b.py ?? b.y));
+  OVQ.length = 0;
   const bob = Math.floor(now / 400) % 2;
   for (const u of list) {
     let ux = (u.px ?? u.x) * ts + (u.ox || 0) * ts, uy = (u.py ?? u.y) * ts + (u.oy || 0) * ts;
@@ -511,17 +875,20 @@ function render(now) {
       else u.hitT = 0;
     }
     ctx.globalAlpha = u.dying ? Math.max(0, u.dying) : 1;
-    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillStyle = HD ? 'rgba(0,0,0,0.38)' : 'rgba(0,0,0,0.55)';
     ctx.beginPath(); ctx.ellipse(ux + ts / 2, uy + ts * 0.86, ts * 0.33, ts * 0.12, 0, 0, 7); ctx.fill();
-    ctx.strokeStyle = TEAM_COLOR[u.team]; ctx.lineWidth = Math.max(1.5, ts / 22);
-    ctx.beginPath(); ctx.ellipse(ux + ts / 2, uy + ts * 0.86, ts * 0.36, ts * 0.13, 0, 0, 7); ctx.stroke();
+    if (!HD) { // 像素画风：脚下的队伍色圈（高清画风改用下方的队伍色血条）
+      ctx.strokeStyle = TEAM_COLOR[u.team]; ctx.lineWidth = Math.max(1.5, ts / 22);
+      ctx.beginPath(); ctx.ellipse(ux + ts / 2, uy + ts * 0.86, ts * 0.36, ts * 0.13, 0, 0, 7); ctx.stroke();
+    }
     if (u.dir && u.hp > 0 && ruleOn('facing')) { // 面向箭头（背后受攻击伤害较高）
       const fx = ux + ts / 2 + u.dir.x * ts * 0.4, fy = uy + ts * 0.86 + u.dir.y * ts * 0.16, s = ts * 0.09;
       ctx.fillStyle = TEAM_COLOR[u.team]; ctx.beginPath();
       ctx.moveTo(fx + u.dir.x * s * 1.6, fy + u.dir.y * s); ctx.lineTo(fx - u.dir.y * s, fy + u.dir.x * s * 0.6); ctx.lineTo(fx + u.dir.y * s, fy - u.dir.x * s * 0.6); ctx.fill();
     }
-    let spr = unitSprite(u);
-    const sid = `${spriteKey(u)}|${u.tier}|${u.team}|${u.hair}|${spriteVariant(u)}`;
+    const sprHD = HD ? unitSpriteHD(u) : null;
+    let spr = sprHD || unitSprite(u);
+    const sid = `${spriteKey(u)}|${u.tier}|${u.team}|${u.hair}|${spriteVariant(u)}|${gearKey(u)}${sprHD ? '|hd' : ''}`;
     if (hasStatus(u, 'petrify')) spr = tintSprite(spr, sid, 'stone');
     else if (hasStatus(u, 'freeze')) spr = tintSprite(spr, sid, 'ice');
     else if (u.acted && B.phase === u.team) spr = tintSprite(spr, sid, 'gray');
@@ -529,8 +896,15 @@ function render(now) {
     const by = (!still && bob) ? -ts / 32 : 0;
     const size = ts * (u.boss ? 1.4 : 1.2);
     const sx0 = ux + (ts - size) / 2, sy0 = uy + ts * 0.9 - size * 0.9 + by;
-    ctx.drawImage(spr, sx0, sy0, size, size);
-    if (u.flash && now < u.flash) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7; ctx.drawImage(spr, sx0, sy0, size, size); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; }
+    let dx = sx0, dy = sy0, dsz = size;
+    if (sprHD) { // 高清精灵：预先缩成画面上的实际像素大小，每帧 1:1 贴图（省掉逐帧的高品质缩放）
+      const px = Math.round(size * DPR); spr = fitSprite(spr, px);
+      dx = Math.round(sx0 * DPR) / DPR; dy = Math.round(sy0 * DPR) / DPR; dsz = px / DPR;
+    }
+    ctx.drawImage(spr, dx, dy, dsz, dsz);
+    if (u.flash && now < u.flash) { const a0 = ctx.globalAlpha; ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7 * a0; ctx.drawImage(spr, dx, dy, dsz, dsz); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = a0; }
+    ctx.imageSmoothingEnabled = false;
+    if (HD) { OVQ.push(u, ux, uy, ctx.globalAlpha); ctx.globalAlpha = 1; continue; } // 叠加资讯第二轮再画，免得被下一排的小人挡住
     if (u.hp > 0) {
       const bw = ts * 0.7, bh = Math.max(2, ts * 0.075), bx = ux + ts * 0.15, byy = uy + ts - bh - 1;
       ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(bx - 1, byy - 1, bw + 2, bh + 2);
@@ -547,9 +921,27 @@ function render(now) {
     ctx.globalAlpha = 1;
   }
 
-  // 选中我方角色时：标出哪些敌人被我克制（绿「克」）、哪些克制我（红「危」）
-  const sel = B.sel;
-  if (sel && sel.team === 'player' && sel.hp > 0 && ['move', 'move2', 'action', 'target', 'spell'].includes(B.mode)) {
+  if (HD && B.hlAttack) { // 可攻击的目标：单位本身挡住了格子，再在上方描一圈红框
+    const t = hlTile('attackTop');
+    ctx.globalAlpha = 0.85;
+    for (const k of B.hlAttack) { if (B.hlArea && B.hlArea.has(k)) continue; const i = k.indexOf(','), x = +k.slice(0, i), y = +k.slice(i + 1); if (unitAt(x, y)) ctx.drawImage(t, x * ts, y * ts, ts, ts); }
+    ctx.globalAlpha = 1;
+  }
+  for (let i = 0; i < OVQ.length; i += 4) { ctx.globalAlpha = OVQ[i + 3]; drawUnitOverlayHD(OVQ[i], OVQ[i + 1], OVQ[i + 2], ts); }
+  ctx.globalAlpha = 1;
+  if (HD && ADV_LAB.size) {
+    const pulse = 1 + 0.06 * Math.sin(now / 220), h = Math.max(12, ts * 0.46);
+    ctx.imageSmoothingEnabled = true;
+    for (const [e, [lab, col]] of ADV_LAB) {
+      const pl = advPill(lab, col, h), ex = ((e.px ?? e.x) + 0.5) * ts, top = (e.py ?? e.y) * ts;
+      let cy = top - h * 0.5 - ts * (e.boss ? 0.12 : 0.02), cx = ex;
+      if (cy - h / 2 < 0) { cy = top + h * 0.55; cx = (e.px ?? e.x) * ts + ts * 0.4 + pl.w / 2; } // 最上一排：移到武器徽章右侧
+      const w = pl.w * pulse, hh = h * pulse;
+      ctx.drawImage(pl.c, cx - w / 2, cy - hh / 2, w, hh);
+    }
+    ctx.imageSmoothingEnabled = false;
+  }
+  if (!HD && sel && sel.team === 'player' && sel.hp > 0 && ['move', 'move2', 'action', 'target', 'spell'].includes(B.mode)) {
     const pulse = 0.75 + 0.25 * Math.sin(now / 220);
     ctx.font = `bold ${Math.round(ts * 0.5)}px sans-serif`; ctx.textAlign = 'center';
     for (const e of alive()) {
@@ -579,7 +971,11 @@ function render(now) {
     ctx.stroke();
   }
   // 作用范围叠在单位上方再描一次边（避免被 Q 版大头挡住）
-  if (B.hlArea) {
+  if (B.hlArea && HD) {
+    ctx.globalAlpha = 0.6 + 0.4 * Math.sin(now / 160);
+    drawHlHD(B.hlArea, 'areaTop');
+    ctx.globalAlpha = 1;
+  } else if (B.hlArea) {
     const pa = 0.55 + 0.35 * Math.sin(now / 160);
     ctx.lineWidth = Math.max(2, ts / 14);
     for (const k of B.hlArea) {
@@ -798,11 +1194,11 @@ function fillPathArt(m, u) {
   const C = clsOf(u), at = C.alt.at;
   for (const el of m.querySelectorAll('[data-art]')) {
     const p = el.dataset.art, key = p === 'b' ? C.alt.sprite : C.sprite;
-    const spr = getSprite(key, at, u.team || 'player', u.hair, key === 'dragon_b' ? 'blue' : undefined, gearOf(u));
+    const pv = previewSprite(key, at, u.team || 'player', u.hair, key === 'dragon_b' ? 'blue' : undefined, gearOf(u)), spr = pv.c;
     if (u.id && typeof getPortrait === 'function') {
-      try { const pc = getPortrait(u.id, undefined, at, p); const c = document.createElement('canvas'); c.width = pc.width; c.height = pc.height; c.getContext('2d').drawImage(pc, 0, 0); c.className = 'pix pc-port'; el.appendChild(c); } catch (e) { }
+      try { const p0 = getPortrait(u.id, undefined, at, p), pc = portraitHD(p0) || p0; const c = document.createElement('canvas'); c.width = pc.width; c.height = pc.height; c.getContext('2d').drawImage(pc, 0, 0); c.className = (pc === p0 ? 'pix' : 'hdp') + ' pc-port'; el.appendChild(c); } catch (e) { }
     }
-    const c = document.createElement('canvas'); c.width = spr.width; c.height = spr.height; c.getContext('2d').drawImage(spr, 0, 0); c.className = 'pix pc-spr'; el.appendChild(c);
+    const c = document.createElement('canvas'); c.width = spr.width; c.height = spr.height; c.getContext('2d').drawImage(spr, 0, 0); c.className = (pv.hd ? 'hdp' : 'pix') + ' pc-spr'; el.appendChild(c);
   }
 }
 async function choosePath(u) {
@@ -837,10 +1233,28 @@ function portraitCanvas(who, size, variant) {
     else if (HEROES[who]) { const d = (S && S.roster[who]) || heroData(who); src = getSprite(CLASSES[d.cls].sprite, d.tier, 'player', d.hair, undefined, gearOf(d)); }
   }
   if (!src) return null;
-  const c = document.createElement('canvas'); c.width = src.width; c.height = src.height; c.className = 'pix';
+  // 高清画风：立绘交给 hd_units.js 的 hdPortrait 平滑重绘（依来源画布快取）
+  const hd = portraitHD(src);
+  const c = document.createElement('canvas');
+  if (hd) {
+    const w = Math.round(size * (window.devicePixelRatio || 1) * 1.5);
+    c.width = Math.min(hd.width, w) || hd.width; c.height = Math.round(c.width * hd.height / hd.width); c.className = 'hdp';
+    const g = c.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(hd, 0, 0, c.width, c.height);
+  } else {
+    c.width = src.width; c.height = src.height; c.className = 'pix';
+    c.getContext('2d').drawImage(src, 0, 0);
+  }
   c.style.width = size + 'px'; c.style.height = Math.round(size * src.height / src.width) + 'px';
-  c.getContext('2d').drawImage(src, 0, 0);
   return c;
+}
+let PORT_HD = new WeakMap();
+function portraitHD(src) {
+  if (!artHD() || typeof hdPortrait !== 'function' || HD_FAIL.portrait || !src) return null;
+  if (PORT_HD.has(src)) return PORT_HD.get(src);
+  let hd = null;
+  try { hd = hdPortrait(src) || null; if (hd && !(hd.width > 0)) hd = null; } catch (e) { HD_FAIL.portrait = 1; console.warn('hdPortrait 失败，改用像素立绘', e); }
+  PORT_HD.set(src, hd);
+  return hd;
 }
 // 单位对应的立绘 id（英雄用自己的 id；敌人用兵种）
 function unitPortrait(u, size) {
@@ -1000,7 +1414,7 @@ async function battleLoop() {
     await phaseStart('player');
     if (B.over) break;
     if (AUTO) await runAI('player');
-    else { await new Promise(res => { B.endPhase = res; refreshPanel(); }); B.endPhase = null; }
+    else { const me = B; await new Promise(res => { B.endPhase = res; refreshPanel(); }); if (B !== me) return 'abort'; B.endPhase = null; } // 中途离开（重开 / 回营地）后旧的回圈直接结束
     if (B.over) break;
     for (const t of ['ally', 'enemy', 'rogue']) {
       if (!alive().some(u => u.team === t)) continue;
@@ -1813,19 +2227,32 @@ function updateHud() {
   const lim = B.def.win.turns;
   $('#hud-turn').innerHTML = `第 <b>${B.turn}</b>${lim ? `/${lim}` : ''} 回合 · <span class="ph-${B.phase}">${name}</span>`;
 }
+// 顶部资讯面板：大立绘、名牌、职业、Lv、大字 HP、MP、能力格、装备
+const EQ_ICON = { weapon: '⚔', armor: '⛨', acc: '◆' };
 function unitInfoHtml(u) {
   const t = terrAt(u.x, u.y);
-  const eq = [u.weapon, u.armor, u.acc].filter(Boolean).map(i => ITEMS[i].name).join(' / ') || '—';
   const teamName = { player: '我方', ally: '友军', enemy: '敌军', rogue: '第三势力' }[u.team];
-  const sts = Object.keys(u.status || {}).map(s => `<span class="st" style="background:${STATUS_COLOR[s]}">${STATUS_NAME[s]}${u.status[s]}</span>`).join('');
+  const sts = Object.keys(u.status || {}).filter(s => u.status[s] > 0).map(s => `<span class="st" style="background:${STATUS_COLOR[s]}">${STATUS_NAME[s]}${u.status[s]}</span>`).join('');
   const bfs = (u.buffs || []).map(b => `<span class="st ${b.amount < 0 ? 'down' : 'up'}">${BUFF_NAME[b.stat]}${b.amount < 0 ? '↓' : '↑'}</span>`).join('');
-  return `<div class="ui-row">
-    <div class="ui-port" data-port="${u.uid}"></div>
-    <div class="ui-main">
-      <div class="ui-name"><b>${esc(u.name)}</b> <span class="tag t-${u.team}">${teamName}</span> <span>${className(u)} Lv${u.lv}</span>${u.team === 'player' ? `<span class="dim"> EXP ${u.exp}</span>` : ''}${sts}${bfs}</div>
-      ${hpBar(u.hp, u.mhp, 'hp')}${u.mmp ? hpBar(u.mp, u.mmp, 'mp') : ''}
-      <div class="ui-stats">攻<b>${atkOf(u)}</b> 防<b>${defOf(u)}</b> 魔<b>${magOf(u)}</b> 速<b>${spdOf(u)}</b> 移<b>${movOf(u)}</b> <span class="dim">${typeOf(u)} · ${t.name}${t.def ? ' 防+' + t.def + '%' : ''}</span></div>
-      <div class="ui-stats dim">${eq}</div>
+  const eq = slot => { const id = u[slot], it = id && ITEMS[id]; return `<div class="up-eq ${it ? '' : 'none'}"><i class="eq-${slot}">${EQ_ICON[slot]}</i><span>${it ? esc(it.name) : '—'}</span></div>`; };
+  const wt = weaponType(u);
+  const pct = (v, m) => clamp(m ? v / m * 100 : 0, 0, 100).toFixed(1);
+  return `<div class="up up-${u.team}">
+    <div class="up-port" data-port="${u.uid}"><span class="up-team t-${u.team}">${teamName}</span>${wt ? `<span class="up-wt" data-wt="${wt}|${u.team}"></span>` : ''}${u.boss ? '<span class="up-boss">★</span>' : ''}<span class="up-terr">${esc(t.name)}${t.def ? ' 防+' + t.def + '%' : ''}</span></div>
+    <div class="up-body">
+      <div class="up-head"><div class="up-name"><b>${esc(u.name)}</b><small>${esc(className(u))}</small></div><div class="up-lv">Lv<b>${u.lv}</b></div></div>
+      <div class="up-cols">
+        <div class="up-l">
+          <div class="up-hp"><i>HP</i><b>${u.hp}</b><span>/ ${u.mhp}</span></div>
+          <div class="up-bar hp"><i style="width:${pct(u.hp, u.mhp)}%"></i></div>
+          ${u.mmp ? `<div class="up-mp"><i>MP</i><span>${u.mp}/${u.mmp}</span><div class="up-bar mp"><i style="width:${pct(u.mp, u.mmp)}%"></i></div></div>` : '<div class="up-mp none"><i>MP</i><span>—</span></div>'}
+          <div class="up-grid"><span>攻<b>${atkOf(u)}</b></span><span>防<b>${defOf(u)}</b></span><span>魔<b>${magOf(u)}</b></span><span>速<b>${spdOf(u)}</b></span><span>移<b>${movOf(u)}</b></span><span class="up-type">${esc(typeOf(u))}</span></div>
+        </div>
+        <div class="up-r">
+          ${eq('weapon')}${eq('armor')}${eq('acc')}
+          <div class="up-tags">${u.team === 'player' ? `<span class="up-exp">EXP ${u.exp}</span>` : ''}${sts}${bfs}</div>
+        </div>
+      </div>
     </div></div>`;
 }
 function advText(m, pos) { return (m > 1 ? `<i class="adv up">克制×${m}</i>` : m < 1 ? `<i class="adv down">被克×${m}</i>` : '') + (pos ? `<i class="adv ${/背后|侧面|居高/.test(pos) ? 'up' : 'down'}">${pos}</i>` : ''); }
@@ -1836,10 +2263,11 @@ function forecastHtml() {
   if (B.mode === 'target' && t) {
     const c = physCalc(u, t);
     const counter = canCounter(t, u) ? physCalc(t, u) : null;
-    return `<div class="fc">
-      <div class="fc-side"><b>${esc(u.name)}</b>${advText(c.adv, c.pos)}<div>伤害 <em>${c.dmg}</em> 命中 ${c.hit}% 暴击 ${c.crit}%</div></div>
-      <div class="fc-vs">⚔</div>
-      <div class="fc-side"><b>${esc(t.name)}</b> HP ${t.hp}/${t.mhp}<div>${counter ? `反击 <em>${counter.dmg}</em> 命中 ${counter.hit}%` : '无法反击'}</div></div>
+    const hpAfter = (o, d) => `<div class="fc-hp"><b>${o.hp}</b> → <b class="${d >= o.hp ? 'ko' : ''}">${Math.max(0, o.hp - d)}</b><span>/ ${o.mhp}</span></div>`;
+    return `<div class="fc fc-duel">
+      <div class="fc-side me t-${u.team}"><div class="fc-port" data-fport="${u.uid}"></div><div class="fc-txt"><b>${esc(u.name)}</b>${advText(c.adv, c.pos)}${hpAfter(u, counter ? counter.dmg : 0)}<div>伤害 <em>${c.dmg}</em> 命中 ${c.hit}% 暴击 ${c.crit}%</div></div></div>
+      <div class="fc-vs">VS</div>
+      <div class="fc-side foe t-${t.team}"><div class="fc-port" data-fport="${t.uid}"></div><div class="fc-txt"><b>${esc(t.name)}</b>${hpAfter(t, c.dmg)}<div>${counter ? `反击 <em>${counter.dmg}</em> 命中 ${counter.hit}%` : '无法反击'}</div></div></div>
     </div>`;
   }
   if (B.mode === 'spell') {
@@ -1860,10 +2288,25 @@ function forecastHtml() {
         default: { const c = skillCalc(u, o, sp, partner); const dd = Math.round(c.dmg * (sp.area && !shaped(sp) && (o.x !== p.x || o.y !== p.y) ? 0.7 : 1)); return `${ally ? '<span class="warn">误伤</span> ' : ''}${esc(o.name)} 伤害 <em>${dd}</em>${c.hit < 100 ? ` (${c.hit}%)` : ''}${advText(c.adv, c.pos)}`; }
       }
     }).join('<br>');
-    return `<div class="fc"><div class="fc-side"><b>${sp.name}</b> <span class="dim">MP ${sp.mp}${partner ? ` · 与${esc(partner.name)}合击` : ''}</span><div class="fc-rows">${rows || '<span class="dim">范围内没有目标</span>'}</div></div></div>`;
+    return `<div class="fc fc-spell"><div class="fc-port" data-fport="${u.uid}"></div><div class="fc-side"><div class="fc-title"><b>${sp.name}</b> <span class="dim">MP ${sp.mp}${partner ? ` · 与${esc(partner.name)}合击` : ''}</span></div><div class="fc-rows">${rows || '<span class="dim">范围内没有目标</span>'}</div></div></div>`;
   }
   return '';
 }
+// 底部按钮的小图示（原创的简单线条图）
+const BTN_ICON = {
+  menu: '<path d="M5 7h14M5 12h14M5 17h14"/>',
+  danger: '<path d="M12 3l9 16H3z"/><path d="M12 10v4M12 17v.5"/>',
+  endturn: '<path d="M6 5l7 7-7 7M13 5l7 7-7 7"/>',
+  objective: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/>',
+  attack: '<path d="M5 19L18 6M14 5h5v5M5 15l4 4"/>',
+  spell: '<path d="M12 3l2.4 5.6L20 9.5l-4.3 3.9L17 19l-5-3-5 3 1.3-5.6L4 9.5l5.6-.9z"/>',
+  item: '<path d="M7 9h10l-1 11H8z"/><path d="M9 9V7a3 3 0 016 0v2"/>',
+  wait: '<path d="M7 4h10M7 20h10M8 4c0 5 8 6 8 8s-8 3-8 8M16 4c0 5-8 6-8 8"/>',
+  wait2: '<path d="M7 4h10M7 20h10M8 4c0 5 8 6 8 8s-8 3-8 8M16 4c0 5-8 6-8 8"/>',
+  cancel: '<path d="M9 7L4 12l5 5"/><path d="M4 12h11a5 5 0 010 10h-2"/>',
+  confirm: '<path d="M5 12l5 5 9-10"/>',
+};
+function setPortrait(el, u, size) { if (!el) return; const c = unitPortrait(u, size); if (c) el.prepend(c); }
 function refreshPanel() {
   if (!B || AUTO) return;
   updateHud();
@@ -1872,18 +2315,19 @@ function refreshPanel() {
   let html = '';
   if (B.pending) html = forecastHtml();
   else if (f) html = unitInfoHtml(f);
-  else if (B.focusTile) { const t = terrAt(B.focusTile.x, B.focusTile.y); html = `<div class="ui-hint">${t.name} · 防御+${t.def}% · 回避+${t.avoid}${t.heal ? ' · 每回合回复 ' + t.heal + '% HP' : ''}</div>`; }
-  else html = `<div class="ui-hint">点击我方单位进行移动与行动，点击敌人查看其攻击范围。</div>`;
+  else if (B.focusTile) { const t = terrAt(B.focusTile.x, B.focusTile.y); html = `<div class="ui-hint"><div class="hint-title">${esc(t.name)}</div><div>防御 +${t.def}% · 回避 +${t.avoid}${t.heal ? ' · 每回合回复 ' + t.heal + '% HP' : ''}</div><div class="dim">点击我方单位进行移动与行动，点击敌人查看其攻击范围。</div></div>`; }
+  else { const o = objectiveText(); html = `<div class="ui-hint"><div class="hint-title">作战目标</div><div><b class="win-c">胜利</b> ${esc(o.win)}</div><div><b class="lose-c">失败</b> ${esc(o.lose)}</div><div class="dim">点击我方单位进行移动与行动，点击敌人查看其攻击范围。</div></div>`; }
   info.innerHTML = html;
-  const pp = info.querySelector('[data-port]');
-  if (pp && f) { const c = unitPortrait(f, 52); if (c) pp.appendChild(c); }
-  const btn = (label, act, cls, dis) => `<button class="btn ${cls || ''}" data-act="${act}" ${dis ? 'disabled' : ''}>${label}</button>`;
+  if (f && !B.pending) setPortrait(info.querySelector('[data-port]'), f, 96);
+  for (const el of info.querySelectorAll('[data-fport]')) { const o = B.units.find(v => String(v.uid) === el.dataset.fport); if (o) setPortrait(el, o, 44); }
+  for (const el of info.querySelectorAll('[data-wt]')) { const [wt, team] = el.dataset.wt.split('|'); const n = 26, src = badgeIcon(wt, team, n); if (src) el.appendChild(src); }
+  const btn = (label, act, cls, dis) => `<button class="btn ${cls || ''}" data-act="${act}" ${dis ? 'disabled' : ''}>${BTN_ICON[act] ? `<svg class="bi" viewBox="0 0 24 24" aria-hidden="true">${BTN_ICON[act]}</svg>` : ''}<span>${label}</span></button>`;
   let b = '';
   const myTurn = B.phase === 'player' && B.endPhase && !B.over;
   switch (B.mode) {
-    case 'idle': case 'inspect': b = btn('目标', 'objective') + btn('菜单', 'menu') + btn('结束回合', 'endturn', 'primary', !myTurn); break;
-    case 'move': b = btn('取消', 'cancel'); break;
-    case 'move2': b = `<span class="dim small">可用剩余移动力再移动（剩 ${movOf(B.sel) - (B.sel.spent || 0)}）</span>` + btn('待机', 'wait2', 'primary'); break;
+    case 'idle': case 'inspect': b = btn('菜单', 'menu', 'sq') + btn('危险区域', 'danger', 'sq' + (B.showDanger ? ' on' : '')) + btn('目标', 'objective', 'sq') + btn('结束回合', 'endturn', 'primary sq', !myTurn); break;
+    case 'move': b = `<span class="hint">选择蓝色格子移动，点自己原地行动</span>` + btn('危险区域', 'danger', 'sq' + (B.showDanger ? ' on' : '')) + btn('取消', 'cancel', 'sq'); break;
+    case 'move2': b = `<span class="hint">可用剩余移动力再移动（剩 ${movOf(B.sel) - (B.sel.spent || 0)}）</span>` + btn('待机', 'wait2', 'primary sq'); break;
     case 'action': {
       const u = B.sel;
       const canAtk = attackTargets(u).length > 0;
@@ -1893,10 +2337,26 @@ function refreshPanel() {
       break;
     }
     case 'target': case 'spell':
-      b = (B.pending ? btn('确认', 'confirm', 'primary') : `<span class="dim small">${B.mode === 'target' ? '选择攻击目标' : '选择目标'}（再次点击确认）</span>`) + btn('返回', 'cancel');
+      b = (B.pending ? btn('确认', 'confirm', 'primary sq') : `<span class="hint">${B.mode === 'target' ? '选择攻击目标' : '选择目标'}（再次点击确认）</span>`) + btn('返回', 'cancel', 'sq');
       break;
   }
   acts.innerHTML = b;
+}
+// 面板用的武器徽章（复制快取的徽章画布）
+function badgeIcon(wt, team, css) {
+  if (!OVL) resetOverlayCache();
+  const src = badge(wt, team, css), c = document.createElement('canvas');
+  c.width = src.width; c.height = src.height; c.style.width = c.style.height = css + 'px';
+  c.getContext('2d').drawImage(src, 0, 0);
+  return c;
+}
+// 切换画风：重建地图层、清掉快取、重画面板
+function applyArt() {
+  HD_SPR.clear();
+  for (const k in GRAY) delete GRAY[k];
+  for (const k in HD_FAIL) delete HD_FAIL[k];
+  PORT_HD = new WeakMap();
+  if (B && !$('#battle').hidden) { resize(); refreshPanel(); }
 }
 $('#actions').addEventListener('click', async e => {
   const el = e.target.closest('[data-act]');
@@ -1913,5 +2373,11 @@ $('#actions').addEventListener('click', async e => {
     return modal('作战目标', `<p><b class="win-c">胜利</b>　${esc(o.win)}</p><p><b class="lose-c">失败</b>　${esc(o.lose)}</p><p class="dim small">宝箱：让我方角色移动到宝箱上并结束行动即可开启。</p>`, [{ label: '确定', value: 1 }], { dismiss: 1 });
   }
   if (act === 'menu') return battleMenu();
+  if (act === 'danger') {
+    sfx('select');
+    B.showDanger = !B.showDanger; B.dangerCache = null;
+    if (B.showDanger && !AUTO) toast('危险区域：所有敌人下回合能攻击到的范围');
+    return refreshPanel();
+  }
   return onAction(act);
 });
