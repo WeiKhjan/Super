@@ -1,9 +1,14 @@
 // 对话立绘：64×72 代码绘制的 90 年代动画风半身像（无外部图片）
 // getPortrait(id, variant, tier, path) → HTMLCanvasElement（已缓存），放大显示时请使用 image-rendering: pixelated
+// getPortraitHD(id, variant, tier, path, { bg: false }) → 256×288 高清立绘：同一套程序化绘制以 5 倍内部解析度重画
+//   （平滑形状与线条、矢量动画眼、柔和明暗、粗细描边、平滑背景），缩成 4 倍抗锯齿；hd_units.js 的 hdPortrait(getPortrait(...)) 也会走这里
 // tier = 职业阶（CLASSES[cls].tiers 的下标）：转职后换装；省略则为角色默认外观；path 'b' = 分支 B 路线外观
 (function (G) {
 'use strict';
-const W = 64, H = 72, N = W * H;
+// 内部解析度：SC = 1 为原版 64×72 像素立绘；SC > 1 时同一套程序化绘制以 SC 倍解析度重画（高清立绘）
+const W0 = 64, H0 = 72;
+let SC = 1, W = W0, H = H0, N = W * H;
+function setScale(k) { SC = k; W = W0 * k; H = H0 * k; N = W * H; }
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
 // =====================================================================
@@ -59,19 +64,24 @@ function ramp(hex, o) {
 // =====================================================================
 // 路径工具（像素坐标；像素中心 = 整数 + 0.5）
 // =====================================================================
-function ell(cx, cy, rx, ry, rot) { const p = new Path2D(); p.ellipse(cx, cy, Math.max(0.1, rx), Math.max(0.1, ry), rot || 0, 0, Math.PI * 2); return p; }
-function poly(a) { const p = new Path2D(); p.moveTo(a[0], a[1]); for (let i = 2; i < a.length; i += 2) p.lineTo(a[i], a[i + 1]); p.closePath(); return p; }
-function rect(x, y, w, h) { const p = new Path2D(); p.rect(x, y, w, h); return p; }
+// 每个形状附带外接框 bb（路径坐标），高清模式只栅格化框内区域
+const bbOf = (a) => { let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity; for (let i = 0; i < a.length; i += 2) { if (a[i] < x0) x0 = a[i]; if (a[i] > x1) x1 = a[i]; if (a[i + 1] < y0) y0 = a[i + 1]; if (a[i + 1] > y1) y1 = a[i + 1]; } return [x0, y0, x1, y1]; };
+function ell(cx, cy, rx, ry, rot) { const p = new Path2D(); rx = Math.max(0.1, rx); ry = Math.max(0.1, ry); p.ellipse(cx, cy, rx, ry, rot || 0, 0, Math.PI * 2); const r = rot ? Math.max(rx, ry) : 0; p.bb = rot ? [cx - r, cy - r, cx + r, cy + r] : [cx - rx, cy - ry, cx + rx, cy + ry]; return p; }
+function poly(a) { const p = new Path2D(); p.moveTo(a[0], a[1]); for (let i = 2; i < a.length; i += 2) p.lineTo(a[i], a[i + 1]); p.closePath(); p.bb = bbOf(a); return p; }
+function rect(x, y, w, h) { const p = new Path2D(); p.rect(x, y, w, h); p.bb = [Math.min(x, x + w), Math.min(y, y + h), Math.max(x, x + w), Math.max(y, y + h)]; return p; }
 // 闭合平滑曲线（Catmull-Rom）
 function blob(a, t) {
   t = t == null ? 1 : t;
   const n = a.length / 2, P = i => [a[((i + n) % n) * 2], a[((i + n) % n) * 2 + 1]];
   const p = new Path2D(); const s = P(0); p.moveTo(s[0], s[1]);
+  const cp = [s[0], s[1]];
   for (let i = 0; i < n; i++) {
     const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2);
-    p.bezierCurveTo(p1[0] + (p2[0] - p0[0]) / 6 * t, p1[1] + (p2[1] - p0[1]) / 6 * t, p2[0] - (p3[0] - p1[0]) / 6 * t, p2[1] - (p3[1] - p1[1]) / 6 * t, p2[0], p2[1]);
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6 * t, c1y = p1[1] + (p2[1] - p0[1]) / 6 * t, c2x = p2[0] - (p3[0] - p1[0]) / 6 * t, c2y = p2[1] - (p3[1] - p1[1]) / 6 * t;
+    p.bezierCurveTo(c1x, c1y, c2x, c2y, p2[0], p2[1]);
+    cp.push(c1x, c1y, c2x, c2y, p2[0], p2[1]);
   }
-  p.closePath(); return p;
+  p.closePath(); p.bb = bbOf(cp); return p;
 }
 // 发束 / 尖刺：根部 (x0,y0) 宽 w，尖端 (x1,y1)，bend 为弯曲量，tw 为尖端宽
 function lock(x0, y0, x1, y1, w, bend, tw) {
@@ -83,11 +93,13 @@ function lock(x0, y0, x1, y1, w, bend, tw) {
   p.quadraticCurveTo(mx + nx * w * 0.7, my + ny * w * 0.7, x1 + nx * tw, y1 + ny * tw);
   if (tw) p.lineTo(x1 - nx * tw, y1 - ny * tw);
   p.quadraticCurveTo(mx - nx * w * 0.7, my - ny * w * 0.7, x0 - nx * w, y0 - ny * w);
-  p.closePath(); return p;
+  p.closePath();
+  p.bb = bbOf([x0 + nx * w, y0 + ny * w, mx + nx * w * 0.7, my + ny * w * 0.7, x1 + nx * tw, y1 + ny * tw, x1 - nx * tw, y1 - ny * tw, mx - nx * w * 0.7, my - ny * w * 0.7, x0 - nx * w, y0 - ny * w]);
+  return p;
 }
-function ring(outer, inner) { const p = new Path2D(); p.addPath(outer); p.addPath(inner); p.rule = 'evenodd'; return p; }
+function ring(outer, inner) { const p = new Path2D(); p.addPath(outer); p.addPath(inner); p.rule = 'evenodd'; p.bb = outer.bb && inner.bb ? bbOf([...outer.bb, ...inner.bb]) : null; return p; }
 // 合并多个形状（逐个填充 = 取并集，避免绕向相反时出现镂空）
-function union(...ps) { const p = new Path2D(); p.parts = []; for (const q of ps) if (q) { if (q.parts) p.parts.push(...q.parts); else p.parts.push(q); } return p; }
+function union(...ps) { const p = new Path2D(); p.parts = []; for (const q of ps) if (q) { if (q.parts) p.parts.push(...q.parts); else p.parts.push(q); } p.bb = p.parts.every(q => q.bb) && p.parts.length ? bbOf([].concat(...p.parts.map(q => q.bb))) : null; return p; }
 // 开放 Catmull-Rom 采样点
 function splinePts(a, step) {
   const n = a.length / 2, out = [];
@@ -111,22 +123,113 @@ function splinePts(a, step) {
 let MC = null, MX = null;
 let TF = null; // 头部缩放 [s, ox, oy]
 const tx = (x) => TF ? TF[1] + (x - TF[1]) * TF[0] : x, ty = (y) => TF ? TF[2] + (y - TF[2]) * TF[0] : y;
+const EMPTY_M = { x0: 0, y0: 0, w: 0, h: 0, m: new Uint8Array(0) };
+function maskCtx() {
+  if (!MC || MC.width !== W || MC.height !== H) { MC = document.createElement('canvas'); MC.width = W; MC.height = H; MX = MC.getContext('2d', { willReadFrequently: true }); }
+  return MX;
+}
+// 遮罩：{ x0, y0, w, h, m }（m 为框内 0/1）
 function maskOf(path) {
-  if (!MC) { MC = document.createElement('canvas'); MC.width = W; MC.height = H; MX = MC.getContext('2d', { willReadFrequently: true }); }
-  MX.setTransform(1, 0, 0, 1, 0, 0); MX.clearRect(0, 0, W, H); MX.fillStyle = '#fff';
-  if (TF) MX.setTransform(TF[0], 0, 0, TF[0], TF[1] * (1 - TF[0]), TF[2] * (1 - TF[0]));
-  if (path.parts) for (const q of path.parts) MX.fill(q, q.rule || 'nonzero');
-  else MX.fill(path, path.rule || 'nonzero');
-  const d = MX.getImageData(0, 0, W, H).data, m = new Uint8Array(N);
-  for (let i = 0; i < N; i++) m[i] = d[i * 4 + 3] >= 128 ? 1 : 0;
-  return m;
+  maskCtx();
+  if (SC === 1) { // 原版像素立绘：整张栅格化（与旧版逐像素一致）
+    MX.setTransform(1, 0, 0, 1, 0, 0); MX.clearRect(0, 0, W, H); MX.fillStyle = '#fff';
+    if (TF) MX.setTransform(TF[0], 0, 0, TF[0], TF[1] * (1 - TF[0]), TF[2] * (1 - TF[0]));
+    if (path.parts) for (const q of path.parts) MX.fill(q, q.rule || 'nonzero');
+    else MX.fill(path, path.rule || 'nonzero');
+    const d = MX.getImageData(0, 0, W, H).data, m = new Uint8Array(N);
+    for (let i = 0; i < N; i++) m[i] = d[i * 4 + 3] >= 128 ? 1 : 0;
+    return { x0: 0, y0: 0, w: W, h: H, m };
+  }
+  const s = TF ? TF[0] : 1, ox = TF ? TF[1] * (1 - s) : 0, oy = TF ? TF[2] * (1 - s) : 0;
+  let x0 = 0, y0 = 0, x1 = W, y1 = H;
+  const b = path.bb;
+  if (b) {
+    x0 = Math.max(0, Math.floor(SC * (s * b[0] + ox)) - 2); y0 = Math.max(0, Math.floor(SC * (s * b[1] + oy)) - 2);
+    x1 = Math.min(W, Math.ceil(SC * (s * b[2] + ox)) + 2); y1 = Math.min(H, Math.ceil(SC * (s * b[3] + oy)) + 2);
+  }
+  if (x1 <= x0 || y1 <= y0) return EMPTY_M;
+  return rasterHD(x0, y0, x1, y1, () => {
+    MX.setTransform(SC * s, 0, 0, SC * s, SC * ox, SC * oy);
+    if (path.parts) for (const q of path.parts) MX.fill(q, q.rule || 'nonzero');
+    else MX.fill(path, path.rule || 'nonzero');
+  });
+}
+function rasterHD(x0, y0, x1, y1, draw) {
+  const w = x1 - x0, h = y1 - y0;
+  MX.setTransform(1, 0, 0, 1, 0, 0); MX.clearRect(x0, y0, w, h);
+  MX.save(); MX.beginPath(); MX.rect(x0, y0, w, h); MX.clip();
+  MX.fillStyle = '#fff'; MX.strokeStyle = '#fff';
+  draw();
+  MX.restore();
+  const d = MX.getImageData(x0, y0, w, h).data, n = w * h, m = new Uint8Array(n);
+  for (let i = 0; i < n; i++) m[i] = d[i * 4 + 3] >= 128 ? 1 : 0;
+  return { x0, y0, w, h, m };
+}
+// 高清：沿样条描一条宽 lw（原像素单位）的圆头线
+function strokeMask(pts, lw) {
+  maskCtx();
+  let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity;
+  for (const [x, y] of pts) { if (x < a) a = x; if (x > c) c = x; if (y < b) b = y; if (y > d) d = y; }
+  const r = lw / 2 + 0.5;
+  const x0 = Math.max(0, Math.floor((a - r) * SC) - 1), y0 = Math.max(0, Math.floor((b - r) * SC) - 1);
+  const x1 = Math.min(W, Math.ceil((c + r) * SC) + 1), y1 = Math.min(H, Math.ceil((d + r) * SC) + 1);
+  if (x1 <= x0 || y1 <= y0) return EMPTY_M;
+  return rasterHD(x0, y0, x1, y1, () => {
+    MX.setTransform(SC, 0, 0, SC, 0, 0);
+    MX.lineWidth = lw; MX.lineCap = 'round'; MX.lineJoin = 'round';
+    MX.beginPath(); MX.moveTo(pts[0][0], pts[0][1]);
+    if (pts.length === 1) MX.lineTo(pts[0][0] + 0.01, pts[0][1]);
+    for (let i = 1; i < pts.length; i++) MX.lineTo(pts[i][0], pts[i][1]);
+    MX.stroke();
+  });
+}
+// 高清：以 (cx,cy)（高清像素）为圆心、半径 r 的圆点遮罩
+function discMask(cx, cy, r) {
+  const x0 = Math.max(0, Math.floor(cx - r)), y0 = Math.max(0, Math.floor(cy - r)), x1 = Math.min(W, Math.ceil(cx + r)), y1 = Math.min(H, Math.ceil(cy + r));
+  if (x1 <= x0 || y1 <= y0) return EMPTY_M;
+  const w = x1 - x0, h = y1 - y0, m = new Uint8Array(w * h), r2 = r * r;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const dx = x0 + x + 0.5 - cx, dy = y0 + y + 0.5 - cy; if (dx * dx + dy * dy <= r2) m[y * w + x] = 1; }
+  return { x0, y0, w, h, m };
+}
+// 高清：字符模板平滑放大（每个高清像素取邻近格子的高斯加权多数）
+const TBIAS = { H: 1.6, P: 1.25 };
+function tmplMask(x0, y0, rows, map, flip) {
+  const R = rows.length; let C = 0; for (const r of rows) C = Math.max(C, r.length);
+  const syms = [null], chs = [null], idx = new Map(), g = new Int16Array(R * C);
+  for (let r = 0; r < R; r++) {
+    const row = rows[r];
+    for (let c = 0; c < row.length; c++) {
+      const ch = row[c]; if (ch === '.' || ch === ' ') continue;
+      const e = map[ch]; if (e == null) continue;
+      let k = idx.get(e); if (k == null) { k = syms.length; idx.set(e, k); syms.push(e); chs.push(ch); }
+      g[r * C + (flip ? row.length - 1 - c : c)] = k;
+    }
+  }
+  const bias = chs.map((ch, i) => i ? (TBIAS[ch] || 1.15) : 1);
+  const X0 = Math.max(0, (x0 - 1) * SC), Y0 = Math.max(0, (y0 - 1) * SC), X1 = Math.min(W, (x0 + C + 1) * SC), Y1 = Math.min(H, (y0 + R + 1) * SC);
+  const out = [], sc = new Float32Array(syms.length);
+  for (let Y = Y0; Y < Y1; Y++) for (let X = X0; X < X1; X++) {
+    const u = (X + 0.5) / SC - x0 - 0.5, v = (Y + 0.5) / SC - y0 - 0.5, cu = Math.round(u), cv = Math.round(v);
+    sc.fill(0);
+    for (let dv = -1; dv <= 1; dv++) for (let du = -1; du <= 1; du++) {
+      const cx = cu + du, cy = cv + dv, k = cx >= 0 && cy >= 0 && cx < C && cy < R ? g[cy * C + cx] : 0;
+      const ex = cx - u, ey = cy - v;
+      sc[k] += Math.exp(-(ex * ex + ey * ey) * 2.2) * bias[k];
+    }
+    let best = 0; for (let k = 1; k < sc.length; k++) if (sc[k] > sc[best]) best = k;
+    if (best) out.push(Y * W + X, best);
+  }
+  return { out, syms };
 }
 function Pic() {
   this.o = new Int16Array(N); this.t = new Uint8Array(N);
+  this.cr = SC > 1 ? new Uint8Array(N) : null; // 高清：不做柔化的像素（五官线条）
+  this.mark = false;
+  this.bx = SC > 1 ? [null] : null; // 高清：各物件的外接框（加速明暗计算）
   this.objs = [{ pal: null, g: 'bg', ol: false }];
 }
 Pic.prototype = {
-  obj(pal, g, opt) { this.objs.push(Object.assign({ pal, g: g || '', ol: true }, opt || {})); return this.objs.length - 1; },
+  obj(pal, g, opt) { this.objs.push(Object.assign({ pal, g: g || '', ol: true }, opt || {})); if (this.bx) this.bx.push(null); return this.objs.length - 1; },
   sel(target) {
     const n = this.objs.length, m = new Uint8Array(n);
     if (target == null) { m.fill(1); m[0] = 0; return m; }
@@ -136,19 +239,42 @@ Pic.prototype = {
     }
     return m;
   },
-  fill(path, id, tone) { const m = maskOf(path), o = this.o, t = this.t; tone = tone == null ? 3 : tone; for (let i = 0; i < N; i++) if (m[i]) { o[i] = id; t[i] = tone; } return id; },
+  // 对遮罩内像素执行 f(i)
+  _each(M, f) { const { x0, y0, w, h, m } = M; for (let y = 0, k = 0; y < h; y++) { let i = (y0 + y) * W + x0; for (let x = 0; x < w; x++, i++, k++) if (m[k]) f(i); } },
+  _grow(id, x0, y0, x1, y1) { const b = this.bx[id]; if (!b) this.bx[id] = [x0, y0, x1, y1]; else { if (x0 < b[0]) b[0] = x0; if (y0 < b[1]) b[1] = y0; if (x1 > b[2]) b[2] = x1; if (y1 > b[3]) b[3] = y1; } },
+  // 选中物件的联合外接框（像素版为整张）
+  _box(sel) {
+    if (!this.bx) return [0, 0, W, H];
+    let x0 = W, y0 = H, x1 = 0, y1 = 0;
+    for (let k = 1; k < sel.length; k++) { const b = sel[k] && this.bx[k]; if (!b) continue; if (b[0] < x0) x0 = b[0]; if (b[1] < y0) y0 = b[1]; if (b[2] > x1) x1 = b[2]; if (b[3] > y1) y1 = b[3]; }
+    return [x0, y0, x1, y1];
+  },
+  _set(M, id, tone) {
+    const o = this.o, t = this.t, cr = this.cr, mk = this.mark ? 1 : 0;
+    if (cr) { if (M.w) this._grow(id, M.x0, M.y0, M.x0 + M.w, M.y0 + M.h); this._each(M, i => { o[i] = id; t[i] = tone; cr[i] = mk; }); } else this._each(M, i => { o[i] = id; t[i] = tone; });
+  },
+  _shadeM(M, s, tone, cond) { const o = this.o, t = this.t, cr = this.mark && this.cr; this._each(M, i => { if (s[o[i]] && (!cond || cond(t[i]))) { t[i] = tone; if (cr) cr[i] = 1; } }); },
+  fill(path, id, tone) { this._set(maskOf(path), id, tone == null ? 3 : tone); return id; },
   // 新建物件并填充
   add(path, pal, g, opt, tone) { const id = this.obj(pal, g, opt); this.fill(path, id, tone); return id; },
   // 只改变 target 范围内像素的色阶
-  shade(path, target, tone, cond) {
-    const m = maskOf(path), s = this.sel(target), o = this.o, t = this.t;
-    for (let i = 0; i < N; i++) if (m[i] && s[o[i]] && (!cond || cond(t[i]))) t[i] = tone;
-  },
+  shade(path, target, tone, cond) { this._shadeM(maskOf(path), this.sel(target), tone, cond); },
   // 清除为背景（挖空）
-  erase(path, target) { const m = maskOf(path), s = target == null ? null : this.sel(target); for (let i = 0; i < N; i++) if (m[i] && (!s || s[this.o[i]])) { this.o[i] = 0; this.t[i] = 0; } },
-  px(x, y, id, tone) { x = Math.floor(tx(x)); y = Math.floor(ty(y)); y |= 0; if (x < 0 || y < 0 || x >= W || y >= H) return; const i = y * W + x; this.o[i] = id; this.t[i] = tone; },
-  spx(x, y, target, tone) { x = Math.floor(tx(x)); y = Math.floor(ty(y)); if (x < 0 || y < 0 || x >= W || y >= H) return; const i = y * W + x; const s = typeof target === 'number' ? this.o[i] === target : this.sel(target)[this.o[i]]; if (s) this.t[i] = tone; },
-  at(x, y) { if (x < 0 || y < 0 || x >= W || y >= H) return 0; return this.o[y * W + x]; },
+  erase(path, target) { const s = target == null ? null : this.sel(target), o = this.o, t = this.t; this._each(maskOf(path), i => { if (!s || s[o[i]]) { o[i] = 0; t[i] = 0; } }); },
+  _dot(x, y) { return discMask((Math.floor(tx(x)) + 0.5) * SC, (Math.floor(ty(y)) + 0.5) * SC, SC * 0.62); },
+  px(x, y, id, tone) {
+    if (SC > 1) { this._set(this._dot(x, y), id, tone); return; }
+    x = Math.floor(tx(x)); y = Math.floor(ty(y)); y |= 0; if (x < 0 || y < 0 || x >= W || y >= H) return; const i = y * W + x; this.o[i] = id; this.t[i] = tone;
+  },
+  spx(x, y, target, tone) {
+    if (SC > 1) { const s = typeof target === 'number' ? null : this.sel(target), o = this.o, t = this.t; this._each(this._dot(x, y), i => { if (s ? s[o[i]] : o[i] === target) t[i] = tone; }); return; }
+    x = Math.floor(tx(x)); y = Math.floor(ty(y)); if (x < 0 || y < 0 || x >= W || y >= H) return; const i = y * W + x; const s = typeof target === 'number' ? this.o[i] === target : this.sel(target)[this.o[i]]; if (s) this.t[i] = tone;
+  },
+  // 原像素坐标 (x,y) 处的物件
+  at(x, y) {
+    if (SC > 1) { const X = Math.floor((x + 0.5) * SC), Y = Math.floor((y + 0.5) * SC); return X < 0 || Y < 0 || X >= W || Y >= H ? 0 : this.o[Y * W + X]; }
+    if (x < 0 || y < 0 || x >= W || y >= H) return 0; return this.o[y * W + x];
+  },
   linePx(a) {
     const raw = splinePts(a.map((v, i) => i % 2 ? ty(v) : tx(v)), 0.2), pts = [];
     for (const [x, y] of raw) { const X = Math.floor(x), Y = Math.floor(y); const l = pts[pts.length - 1]; if (!l || l[0] !== X || l[1] !== Y) pts.push([X, Y]); }
@@ -168,6 +294,12 @@ Pic.prototype = {
   },
   // 画线：id 为数字时设为该物件；opt.shade=true 时仅改色阶（id 为 target）
   line(a, id, tone, shadeOnly) {
+    if (SC > 1) { // 高清：真正的平滑线（像素线中心约在 +0.5 处，取 +0.3 折衷）
+      const pts = splinePts(a.map((v, i) => (i % 2 ? ty(v) : tx(v)) + 0.3), 0.35);
+      const M = strokeMask(pts, LINE_W);
+      if (shadeOnly) this._shadeM(M, this.sel(id), tone); else this._set(M, id, tone);
+      return;
+    }
     const s = shadeOnly ? this.sel(id) : null;
     for (const [x, y] of this.linePx(a)) {
       if (x < 0 || y < 0 || x >= W || y >= H) continue;
@@ -178,6 +310,12 @@ Pic.prototype = {
   // 字符模板：map[ch] = [id, tone] 设置；数字 = 仅改色阶
   tmpl(x0, y0, rows, map, flip) {
     x0 = Math.round(tx(x0)); y0 = Math.round(ty(y0));
+    if (SC > 1) {
+      if (map.P && map.I && map.K) return this.eyeHD(x0, y0, rows, map, flip);
+      const { out, syms } = tmplMask(x0, y0, rows, map, flip), cr = this.cr;
+      for (let j = 0; j < out.length; j += 2) { const i = out[j], e = syms[out[j + 1]]; if (typeof e === 'number') this.t[i] = e; else { this.o[i] = e[0]; this.t[i] = e[1]; const x = i % W, y = (i / W) | 0; this._grow(e[0], x, y, x + 1, y + 1); } cr[i] = 1; }
+      return;
+    }
     for (let r = 0; r < rows.length; r++) {
       const row = rows[r];
       for (let c = 0; c < row.length; c++) {
@@ -190,28 +328,104 @@ Pic.prototype = {
       }
     }
   },
-  // 自动赛璐璐明暗：光源方向 (-dx,-dy)；s 阴影宽，d 深影宽，hl 亮边宽
+  // 高清动画眼：由眼睛模板量出睫毛、眼白、虹膜、瞳孔、高光的范围，再以平滑形状重画
+  eyeHD(x0, y0, rows, map, flip) {
+    const K = map.K, eid = K[0], ccls = { W: 'w', w: 'w', D: 'i', I: 'i', L: 'i', H: 'i', P: 'i' }, bb = {};
+    const grow = (k, c, r) => { const b = bb[k] || (bb[k] = [c, r, c + 1, r + 1]); if (c < b[0]) b[0] = c; if (r < b[1]) b[1] = r; if (c + 1 > b[2]) b[2] = c + 1; if (r + 1 > b[3]) b[3] = r + 1; };
+    const sm = {};
+    for (let r = 0; r < rows.length; r++) for (let c = 0; c < rows[r].length; c++) {
+      const ch = rows[r][c]; if (ch === '.' || ch === ' ' || map[ch] == null) continue;
+      const cc = flip ? rows[r].length - 1 - c : c;
+      if (ccls[ch]) { grow(ccls[ch], cc, r); sm[ch] = K; } else sm[ch] = map[ch];
+      if (ch === 'P' || ch === 'H' || ch === 'L' || ch === 'D' || ch === 'I') grow(ch, cc, r);
+    }
+    // 1 眼窝：整个模板以睫毛色平滑填满（得到圆润的外形与上睫毛）
+    const { out, syms } = tmplMask(x0, y0, rows, sm, flip);
+    let C = 0; for (const r of rows) C = Math.max(C, r.length);
+    const ecx = (x0 + C / 2) * SC, ecy = (y0 + rows.length / 2) * SC, eax = C / 2 * SC * 1.04, eay = rows.length / 2 * SC * 1.04;
+    for (let j = 0; j < out.length; j += 2) {
+      const i = out[j], e = syms[out[j + 1]], x = i % W, y = (i / W) | 0;
+      if (y + 0.5 > ecy && typeof e !== 'number') { const u = Math.abs(x + 0.5 - ecx) / eax, v = (y + 0.5 - ecy) / eay; if (Math.pow(u, 2.6) + Math.pow(v, 2.6) > 1) continue; } // 下眼角修圆
+      if (typeof e === 'number') this.t[i] = e; else { this.o[i] = e[0]; this.t[i] = e[1]; this._grow(e[0], x, y, x + 1, y + 1); }
+    }
+    const oldTF = TF; TF = null;
+    const X = v => x0 + v, Y = v => y0 + v, rr = (b) => [X(b[0]), Y(b[1]), X(b[2]), Y(b[3])];
+    const iris = bb.i && rr(bb.i);
+    // 2 眼白（上缘带眼睑阴影）
+    if (bb.w || iris) {
+      const b = rr([Math.min(bb.w ? bb.w[0] : 99, bb.i ? bb.i[0] : 99), Math.min(bb.w ? bb.w[1] : 99, bb.i ? bb.i[1] : 99), Math.max(bb.w ? bb.w[2] : -99, bb.i ? bb.i[2] : -99), Math.max(bb.w ? bb.w[3] : -99, bb.i ? bb.i[3] : -99)]);
+      if (iris && bb.w && bb.w[0] < bb.i[0]) b[2] += 0.6; // 眼白延伸到虹膜外侧，只留细眼线
+      const w = b[2] - b[0], h = b[3] - b[1], cx = (b[0] + b[2]) / 2;
+      const white = blob([b[0] + 0.15, b[1] + h * 0.35, cx - w * 0.15, b[1] + 0.1, b[2] - 0.3, b[1] + 0.05, b[2] - 0.15, b[1] + h * 0.6, cx + w * 0.2, b[3] - 0.1, b[0] + w * 0.25, b[3] - 0.35]);
+      if (map.W) this.shade(white, eid, map.W[1]);
+      if (map.w) this.shade(rect(b[0], b[1] - 1, w, 1 + Math.min(1.1, h * 0.18)), eid, map.w[1], t => t === map.W[1]);
+    }
+    // 3 虹膜：椭圆 + 上暗下亮的渐层 + 深色外圈
+    if (iris) {
+      const cx = (iris[0] + iris[2]) / 2, cy = (iris[1] + iris[3]) / 2, rx = (iris[2] - iris[0]) / 2 + 0.1, ry = (iris[3] - iris[1]) / 2 + 0.15;
+      const glow = !bb.I && !bb.D && !bb.P && bb.L; // 发光眼：整颗虹膜都是亮色
+      const tI = glow ? map.L[1] : map.I[1], tD = map.D ? map.D[1] : tI, tL = map.L ? map.L[1] : tI;
+      this.shade(ell(cx, cy, rx, ry), eid, tI);
+      const inI = t => t === tI;
+      if (map.D && bb.D) this.shade(rect(cx - rx, cy - ry - 1, rx * 2, ry * 0.95 + 1), eid, tD, inI);
+      if (map.L && bb.L && !glow) this.shade(ell(cx + rx * 0.1, cy + ry * 0.62, rx * 0.78, ry * 0.42), eid, tL, inI);
+      this.shade(ring(ell(cx, cy, rx, ry), ell(cx, cy + 0.1, rx - 0.45, ry - 0.45)), eid, tD, t => t === tI || t === tL);
+      // 瞳孔
+      if (bb.P) { const b = rr(bb.P), pw = (b[2] - b[0]) / 2, ph = (b[3] - b[1]) / 2; this.shade(ell((b[0] + b[2]) / 2, (b[1] + b[3]) / 2 + 0.1, Math.max(0.55, pw * 0.82), Math.max(0.7, ph * 0.88)), eid, map.P[1], t => t !== map.K[1]); }
+      // 高光：大圆 + 右下小圆
+      if (bb.H) {
+        const b = rr(bb.H), r = Math.max(0.6, Math.min(b[2] - b[0], b[3] - b[1]) * 0.5);
+        this.shade(ell((b[0] + b[2]) / 2, (b[1] + b[3]) / 2, r * 1.05, r * 1.1), eid, map.H[1]);
+        if (rx >= 1.4 && ry >= 1.6) this.shade(ell(cx + rx * 0.42, cy + ry * 0.45, Math.max(0.4, rx * 0.2), Math.max(0.4, rx * 0.2)), eid, map.H[1], t => t !== map.K[1]);
+      }
+    }
+    TF = oldTF;
+  },
+  // 自动赛璐璐明暗：光源方向 (-dx,-dy)；s 阴影宽，d 深影宽，hl 亮边宽（原像素单位，高清时按 SC 放大）
   auto(target, o) {
     o = o || {};
     const dx = o.dx == null ? 1 : o.dx, dy = o.dy == null ? 0.6 : o.dy;
-    const s = o.s == null ? 2 : o.s, d = o.d || 0, hl = o.hl == null ? 1 : o.hl;
+    const s = Math.round((o.s == null ? 2 : o.s) * SC), d = Math.round((o.d || 0) * SC), hl = Math.round((o.hl == null ? 1 : o.hl) * SC);
     const base = o.base == null ? 3 : o.base;
     const sel = this.sel(target), so = this.o, st = this.t, nt = new Uint8Array(st);
-    const inside = (x, y) => x >= 0 && y >= 0 && x < W && y < H && sel[so[y * W + x]];
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const mx = Math.max(s, d), n = Math.max(mx, hl);
+    // 步进偏移（x 为整数时 round(x + f) = x + round(f)）
+    const ox = new Int32Array(n + 1), oy = new Int32Array(n + 1), bx = new Int32Array(n + 1), by = new Int32Array(n + 1);
+    for (let k = 1; k <= n; k++) { ox[k] = Math.round(dx * k); oy[k] = Math.round(dy * k); bx[k] = Math.round(-dx * k); by[k] = Math.round(-dy * k); }
+    const [X0, Y0, X1, Y1] = this._box(sel);
+    // 高清：先做倒角距离变换，离边缘够远的内部像素直接略过
+    let D = null, deep = 1e9;
+    const bw = X1 - X0, bh = Y1 - Y0;
+    if (SC > 1 && bw > 0 && bh > 0) {
+      D = new Uint16Array(bw * bh); deep = 3 * (n * Math.hypot(dx, dy) * 1.15 + 2);
+      for (let y = 0; y < bh; y++) for (let x = 0; x < bw; x++) {
+        const j = y * bw + x; if (!sel[so[(Y0 + y) * W + X0 + x]]) continue;
+        let v = 3; if (x > 0 && y > 0) { v = D[j - 1] + 3; let u = D[j - bw] + 3; if (u < v) v = u; u = D[j - bw - 1] + 4; if (u < v) v = u; if (x < bw - 1) { u = D[j - bw + 1] + 4; if (u < v) v = u; } }
+        D[j] = v > 65000 ? 65000 : v;
+      }
+      for (let y = bh - 1; y >= 0; y--) for (let x = bw - 1; x >= 0; x--) {
+        const j = y * bw + x; let v = D[j]; if (!v) continue;
+        if (x < bw - 1 && y < bh - 1) { let u = D[j + 1] + 3; if (u < v) v = u; u = D[j + bw] + 3; if (u < v) v = u; u = D[j + bw + 1] + 4; if (u < v) v = u; if (x > 0) { u = D[j + bw - 1] + 4; if (u < v) v = u; } } else v = 3;
+        D[j] = v;
+      }
+    }
+    for (let y = Y0; y < Y1; y++) for (let x = X0; x < X1; x++) {
       const i = y * W + x; if (!sel[so[i]] || st[i] !== base) continue;
+      if (D && D[(y - Y0) * bw + x - X0] > deep) continue;
       let out = 0;
-      for (let k = 1; k <= Math.max(s, d); k++) if (!inside(Math.round(x + dx * k), Math.round(y + dy * k))) { out = k; break; }
+      for (let k = 1; k <= mx; k++) { const X = x + ox[k], Y = y + oy[k]; if (X < 0 || Y < 0 || X >= W || Y >= H || !sel[so[Y * W + X]]) { out = k; break; } }
       if (out && out <= d) nt[i] = base - 2;
       else if (out && out <= s) nt[i] = base - 1;
-      else if (hl) { for (let k = 1; k <= hl; k++) if (!inside(Math.round(x - dx * k), Math.round(y - dy * k))) { nt[i] = base + 1; break; } }
+      else if (hl) { for (let k = 1; k <= hl; k++) { const X = x + bx[k], Y = y + by[k]; if (X < 0 || Y < 0 || X >= W || Y >= H || !sel[so[Y * W + X]]) { nt[i] = base + 1; break; } } }
     }
     this.t.set(nt);
   },
   // from 物件在 to 物件上投下阴影（偏移 dx,dy）
   cast(from, to, dx, dy, tone, maxTone) {
+    dx = Math.round(dx * SC); dy = Math.round(dy * SC);
     const fs = this.sel(from), ts = this.sel(to), o = this.o, t = this.t, nt = new Uint8Array(t);
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const [X0, Y0, X1, Y1] = this._box(ts);
+    for (let y = Y0; y < Y1; y++) for (let x = X0; x < X1; x++) {
       const i = y * W + x; if (!ts[o[i]]) continue;
       const sx = x - dx, sy = y - dy; if (sx < 0 || sy < 0 || sx >= W || sy >= H) continue;
       if (fs[o[sy * W + sx]] && t[i] > tone && (maxTone == null || t[i] <= maxTone)) nt[i] = tone;
@@ -219,6 +433,7 @@ Pic.prototype = {
     this.t.set(nt);
   },
   render(bg) {
+    if (SC > 1) return renderHD(this, bg);
     const c = document.createElement('canvas'); c.width = W; c.height = H;
     const ctx = c.getContext('2d'), img = ctx.createImageData(W, H), d = img.data;
     const o = this.o, t = this.t, objs = this.objs;
@@ -246,6 +461,116 @@ Pic.prototype = {
     return c;
   },
 };
+// ---------- 高清上色：粗细描边 + 物件内柔和明暗 + 平滑背景 ----------
+let LINE_W = 1;        // 高清线宽（原像素单位）
+const OL_IN = 0.5, OL_OUT = 0.8, SOFT = 0.75; // 内描边 / 外轮廓粗细、柔化半径（原像素单位）
+let NOBG = false;      // 透明背景
+function dilate(a, sq) {
+  const b = new Int16Array(N);
+  for (let y = 0; y < H; y++) {
+    const up = y > 0, dn = y < H - 1;
+    for (let x = 0, i = y * W; x < W; x++, i++) {
+      let m = a[i], v;
+      const lf = x > 0, rt = x < W - 1;
+      if (lf && (v = a[i - 1]) > m) m = v;
+      if (rt && (v = a[i + 1]) > m) m = v;
+      if (up && (v = a[i - W]) > m) m = v;
+      if (dn && (v = a[i + W]) > m) m = v;
+      if (sq) {
+        if (up && lf && (v = a[i - W - 1]) > m) m = v;
+        if (up && rt && (v = a[i - W + 1]) > m) m = v;
+        if (dn && lf && (v = a[i + W - 1]) > m) m = v;
+        if (dn && rt && (v = a[i + W + 1]) > m) m = v;
+      }
+      b[i] = m;
+    }
+  }
+  return b;
+}
+// 只在同一 key 的连续段内做方框模糊（前缀和，O(N)）
+function blurRuns(col, key, r, horiz) {
+  const L = horiz ? W : H, M = horiz ? H : W, step = horiz ? 1 : W, lstep = horiz ? W : 1;
+  const out = new Float32Array(col), ps = new Float32Array((L + 1) * 3);
+  for (let l = 0; l < M; l++) {
+    const base = l * lstep;
+    let s = 0;
+    while (s < L) {
+      const k = key[base + s * step];
+      let e = s + 1;
+      while (e < L && key[base + e * step] === k) e++;
+      if (k > 0 && e - s > 1) {
+        ps[0] = ps[1] = ps[2] = 0;
+        for (let p = s; p < e; p++) { const i = (base + p * step) * 3, q = (p - s + 1) * 3; ps[q] = ps[q - 3] + col[i]; ps[q + 1] = ps[q - 2] + col[i + 1]; ps[q + 2] = ps[q - 1] + col[i + 2]; }
+        for (let p = s; p < e; p++) {
+          const lo = Math.max(s, p - r) - s, hi = Math.min(e - 1, p + r) - s + 1, n = hi - lo, i = (base + p * step) * 3;
+          out[i] = (ps[hi * 3] - ps[lo * 3]) / n; out[i + 1] = (ps[hi * 3 + 1] - ps[lo * 3 + 1]) / n; out[i + 2] = (ps[hi * 3 + 2] - ps[lo * 3 + 2]) / n;
+        }
+      }
+      s = e;
+    }
+  }
+  return out;
+}
+function softKey(ob, A, tt) {
+  if (!ob.pal) return 0;
+  if (ob.g === 'eye') {
+    if (ob.pal.length >= 9) return tt >= 4 && tt <= 6 ? A * 4 + 1 : tt === 2 || tt === 3 ? A * 4 + 2 : 0;
+    return tt >= 1 && tt <= 4 ? A * 4 + 1 : 0;
+  }
+  if (tt === 0 || ob.crisp) return 0;
+  if ((ob.g === 'hair' || ob.g === 'brow') && tt >= 4) return 0; // 发丝光泽（天使环）保持锐利
+  if (tt === 6 && ob.pal.length >= 8) return 0; // 唇色
+  return A * 4 + 1;
+}
+function renderHD(pic, bg) {
+  const o = pic.o, t = pic.t, objs = pic.objs, n = objs.length;
+  const cache = objs.map(ob => ob.pal ? ob.pal.map(h2r) : null);
+  const olv = new Int16Array(n); for (let k = 1; k < n; k++) olv[k] = objs[k].ol ? k : 0;
+  let a = new Int16Array(N); for (let i = 0; i < N; i++) a[i] = olv[o[i]];
+  const Rin = Math.max(1, Math.round(SC * OL_IN)), Rout = Math.max(Rin, Math.round(SC * OL_OUT));
+  let dIn = a;
+  for (let r = 1; r <= Rout; r++) { a = dilate(a, r % 2 === 0); if (r === Rin) dIn = a; }
+  const dOut = a;
+  // 查表：物件 × 色阶 → 颜色 / 柔化 key；物件 → 描边色
+  const ct = new Float32Array(n * 16 * 3), kt = new Int32Array(n * 16), oc = new Float32Array(n * 3), nr = new Uint8Array(n);
+  for (let A = 1; A < n; A++) {
+    const pc = cache[A]; if (!pc) continue;
+    for (let tt = 0; tt < 16; tt++) { const c = pc[tt] || pc[3] || pc[0]; ct[(A * 16 + tt) * 3] = c[0]; ct[(A * 16 + tt) * 3 + 1] = c[1]; ct[(A * 16 + tt) * 3 + 2] = c[2]; kt[A * 16 + tt] = softKey(objs[A], A, tt); }
+    const c = pc[objs[A].olt || 0] || pc[0]; oc[A * 3] = c[0]; oc[A * 3 + 1] = c[1]; oc[A * 3 + 2] = c[2];
+    nr[A] = objs[A].noRecv ? 1 : 0;
+  }
+  const col = new Float32Array(N * 3), key = new Int32Array(N), cr = pic.cr;
+  for (let i = 0; i < N; i++) {
+    const A = o[i], m = A === 0 ? dOut[i] : dIn[i], q = i * 3;
+    if (m > A && !nr[A]) { col[q] = oc[m * 3]; col[q + 1] = oc[m * 3 + 1]; col[q + 2] = oc[m * 3 + 2]; }
+    else if (A > 0) { const z = A * 16 + (t[i] & 15), u = z * 3; col[q] = ct[u]; col[q + 1] = ct[u + 1]; col[q + 2] = ct[u + 2]; key[i] = cr[i] ? 0 : kt[z]; }
+    else key[i] = -1;
+  }
+  const r = Math.max(1, Math.round(SC * SOFT));
+  let sm = blurRuns(col, key, r, true); sm = blurRuns(sm, key, r, false);
+  const fig = document.createElement('canvas'); fig.width = W; fig.height = H;
+  const fx = fig.getContext('2d'), img = fx.createImageData(W, H), d = img.data;
+  for (let i = 0; i < N; i++) { if (key[i] < 0) continue; const j = i * 4, q = i * 3; d[j] = sm[q]; d[j + 1] = sm[q + 1]; d[j + 2] = sm[q + 2]; d[j + 3] = 255; }
+  fx.putImageData(img, 0, 0);
+  // 柔光：左上暖光、右下冷影（只作用在人物上）
+  fx.globalCompositeOperation = 'source-atop';
+  const lg = fx.createLinearGradient(0, 0, W, H);
+  lg.addColorStop(0, 'rgba(255,244,220,0.10)'); lg.addColorStop(0.5, 'rgba(255,255,255,0)'); lg.addColorStop(1, 'rgba(40,30,90,0.12)');
+  fx.fillStyle = lg; fx.fillRect(0, 0, W, H);
+  fx.globalCompositeOperation = 'source-over';
+  if (NOBG || !bg) return fig;
+  const out = document.createElement('canvas'); out.width = W; out.height = H;
+  const ox = out.getContext('2d'), P = bg.map(h2r), rs = c => `rgb(${c[0]},${c[1]},${c[2]})`, L = P.length - 1;
+  ox.fillStyle = rs(P[0]); ox.fillRect(0, 0, W, H);
+  ox.save(); ox.translate(33.5 * SC, 30.5 * SC); ox.scale(1, 44 / 40);
+  const R = 40 * SC * (1 + 0.3 / L), rg = ox.createRadialGradient(0, 0, 0, 0, 0, R);
+  // 与像素版同一公式：v = (1 - r) * L + 0.3
+  for (let k = L; k >= 0; k--) rg.addColorStop(clamp((1 - (k - 0.3) / L) * 40 * SC / R, 0, 1), rs(P[k]));
+  ox.fillStyle = rg; ox.fillRect(-R, -R * 1.2, 2 * R, 2.4 * R);
+  ox.restore();
+  ox.drawImage(fig, 0, 0);
+  return out;
+}
 
 // =====================================================================
 // 调色板
@@ -448,7 +773,10 @@ function drawEyes(c) {
     const tone = S.browTone == null ? 1 : S.browTone;
     const tr = (a, x0) => a.map((v, i) => i % 2 ? v + ey + 0.5 : v + x0 + 0.5);
     p.line(tr(BR[0], F.nx), bid, tone); p.line(tr(BR[1], F.fx), bid, tone);
-    if (S.thickBrow) { p.line(tr(BR[0], F.nx).map((v, i) => i % 2 ? v - 1 : v), bid, tone); p.line(tr(BR[1], F.fx).map((v, i) => i % 2 ? v - 1 : v), bid, tone); }
+    if (S.thickBrow) { // 高清：头部已放大，偏移量改小、线加粗，免得两条线之间露缝
+      const lw = LINE_W, off = SC > 1 ? 0.75 : 1; if (SC > 1) LINE_W = 1.4;
+      p.line(tr(BR[0], F.nx).map((v, i) => i % 2 ? v - off : v), bid, tone); p.line(tr(BR[1], F.fx).map((v, i) => i % 2 ? v - off : v), bid, tone); LINE_W = lw;
+    }
   }
 }
 const DIG = { 0: 0, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7 };
@@ -472,12 +800,47 @@ const MOUTHS = {
   smirk: { o: [-2, -1], t: ['...1', '111.', '.2..'] },
   cat: { o: [-2, -1], t: ['1.1.1', '.1.1.'] },
 };
+// 高清五官：与模板同一位置，改用平滑线条 / 形状（坐标单位 = 模板格；[ 'l', 色阶, 线宽, 点... ] 或 [ 'e', 色阶, cx, cy, rx, ry, 条件色阶 ] 或 [ 'b', 色阶, 点... ]）
+const NOSE_HD = {
+  small: [['l', 2, 0.8, 0.25, 1.0, 0.85, 0.55]],
+  long: [['l', 2, 0.8, 0.45, 0.2, 0.6, 1.4, 0.3, 1.75]],
+  big: [['l', 2, 0.85, 1.5, 0.1, 1.45, 1.2, 0.5, 1.6], ['e', 1, 1.3, 1.6, 0.4, 0.3]],
+  hook: [['l', 2, 0.85, 1.4, 0.1, 1.55, 1.8, 1.4, 2.3, 0.4, 2.6], ['e', 1, 1.3, 2.6, 0.4, 0.3]],
+};
+const MOUTH_HD = {
+  smile: [['l', 1, 0.8, 0.35, 0.45, 1.3, 1.3, 2.5, 1.55, 3.7, 1.15], ['l', 2, 0.6, 2.0, 2.5, 2.9, 2.45]],
+  neutral: [['l', 1, 0.8, 0.4, 0.55, 2, 0.7, 3.6, 0.5], ['l', 2, 0.6, 1.4, 1.55, 2.6, 1.55]],
+  stern: [['l', 1, 0.8, 0.5, 1.5, 1.3, 0.8, 2.4, 0.6, 3.6, 0.6], ['l', 2, 0.6, 1.5, 2.5, 2.6, 2.5]],
+  frown: [['l', 1, 0.8, 0.5, 1.6, 1.4, 0.85, 2.6, 0.85, 3.5, 1.6], ['l', 2, 0.6, 1.5, 2.5, 2.6, 2.5]],
+  small: [['l', 1, 0.8, 0.3, 0.55, 1.7, 0.65], ['l', 2, 0.6, 0.6, 1.5, 1.1, 1.5]],
+  smirk: [['l', 1, 0.8, 0.4, 1.5, 1.6, 1.6, 2.8, 1.3, 3.6, 0.5], ['l', 2, 0.6, 1.2, 2.5, 1.9, 2.5]],
+  cat: [['l', 1, 0.75, 0.5, 0.5, 1.5, 1.45, 2.5, 0.7, 3.5, 1.45, 4.5, 0.5]],
+  lips: [['e', 6, 2, 1.45, 1.75, 1.05], ['l', 1, 0.7, 0.4, 1.5, 2, 1.7, 3.6, 1.5], ['l', 2, 0.6, 1.5, 2.6, 2.5, 2.6]],
+  open: [['b', 0, 0.2, 0.6, 2, 0.3, 3.8, 0.6, 3.4, 2.2, 2, 2.75, 0.6, 2.2], ['e', 6, 2, 2.05, 1.25, 0.6, 0]],
+  shout: [['b', 0, 0.2, 0.5, 2.5, 0.2, 4.8, 0.5, 4.3, 3.0, 2.5, 3.8, 0.7, 3.0], ['e', 5, 2.5, 0.95, 1.9, 0.5, 0], ['e', 6, 2.5, 2.7, 1.5, 0.75, 0]],
+  grin: [['b', 0, 0.3, 0.35, 2.5, 0.9, 4.7, 0.35, 3.7, 1.7, 2.5, 2.25, 1.3, 1.7], ['e', 6, 2.5, 1.85, 0.85, 0.4, 0]],
+  teeth: [['b', 0, 0.3, 0.3, 2.5, 0.45, 4.7, 0.3, 4.1, 1.6, 2.5, 2.55, 0.9, 1.6], ['e', 5, 2.5, 0.95, 1.8, 0.5, 0]],
+};
+function drawFeatHD(c, x0, y0, list) {
+  const { p } = c;
+  x0 = Math.round(tx(x0)); y0 = Math.round(ty(y0));
+  const old = TF; TF = null; p.mark = true;
+  const all = p.sel(null);
+  for (const f of list) {
+    if (f[0] === 'l') { const pts = []; for (let i = 3; i < f.length; i += 2) pts.push([x0 + f[i], y0 + f[i + 1]]); p._shadeM(strokeMask(splinePts([].concat(...pts), 0.3), f[2]), all, f[1]); }
+    else if (f[0] === 'e') { const cond = f[6] == null ? null : (t => t === f[6]); p._shadeM(maskOf(ell(x0 + f[2], y0 + f[3], f[4], f[5])), all, f[1], cond); }
+    else if (f[0] === 'b') { const a = f.slice(2).map((v, i) => v + (i % 2 ? y0 : x0)); p._shadeM(maskOf(blob(a)), all, f[1]); }
+  }
+  p.mark = false; TF = old;
+}
 function drawNose(c) {
   const { p, F, S } = c; const n = NOSES[S.nose || 'small']; if (!n) return;
+  if (SC > 1 && NOSE_HD[S.nose || 'small']) return drawFeatHD(c, F.nose[0] + n.o[0], F.nose[1] + n.o[1], NOSE_HD[S.nose || 'small']);
   p.tmpl(F.nose[0] + n.o[0], F.nose[1] + n.o[1], n.t, DIG);
 }
 function drawMouth(c) {
   const { p, F, S } = c; const m = MOUTHS[S.mouth || 'neutral']; if (!m) return;
+  if (SC > 1 && MOUTH_HD[S.mouth || 'neutral']) return drawFeatHD(c, F.mouth[0] + m.o[0], F.mouth[1] + m.o[1], MOUTH_HD[S.mouth || 'neutral']);
   p.tmpl(F.mouth[0] + m.o[0], F.mouth[1] + m.o[1], m.t, DIG);
 }
 // 皱纹
@@ -1469,7 +1832,25 @@ function meye(p, cx, cy, rx, ry, col, o) {
 }
 function fang(p, x, y, len, w, dir) { return p.add(poly([x - w, y, x + w, y, x + (dir || 0) * 0.6, y + len]), TOOTH, 'tooth'); }
 function fangUp(p, x, y, len, w) { return p.add(poly([x - w, y, x + w, y, x, y - len]), TOOTH, 'tooth'); }
+// 高清：以原像素格为单位决定纹理（格内画成圆点 / 短毛），避免方块感
+function textureHD(p, target, kind, seed, dens) {
+  const sel = p.sel(target), hs = (() => { let h = 7; for (const ch of String(seed || kind)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; })();
+  const hash = (cx, cy) => { let h = (hs ^ Math.imul(cx + 101, 0x27d4eb2d) ^ Math.imul(cy + 37, 0x165667b1)) >>> 0; h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d) >>> 0; h ^= h >>> 12; h = Math.imul(h, 0x297a2d39) >>> 0; return ((h ^ (h >>> 15)) >>> 0) / 4294967296; };
+  const D = dens || (kind === 'fur' ? 0.08 : 0.07);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = y * W + x; if (!sel[p.o[i]] || p.t[i] !== 3) continue;
+    const cx = Math.floor(x / SC), cy = Math.floor(y / SC), fx = (x + 0.5) / SC - cx - 0.5, fy = (y + 0.5) / SC - cy - 0.5;
+    if (kind === 'scale') { // 鳞片：错位的小弧
+      const sy = cy >> 2, ox = (sy * 2) % 4, u = ((x / SC - ox) % 4 + 4) % 4 - 2, v = (y / SC) % 4 - 1;
+      if (v > -1 && v < 1.4 && Math.abs(Math.hypot(u, v + 1) - 1.6) < 0.45) p.t[i] = 2;
+    } else if (kind === 'stone') { const v = hash(cx, cy); if (fx * fx + fy * fy < 0.3) { if (v < D) p.t[i] = 2; else if (v > 1 - D * 0.6) p.t[i] = 4; } }
+    else if (kind === 'fur') { // 短毛：向下的细笔触
+      for (const k of [0, 1]) { const v = hash(cx, cy - k); if (v < D && Math.abs(fx + (fy + k) * 0.25) < 0.28 && (fy + k) < 1.3) { p.t[i] = 2; break; } }
+    }
+  }
+}
 function texture(p, target, kind, seed, dens) {
+  if (SC > 1) return textureHD(p, target, kind, seed, dens);
   const r = rng(seed || kind), sel = p.sel(target);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = y * W + x; if (!sel[p.o[i]] || p.t[i] !== 3) continue;
@@ -1688,7 +2069,7 @@ const MONSTERS = {
     // 喙
     mp(p, blob([38, 33, 44, 28, 52, 27, 59, 30, 62, 36, 60, 44, 57, 40, 52, 37, 44, 38]), beak, 'beak', { s: 2, d: 1, hl: 1 });
     mp(p, blob([40, 37, 50, 38, 56, 41, 50, 43, 42, 42]), beak, 'beak', { s: 1, hl: 0 });
-    p.line([42, 37.5, 50, 38, 56, 41], 'beak', 0); p.px(53, 31, p.o[31 * W + 53] || 0, 1);
+    p.line([42, 37.5, 50, 38, 56, 41], 'beak', 0); p.px(53, 31, p.at(53, 31) || 0, 1);
     meye(p, 34, 27, 2.8, 2.4, '#f0b020', {});
     mp(p, lock(28, 24, 42, 23, 1.8, -1.5), wh, 'feather', { s: 1, hl: 1 });
     return p.render(BG);
@@ -1885,7 +2266,7 @@ const MONSTERS = {
     const fr = mp(p, rect(4, 6, 56, 70), mt, 'metal', { s: 3, d: 1, hl: 2 });
     mp(p, rect(8, 10, 48, 34), dk, 'bezel', { s: 1, hl: 1 });
     const s = mp(p, rect(11, 13, 42, 28), scr, 'screen', { s: 0, d: 0, hl: 0 });
-    for (let y = 13; y < 41; y++) for (let x = 11; x < 53; x++) { const i = y * W + x; if (p.o[i] === s) p.t[i] = (y % 2) ? 1 : 2; }
+    for (let y = 13 * SC; y < 41 * SC; y++) for (let x = 11 * SC; x < 53 * SC; x++) { const i = y * W + x; if (p.o[i] === s) p.t[i] = (Math.floor(y / SC) % 2) ? 1 : 2; }
     p.auto(fr, { s: 3, d: 1, hl: 2 });
     // 屏幕上的“脸”与数据
     for (const [x0, y0] of [[19, 22], [38, 22]]) p.fill(poly([x0, y0, x0 + 7, y0, x0 + 7, y0 + 3, x0, y0 + 3]), s, 4);
@@ -3775,7 +4156,8 @@ function build(id, variant, tier, path) {
 }
 // tier：职业阶（0 起）；未指定 = 角色当前默认外观。仅对我方英雄有效
 // path：'b' = 转职分支 B 路线（tier >= 该职业分支阶 at 时生效）；省略 / 'a' = 原路线
-function getPortrait(id, variant, tier, path) {
+// 快取键：涵盖会影响外观的一切状态（作品、职业、等级、装备……）
+function portKey(id, variant, tier, path) {
   if (typeof id === 'string' && id.startsWith('enemy:')) { if (id === 'enemy:maskman' && tier >= 1 && !variant) variant = 'captain'; tier = null; }
   if (path !== 'b' || tier == null || !(tier >= (branchAt(id) == null ? Infinity : branchAt(id)))) path = null;
   let key = id + '|' + (variant || '') + (tier == null ? '' : '|' + tier) + (path ? '|b' : '');
@@ -3784,15 +4166,81 @@ function getPortrait(id, variant, tier, path) {
   if (G2_HEROES[id] && !HERO_SPECS[id]) { key += '|' + g2Cls(id); if (tier == null) { try { key += '|lv' + HEROES[id].lv; } catch (e) { /* 无 HEROES */ } } }
   const hg = typeof id === 'string' && !id.startsWith('enemy:') ? heroGear(id) : null;
   if (hg) key += '|' + hg.key; // 换装后重新绘制
-  if (CACHE[key]) return CACHE[key];
+  return { key, variant, tier, path, hg };
+}
+// 以 sc 倍内部解析度建立立绘（sc = 1 为原版像素立绘）
+function buildAt(sc, id, k, nobg) {
   let c = null;
-  CUR_GEAR = hg && hg.g;
-  try { c = build(id, variant, tier, path); } catch (e) { TF = null; if (G.console) console.warn('portrait', id, e); c = null; }
-  TF = null; CUR_GEAR = null;
-  if (!c) c = CACHE['?'] || (CACHE['?'] = silhouette());
-  else c.className = 'pix portrait';
+  setScale(sc); NOBG = !!nobg; CUR_GEAR = k.hg && k.hg.g;
+  try { c = build(id, k.variant, k.tier, k.path); } catch (e) { if (G.console) console.warn('portrait', id, sc > 1 ? '(HD)' : '', e); c = null; }
+  finally { TF = null; CUR_GEAR = null; NOBG = false; setScale(1); }
+  return c;
+}
+function getPortrait(id, variant, tier, path) {
+  const k = portKey(id, variant, tier, path), key = k.key;
+  if (CACHE[key]) return CACHE[key];
+  let c = buildAt(1, id, k);
+  if (!c) { c = CACHE['?'] || (CACHE['?'] = silhouette()); c.__pk = { key: '?' }; }
+  else { c.className = 'pix portrait'; c.__pk = { key, args: [id, variant, tier, path] }; }
   CACHE[key] = c;
   return c;
 }
+// ---------- 高清立绘：同一套程序化绘制以 5 倍解析度重画，再缩成 4 倍（256×288，边缘抗锯齿） ----------
+let HD_SC = 5; const HD_OUT = 4, HCACHE = new Map(), HCACHE_MAX = 160;
+G.__setHDScale = k => { HD_SC = k; HCACHE.clear(); }; // 调试用
+function shrink(big, w, h) {
+  if (big.width === w && big.height === h) return big;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+  g.drawImage(big, 0, 0, w, h);
+  return c;
+}
+function hdFinish(big) { const c = shrink(big, W0 * HD_OUT, H0 * HD_OUT); c.className = 'hd portrait'; return c; }
+function hdPut(k, c) { HCACHE.set(k, c); if (HCACHE.size > HCACHE_MAX) HCACHE.delete(HCACHE.keys().next().value); return c; }
+function hdSilhouette(nobg) {
+  const k = '?' + (nobg ? '|nb' : ''); if (HCACHE.has(k)) return HCACHE.get(k);
+  setScale(HD_SC); NOBG = !!nobg; let c;
+  try { c = silhouette(); } finally { NOBG = false; setScale(1); }
+  return hdPut(k, hdFinish(c));
+}
+// getPortraitHD(id, variant, tier, path, { bg: false }) → 256×288 高清立绘（已快取；失败时回传 null）
+function getPortraitHD(id, variant, tier, path, opts) {
+  const nobg = !!(opts && opts.bg === false), k = portKey(id, variant, tier, path), hk = k.key + (nobg ? '|nb' : '');
+  if (HCACHE.has(hk)) return HCACHE.get(hk);
+  const big = buildAt(HD_SC, id, k, nobg);
+  if (!big) return hdSilhouette(nobg);
+  return hdPut(hk, hdFinish(big));
+}
+// 由 getPortrait 回传的像素立绘取得对应的高清立绘（hd_units.js 的 hdPortrait 会先走这里）
+function portraitHDOf(src, opts) {
+  const pk = src && src.__pk; if (!pk) return null;
+  const nobg = !!(opts && opts.bg === false);
+  if (pk.key === '?') return hdSilhouette(nobg);
+  const hk = pk.key + (nobg ? '|nb' : '');
+  if (HCACHE.has(hk)) return HCACHE.get(hk);
+  const [id, variant, tier, path] = pk.args;
+  if (portKey(id, variant, tier, path).key !== pk.key) return null; // 状态已变（旧画布）：交给平滑重绘
+  return getPortraitHD(id, variant, tier, path, opts);
+}
+// 空闲时预先建好高清立绘：list = [[id, variant, tier, path], ...]
+let WARM = [];
+function warmPortraitsHD(list) {
+  const idle = G.requestIdleCallback ? f => G.requestIdleCallback(f, { timeout: 2000 }) : f => setTimeout(f, 60);
+  const start = !WARM.length;
+  for (const a of list || []) WARM.push(a);
+  if (!start || !WARM.length) return;
+  const step = (dl) => {
+    let n = 0;
+    while (WARM.length && (n === 0 || (dl && dl.timeRemaining && dl.timeRemaining() > 30))) {
+      const a = WARM.shift(); n++;
+      try { if (typeof OPT !== 'undefined' && OPT && OPT.art === 'pixel') { WARM = []; return; } getPortraitHD(a[0], a[1], a[2], a[3]); } catch (e) { /* 忽略 */ }
+    }
+    if (WARM.length) idle(step);
+  };
+  idle(step);
+}
+G.getPortraitHD = getPortraitHD;
+G.portraitHDOf = portraitHDOf;
+G.warmPortraitsHD = warmPortraitsHD;
 G.getPortrait = getPortrait;
 })(typeof window !== 'undefined' ? window : this);

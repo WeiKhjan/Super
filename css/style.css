@@ -310,7 +310,8 @@ canvas.hdp { image-rendering: auto; }
 
 /* 招式列表：范围示意图 */
 .pick.sk { grid-template-columns: auto 1fr auto; column-gap: 8px; align-items: center; }
-.pick.sk .sk-diag { grid-row: 1 / span 3; width: 56px; height: 56px; border-radius: 6px; border: 1px solid #3f6cc0; }
+.pick.sk .sk-diag { grid-row: 1 / span 3; display: block; width: 56px; height: 56px; border-radius: 6px; border: 1px solid #3f6cc0; }
+.pick.sk .sk-diag.hdp { border-radius: 10px; border-color: #5a86d8; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08), 0 2px 6px rgba(0,0,0,.35); }
 .pick.sk .sk-shape { grid-column: 2 / -1; font-style: normal; font-size: 12px; color: #ffd84a; }
 .pick.sk small { grid-column: 2 / -1; }
 .pick.sk .sk-dmg { grid-column: 2 / -1; font-style: normal; font-size: 12px; color: #ff9a7a; }

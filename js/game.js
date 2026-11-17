@@ -186,12 +186,60 @@ function mapCharCanvas(id, scale) {
   const src = hd || unitSprite(u);
   if (!src) return null;
   const c = document.createElement('canvas');
-  if (hd) { c.width = c.height = Math.min(hd.width, 16 * scale * 2); c.className = 'hdp'; }
+  if (hd) { c.width = c.height = Math.min(hd.width, Math.round(16 * scale * Math.max(2, window.devicePixelRatio || 1))); c.className = 'hdp'; }
   else { c.width = src.width * scale; c.height = src.height * scale; c.className = 'pix'; }
   const g = c.getContext('2d'); g.imageSmoothingEnabled = !!hd; if (hd) g.imageSmoothingQuality = 'high';
   g.drawImage(src, 0, 0, c.width, c.height);
   return c;
 }
+// 高清立绘：空闲时预先建好队伍成员的立绘（对话、营地、转职画面打开时不卡顿）
+function warmParty(ids) {
+  if (!artHD() || typeof warmPortraitsHD !== 'function' || !S || !S.roster) return;
+  warmPortraitsHD((ids || S.order || []).filter(id => S.roster[id]).map(id => [id, undefined, S.roster[id].tier, S.roster[id].path]));
+}
+// ---------- 招式范围示意图：高清画风改用平滑圆角格子（判定沿用 battle.js 的像素版，读回各格颜色后重画） ----------
+(function () {
+  if (typeof drawSkillDiagram !== 'function') return;
+  const pixDiag = drawSkillDiagram, C = 7;
+  const near = (d, i, c) => Math.abs(d[i] - c[0]) + Math.abs(d[i + 1] - c[1]) + Math.abs(d[i + 2] - c[2]) < 24;
+  function hdDiag(cv, sp) {
+    const src = document.createElement('canvas'); pixDiag(src, sp);
+    const N = Math.round(src.width / C), d = src.getContext('2d').getImageData(0, 0, src.width, src.height).data;
+    const css = 56, dpr = Math.min(3, window.devicePixelRatio || 1), S = Math.round(css * dpr);
+    cv.width = cv.height = S;
+    const g = cv.getContext('2d'), cs = S / N, pad = Math.max(1, cs * 0.09), r = cs * 0.22;
+    const bg = g.createLinearGradient(0, 0, 0, S); bg.addColorStop(0, '#1a2350'); bg.addColorStop(1, '#0c0f2a');
+    g.fillStyle = bg; g.fillRect(0, 0, S, S);
+    const rr = (x, y, w, h, q) => { g.beginPath(); g.moveTo(x + q, y); g.arcTo(x + w, y, x + w, y + h, q); g.arcTo(x + w, y + h, x, y + h, q); g.arcTo(x, y + h, x, y, q); g.arcTo(x, y, x + w, y, q); g.closePath(); };
+    let me = null;
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const i = ((y * C + 2) * src.width + x * C + 2) * 4, X = x * cs + pad, Y = y * cs + pad, w = cs - pad * 2;
+      const col = [d[i], d[i + 1], d[i + 2]];
+      let top, bot, glow = null;
+      if (near(d, i, [0x4a, 0xa8, 0xff])) { me = [X, Y, w]; top = '#2a3a70'; bot = '#1c2552'; }
+      else if (near(d, i, [0xff, 0xd8, 0x4a])) { top = '#fff1a0'; bot = '#f0b830'; glow = 'rgba(255,214,80,.75)'; }
+      else if (near(d, i, [0xff, 0x9a, 0x3a])) { top = '#ffc078'; bot = '#f07a28'; glow = 'rgba(255,150,60,.75)'; }
+      else if (near(d, i, [0x23, 0x1a, 0x4a])) { top = '#2a3366'; bot = '#1e2550'; }
+      else { top = `rgb(${Math.min(255, col[0] + 40)},${Math.min(255, col[1] + 40)},${Math.min(255, col[2] + 40)})`; bot = `rgb(${col[0]},${col[1]},${col[2]})`; }
+      g.save();
+      if (glow) { g.shadowColor = glow; g.shadowBlur = cs * 0.5; }
+      const lg = g.createLinearGradient(0, Y, 0, Y + w); lg.addColorStop(0, top); lg.addColorStop(1, bot);
+      g.fillStyle = lg; rr(X, Y, w, w, r); g.fill(); g.restore();
+      g.fillStyle = 'rgba(255,255,255,.12)'; rr(X + w * 0.12, Y + w * 0.08, w * 0.76, w * 0.3, r * 0.6); g.fill();
+    }
+    if (me) { // 施法者：发光的蓝色圆珠
+      const [X, Y, w] = me, cx = X + w / 2, cy = Y + w / 2, R = w * 0.46;
+      g.save(); g.shadowColor = 'rgba(80,170,255,.9)'; g.shadowBlur = cs * 0.6;
+      const rg = g.createRadialGradient(cx - R * 0.35, cy - R * 0.4, R * 0.1, cx, cy, R);
+      rg.addColorStop(0, '#d8f0ff'); rg.addColorStop(0.35, '#6ab8ff'); rg.addColorStop(1, '#1e5ad0');
+      g.fillStyle = rg; g.beginPath(); g.arc(cx, cy, R, 0, Math.PI * 2); g.fill(); g.restore();
+    }
+  }
+  window.drawSkillDiagram = function (cv, sp) {
+    if (!artHD()) { cv.classList.add('pix'); cv.classList.remove('hdp'); return pixDiag(cv, sp); }
+    try { hdDiag(cv, sp); cv.classList.remove('pix'); cv.classList.add('hdp'); } catch (e) { pixDiag(cv, sp); cv.classList.add('pix'); }
+  };
+})();
 function showCamp() {
   B = null;
   show('camp');
@@ -229,6 +277,7 @@ function renderCamp() {
     }).join('');
     for (const p of body.querySelectorAll('[data-hero]')) { const c = portraitCanvas(p.dataset.hero, 52); if (c) p.appendChild(c); }
     for (const p of body.querySelectorAll('[data-mapchar]')) { const c = mapCharCanvas(p.dataset.mapchar, 3); if (c) p.appendChild(c); }
+    warmParty();
   } else if (campTab === 'items') {
     const ids = Object.keys(S.inv).filter(id => S.inv[id] > 0);
     body.innerHTML = ids.length ? ids.map(id => {
@@ -596,13 +645,26 @@ $('#btn-sound').addEventListener('click', () => { OPT.sound = OPT.music = !(OPT.
 // 标题画面：时空裂缝星空
 (function titleFx() {
   const c = $('#title-bg'), g = c.getContext('2d');
+  let spr = null;
+  const starSprite = () => {
+    if (spr) return spr;
+    spr = document.createElement('canvas'); spr.width = spr.height = 32;
+    const x = spr.getContext('2d'), rg = x.createRadialGradient(16, 16, 0, 16, 16, 16);
+    rg.addColorStop(0, 'rgba(245,242,255,1)'); rg.addColorStop(0.18, 'rgba(225,222,255,0.95)'); rg.addColorStop(0.4, 'rgba(160,175,255,0.28)'); rg.addColorStop(1, 'rgba(120,140,255,0)');
+    x.fillStyle = rg; x.fillRect(0, 0, 32, 32);
+    return spr;
+  };
   const stars = Array.from({ length: 140 }, () => ({ a: Math.random() * Math.PI * 2, r: Math.random(), s: 0.2 + Math.random() * 0.8 }));
   const loop = now => {
     requestAnimationFrame(loop);
     if ($('#title').hidden && $('#select').hidden) return;
     if (!$('#select').hidden && c.parentNode.id !== 'select') $('#select').prepend(c);
     else if (!$('#title').hidden && c.parentNode.id !== 'title') $('#title').prepend(c);
-    const w = c.width = c.clientWidth, h = c.height = c.clientHeight;
+    const hd = artHD(), k = hd ? Math.min(3, window.devicePixelRatio || 1) : 1; // 高清：按设备像素比绘制
+    const w = c.clientWidth, h = c.clientHeight;
+    if (c.width !== Math.round(w * k)) c.width = Math.round(w * k);
+    if (c.height !== Math.round(h * k)) c.height = Math.round(h * k);
+    g.setTransform(k, 0, 0, k, 0, 0);
     g.fillStyle = '#050b1e'; g.fillRect(0, 0, w, h);
     const cx = w / 2, cy = h * 0.36, R = Math.max(w, h) * 0.7;
     const grd = g.createRadialGradient(cx, cy, 0, cx, cy, R * 0.5);
@@ -611,8 +673,9 @@ $('#btn-sound').addEventListener('click', () => { OPT.sound = OPT.music = !(OPT.
     for (const s of stars) {
       s.r += 0.0015 * s.s; if (s.r > 1) s.r = 0.02;
       const d = s.r * s.r * R, x = cx + Math.cos(s.a + now / 9000) * d, y = cy + Math.sin(s.a + now / 9000) * d * 0.8;
-      g.fillStyle = `rgba(220,210,255,${Math.min(1, s.r * 2)})`;
-      const z = 1 + s.r * 2.5; g.fillRect(x, y, z, z);
+      const a = Math.min(1, s.r * 2), z = 1 + s.r * 2.5;
+      if (hd) { g.globalAlpha = a; g.drawImage(starSprite(), x - z * 1.5, y - z * 1.5, z * 3, z * 3); g.globalAlpha = 1; } // 柔光圆形星点
+      else { g.fillStyle = `rgba(220,210,255,${a})`; g.fillRect(x, y, z, z); }
     }
   };
   requestAnimationFrame(loop);
@@ -637,6 +700,8 @@ diffLabel();
 // 启动：先到系列作品选择画面（记住上次选的作品）
 try { const last = localStorage.getItem('cskyxcs_campaign'); if (last && campaignOpen(last)) useCampaign(last); } catch (e) { }
 showSelect();
+// 高清立绘：空闲时先建好上次作品标题画面的角色立绘
+setTimeout(() => { try { if (artHD() && typeof warmPortraitsHD === 'function') warmPortraitsHD((curCampaign().titleHeroes || []).map(id => [id])); } catch (e) { } }, 400);
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => { });
 
 // 测试接口（二代起的分支剧情）：AI 依路线自动打下去，记录走过的关卡；opts.flags / opts.pick 可预设旗标与路线

@@ -3,7 +3,7 @@
 //   EPX 放大 → 按色块做高斯加权的标签插值（边缘变成平滑曲线）→ 边界超采样抗锯齿
 //   → 左上光源的柔和赛璐璐明暗 + 轮廓光 → 色块间细描线 → 外描边；人形单位叠加矢量动画大眼。
 // 导出：getSpriteHD(key, tier, team, hair, variant, gear) → 128×128 画布（取景与 getSprite 相同）
-//       hdPortrait(canvas, opts) → 约 ×4 的平滑立绘（opts.bg === false 时背景透明）
+//       hdPortrait(canvas, opts) → ×4 高清立绘：getPortrait 的立绘交给 portraits.js 以 5 倍解析度重画；其他来源平滑放大（opts.bg === false 时背景透明）
 'use strict';
 
 (function (G) {
@@ -504,6 +504,12 @@ function getSpriteHD(key, tier, team, hair, variant, gear) {
 const PORT_CACHE = new WeakMap();
 function hdPortrait(src, opts) {
   if (!src || !src.width) return src;
+  // 真高清：getPortrait 的立绘交给 portraits.js 以高解析度重新绘制（同一套程序化美术）
+  if (src.__pk && typeof G.portraitHDOf === 'function') {
+    let hd = null;
+    try { hd = G.portraitHDOf(src, opts); } catch (e) { if (G.console) console.warn('portraitHDOf', e); }
+    if (hd) return hd;
+  }
   const noBg = !!(opts && opts.bg === false);
   let ent = PORT_CACHE.get(src);
   if (!ent) { ent = {}; PORT_CACHE.set(src, ent); }
