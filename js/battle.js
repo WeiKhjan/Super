@@ -989,6 +989,7 @@ function render(now) {
   for (let i = FLOATS.length - 1; i >= 0; i--) {
     const f = FLOATS[i], life = f.big ? 1150 : 950, p = (now - f.t0) / life;
     if (p >= 1) { FLOATS.splice(i, 1); continue; }
+    if (HD) { drawFloatHD(f, p, now, ts); continue; }
     // 弹出：0 → 1.4 → 1，向上缓出；暴击字更大并抖动
     const sc = p < 0.1 ? 0.3 + p / 0.1 * 1.1 : p < 0.2 ? 1.4 - (p - 0.1) / 0.1 * 0.4 : 1;
     const rise = 1 - Math.pow(1 - Math.min(1, p / 0.6), 3);
@@ -1006,6 +1007,54 @@ function render(now) {
 requestAnimationFrame(render);
 
 function floatText(x, y, text, color, big) { if (!AUTO) FLOATS.push({ x, y, text, color, big, t0: performance.now() }); }
+// 高清飘字：预先画成贴图（粗描边 + 渐层字面 + 上半高光），每帧只做缩放弹出
+const FLOAT_FONT = '"Avenir Next Condensed","Arial Black","PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif';
+function floatTint(h, f) {
+  let x = String(h).replace('#', ''); if (x.length === 3) x = x.split('').map(c => c + c).join('');
+  const n = parseInt(x, 16) || 0, t = f > 0 ? 255 : 0, k = Math.abs(f), m = c => Math.round(c + (t - c) * k);
+  return `rgb(${m(n >> 16 & 255)},${m(n >> 8 & 255)},${m(n & 255)})`;
+}
+function floatCanvas(f, ts) {
+  const num = /^[+-]?\d+$/.test(f.text) || /^暴击 \d+$/.test(f.text);
+  const crit = f.text.startsWith('暴击 '), main = crit ? f.text.slice(3) : f.text;
+  const fs = Math.round(ts * (f.big ? 0.66 : num ? 0.5 : 0.4) * DPR * (crit ? 1.15 : 1));
+  const font = `${num ? 'italic ' : ''}900 ${fs}px ${FLOAT_FONT}`, sub = Math.round(fs * 0.42);
+  const c = document.createElement('canvas'), g = c.getContext('2d');
+  g.font = font; const w = Math.ceil(g.measureText(main).width + fs * 0.7);
+  const top = crit ? sub * 1.1 : 0; c.width = Math.max(w, crit ? sub * 3 : 0); c.height = Math.ceil(fs * 1.35 + top);
+  const cx = c.width / 2, cy = top + fs * 0.7;
+  g.lineJoin = 'round'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  if (crit) {
+    g.font = `900 ${sub}px "PingFang SC","Microsoft YaHei",sans-serif`;
+    g.lineWidth = sub * 0.3; g.strokeStyle = '#3a1000'; g.strokeText('暴击', cx, sub * 0.62); g.fillStyle = '#ffffff'; g.fillText('暴击', cx, sub * 0.62);
+  }
+  g.font = font;
+  g.lineWidth = fs * 0.26; g.strokeStyle = 'rgba(14,6,22,0.95)'; g.strokeText(main, cx, cy);
+  g.lineWidth = fs * 0.1; g.strokeStyle = floatTint(f.color, -0.55); g.strokeText(main, cx, cy);
+  const gr = g.createLinearGradient(0, cy - fs * 0.5, 0, cy + fs * 0.5);
+  gr.addColorStop(0, '#ffffff'); gr.addColorStop(0.45, floatTint(f.color, 0.55)); gr.addColorStop(0.55, f.color); gr.addColorStop(1, floatTint(f.color, -0.25));
+  g.fillStyle = gr; g.fillText(main, cx, cy);
+  return c;
+}
+function drawFloatHD(f, p, now, ts) {
+  if (!f.cv || f.ts !== ts) { f.cv = floatCanvas(f, ts); f.ts = ts; }
+  // 弹出：0.35 → 1.45 → 0.95 → 1，向上缓出，尾段淡出并略为上飘
+  const sc = p < 0.08 ? 0.35 + p / 0.08 * 1.1 : p < 0.16 ? 1.45 - (p - 0.08) / 0.08 * 0.5 : p < 0.24 ? 0.95 + (p - 0.16) / 0.08 * 0.05 : 1;
+  const rise = 1 - Math.pow(1 - Math.min(1, p / 0.55), 3);
+  const a = p < 0.72 ? 1 : 1 - (p - 0.72) / 0.28;
+  const jit = f.big && p < 0.25 ? (Math.random() - 0.5) * ts * 0.07 : 0;
+  const tx = (f.x + 0.5) * ts + jit, ty = (f.y + 0.25) * ts - rise * ts * 0.7 - (p > 0.72 ? (p - 0.72) * ts * 0.6 : 0);
+  const w = f.cv.width / DPR * sc, h = f.cv.height / DPR * sc;
+  ctx.imageSmoothingEnabled = true;
+  if (f.big && p < 0.35 && typeof FXSPR !== 'undefined') { // 暴击 / 击倒：字后一闪星芒
+    const d = ts * 2.2 * (0.6 + p * 1.4); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = (1 - p / 0.35) * 0.9;
+    ctx.drawImage(FXSPR.flare(f.color), tx - d / 2, ty - d / 2, d, d); ctx.drawImage(FXSPR.glow(f.color), tx - d * 0.3, ty - d * 0.3, d * 0.6, d * 0.6);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  ctx.globalAlpha = a; ctx.drawImage(f.cv, tx - w / 2, ty - h / 2, w, h);
+  if (p < 0.14) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.55 * (1 - p / 0.14); ctx.drawImage(f.cv, tx - w / 2, ty - h / 2, w, h); ctx.globalCompositeOperation = 'source-over'; }
+  ctx.globalAlpha = 1; ctx.imageSmoothingEnabled = false;
+}
 
 function addFx(type, x, y, dur, extra) {
   if (AUTO) return Promise.resolve();
@@ -1016,6 +1065,7 @@ const FX_COLORS = { fire: ['#ffdd55', '#ff8a2a', '#ff3a1a'], acid: ['#caff4a', '
   dark: ['#d08aff', '#8a3ad8', '#3a1060'], ice: ['#ffffff', '#9ae0ff', '#3a9ad8'], holy: ['#ffffff', '#fff6b0', '#f4c542'],
   heal: ['#ffffff', '#b0ffcc', '#4ae07a'], buff: ['#ffffff', '#ffe08a', '#6ad8ff'], wind: ['#ffffff', '#c8f0d8', '#7ad8a0'] };
 function drawFx(now) {
+  if (artHD() && typeof drawFxHD === 'function') { drawFxHD(FX, now); return; } // 高清：平滑发光的打击特效（spellfx.js）
   const ts = TS;
   for (let i = FX.length - 1; i >= 0; i--) {
     const f = FX[i], p = (now - f.t0) / Math.max(1, f.dur);
@@ -1527,7 +1577,11 @@ async function killUnit(u) {
   if (!AUTO && typeof emit === 'function') {
     // 击倒：碎成像素粒子 + 冲击环
     const x = (u.x + 0.5) * TS, y = (u.y + 0.45) * TS;
-    emit(u.boss ? 50 : 28, x, y, { speed: [1, 3.2], life: [0.4, 0.9], size: [0.04, 0.09], cols: ['#ffffff', TEAM_COLOR[u.team], '#ffd0a0'], gravity: 2.5, drag: 0.88, shape: 'sq' });
+    emit(u.boss ? 50 : 28, x, y, { speed: [1, 3.2], life: [0.4, 0.9], size: [0.04, 0.09], cols: ['#ffffff', TEAM_COLOR[u.team], '#ffd0a0'], gravity: 2.5, drag: 0.88, shape: artHD() ? 'spark' : 'sq' });
+    if (artHD() && typeof fxBurst === 'function') { // 高清：击倒时的光爆 + 灵光上升
+      fxBurst(FXSPR.core(TEAM_COLOR[u.team]), x, y, { r0: 0.2, r1: u.boss ? 1.6 : 0.9, dur: 320, fin: 0.05 });
+      emit(u.boss ? 18 : 10, x, y + TS * 0.2, { speed: [0.05, 0.3], life: [0.6, 1], size: [0.04, 0.07], cols: ['#ffffff', TEAM_COLOR[u.team]], gravity: -1.6, jitter: 0.35, shape: 'circle' });
+    }
     PFX.rings.push({ x, y, r0: 0.2, r1: u.boss ? 2 : 1.2, color: '#ffffff', t0: performance.now(), dur: T(400) });
     if (u.boss) { flash('#ffffff', 0.6, 350); addTrauma(0.8); }
   }
