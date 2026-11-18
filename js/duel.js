@@ -40,9 +40,11 @@ const BREATH_COL = { red: ['#ffe070', '#ff8030', '#d83020'], blue: ['#ffffff', '
 function duelResize() {
   const w = Math.min(window.innerWidth, 560), h = Math.round(w * 0.62);
   const dpr = Math.min(3, window.devicePixelRatio || 1);
-  duelCv.style.width = w + 'px'; duelCv.style.height = h + 'px';
-  duelCv.width = Math.round(w * dpr); duelCv.height = Math.round(h * dpr);
-  DUEL.W = w; DUEL.H = h; DUEL.dpr = dpr; if (!DUEL.q) DUEL.q = 1;
+  // HD：画布加高成电影宽银幕（上下黑边），场景区仍是 w × 0.62w、置中；像素版维持原尺寸
+  const hc = duelHD() ? Math.round(w * 0.8) : h;
+  duelCv.style.width = w + 'px'; duelCv.style.height = hc + 'px';
+  duelCv.width = Math.round(w * dpr); duelCv.height = Math.round(hc * dpr);
+  DUEL.W = w; DUEL.H = h; DUEL.HC = hc; DUEL.oy = (hc - h) / 2; DUEL.dpr = dpr; if (!DUEL.q) DUEL.q = 1;
   // 美术像素 → 屏幕像素：取整数个实体像素，放大后像素块大小一致
   DUEL.s = Math.max(1, Math.round(h * 0.0098 * dpr)) / dpr;
   DUEL.sm = Math.max(1, Math.round(h * 0.0098 * 0.85 * dpr)) / dpr; // 骑乘者（含坐骑）略小，避免头顶出框
@@ -54,10 +56,11 @@ async function duelOpen(a, d) {
   const leftIsA = side(a.team) !== 'P';
   Object.assign(DUEL, { on: true, a, d, left: leftIsA ? a : d, right: leftIsA ? d : a, fx: [], t0: duelNow(), fig: {}, hb: {}, lastHit: {}, actor: null, impactUntil: 0, vigT: -1e9 });
   DUEL.cam = { push: 0, pushT: 0, pushAt: [DUEL.W / 2, DUEL.H / 2], punch: 0, punchT0: 0, punchAt: [DUEL.W / 2, DUEL.H / 2], trauma: 0, kx: 0, ky: 0, last: performance.now() };
+  if (duelHD()) duelCamInit(DUEL.cam);
   DCLK.stopUntil = DCLK.slowUntil = 0;
   duelFig(a); duelFig(d);
   // HD：开场前先画好地形背景（避免第一帧卡顿）
-  if (duelHD()) { try { const t = tileAt(d.x, d.y); duelBgHD(t in DUEL_HDBG ? t : 'G', DUEL.W, DUEL.H, DUEL.dpr, 60); } catch (e) { } }
+  if (duelHD()) { try { const t = tileAt(d.x, d.y); duelBgHD(t in DUEL_HDBG ? t : 'G', DUEL.W, DUEL.H, DUEL.dpr, 84); } catch (e) { } }
   const el = document.getElementById('duel');
   el.hidden = false; el.classList.remove('out'); void el.offsetWidth; el.classList.add('in');
   requestAnimationFrame(duelRender);
@@ -67,6 +70,7 @@ async function duelOpen(a, d) {
 async function duelClose() {
   if (!DUEL.on) return;
   await duelSettle(1400);
+  if (duelHD() && DUEL.cam && DUEL.cam.tgt) { duelShot({ k: 5 }); DUEL.closeT = performance.now(); }
   await wait(320);
   const el = document.getElementById('duel');
   el.classList.remove('in'); el.classList.add('out');
@@ -109,7 +113,13 @@ async function duelStrike(att, def, hit, dmg, crit, ranged) {
   const A = duelFig(att), D = duelFig(def), cam = DUEL.cam;
   const kill = hit && def.hp - dmg <= 0;
   const pl = DFIG.plan(A.spec, ranged, crit);
+  const HDs = duelHD() && cam.tgt;
   A.crit = crit; DUEL.actor = att;
+  if (HDs) {
+    // 蓄力镜位：推近出手者（反击时甩镜换边）；暴击多停一拍、背景压暗
+    duelShotWindup(att, def, crit, att === DUEL.d);
+    if (crit) await duelWait(150);
+  }
   duelPlay(att, pl);
   const now0 = duelNow();
   cam.pushAt = A.anch ? A.anch.chest.slice() : [att === DUEL.left ? DUEL.W * 0.3 : DUEL.W * 0.7, DUEL.H * 0.5]; cam.pushT = 0.06;
@@ -132,8 +142,10 @@ async function duelStrike(att, def, hit, dmg, crit, ranged) {
       if (multi) for (const o of [70, 140]) DUEL.fx.push({ type: ty, from: att, to: def, t0: t0 + T(o), dur: T(pl.fly), dy: o / 14 - 7 });
     }
     cam.pushT = 0.03;
+    if (HDs) duelShotWhip(att, def, true);
     await duelWait(pl.fly);
-  } else await duelWait(pl.impact);
+  } else if (HDs) { const lead = Math.min(pl.impact, 170); await duelWait(pl.impact - lead); duelShotWhip(att, def, false); await duelWait(lead); }
+  else await duelWait(pl.impact);
   cam.pushT = 0;
   const now = duelNow(), real = performance.now(), dir = att === DUEL.left ? 1 : -1;
   if (!hit) {
@@ -141,6 +153,7 @@ async function duelStrike(att, def, hit, dmg, crit, ranged) {
     DUEL.fx.push({ type: 'dmg', u: def, text: 'MISS', kind: 'miss', r0: real, dir });
     DUEL.fx.push({ type: 'whoosh', u: def, t0: now, dur: T(260), dir });
     cam.trauma = Math.min(1, cam.trauma + 0.12);
+    if (HDs) duelShotMiss(def);
   } else {
     // 命中停顿：普通 70 / 暴击 140 / 击杀 220 ms；击杀后接 400 ms 的 0.35 倍慢动作
     const hs = kill ? 220 : crit ? 140 : 70;
@@ -157,6 +170,7 @@ async function duelStrike(att, def, hit, dmg, crit, ranged) {
     cam.kx += dir * (big ? 10 : 5); cam.ky += big ? 3 : 1.5;
     cam.punch = kill ? 0.15 : crit ? 0.13 : 0.08; cam.punchT0 = real; cam.punchAt = D.anch ? D.anch.chest.slice() : cam.pushAt;
     DUEL.hitT = real; DUEL.hitCrit = big; DUEL.hitAt = cam.punchAt;
+    if (HDs) duelShotImpact(att, def, crit, kill, dir);
     if (big) { DUEL.impactT0 = real; DUEL.impactUntil = real + T(kill ? 120 : 90); DUEL.impactAt = cam.punchAt; }
     if (kill) { DUEL.vigT = real; DUEL.fx.push({ type: 'shatter', u: def, t0: now + T(500), dur: T(700) }); }
     DUEL.lastHit[def.uid] = { crit, big: crit || dmg >= def.mhp * 0.2, real };
@@ -220,14 +234,18 @@ function duelRenderFrame(now, real) {
   g.setTransform(dpr, 0, 0, dpr, 0, 0);
   const HDm = duelHD();
   g.imageSmoothingEnabled = HDm;
+  // HD：电影镜头（镜位 + 弹簧），场景区在加高画布内置中
+  // 黑边以外才需要画场景：先裁剪（省下被黑边盖住的填充量）
+  if (HDm) { if (!cam.tgt) duelCamInit(cam); duelCamHD(dtR, real); const bar = duelBarNow(real); g.save(); g.beginPath(); g.rect(0, bar, W, DUEL.HC - 2 * bar); g.clip(); g.setTransform(dpr, 0, 0, dpr, 0, DUEL.oy * dpr); }
   g.save();
-  g.translate(W / 2 + ox, H / 2 + oy); g.rotate(rot); g.translate(-W / 2, -H / 2);
-  for (const [z, A] of [[cam.push, cam.pushAt], [punch, cam.punchAt]]) if (z > 0.002) { g.translate(A[0], A[1]); g.scale(1 + z, 1 + z); g.translate(-A[0], -A[1]); }
+  if (HDm) { g.translate(W / 2 + ox, H / 2 + oy); g.rotate(rot + cam.roll); g.scale(cam.z, cam.z); g.translate(-cam.x, -cam.y); }
+  else { g.translate(W / 2 + ox, H / 2 + oy); g.rotate(rot); g.translate(-W / 2, -H / 2); }
+  for (const [z, A] of HDm ? [[punch, cam.punchAt]] : [[cam.push, cam.pushAt], [punch, cam.punchAt]]) if (z > 0.002) { g.translate(A[0], A[1]); g.scale(1 + z, 1 + z); g.translate(-A[0], -A[1]); }
   // 背景：依守方所在地形（画大一些，震动 / 缩放时不露边）
   const terr = tileAt(DUEL.d.x, DUEL.d.y);
   const [sky1, sky2, gr1, gr2] = DUEL_BG[terr] || DUEL_BG.G;
-  const groundY = H * 0.6, M = 60;
-  if (HDm) g.drawImage(duelBgHD(terr in DUEL_HDBG ? terr : 'G', W, H, dpr, M), -M, -M, W + 2 * M, H + 2 * M);
+  const groundY = H * 0.6, M = HDm ? 84 : 60;
+  if (HDm) duelBgLayersHD(g, terr in DUEL_HDBG ? terr : 'G', W, H, dpr, M, ox, oy, rot);
   else {
   let grd = g.createLinearGradient(0, 0, 0, groundY);
   grd.addColorStop(0, sky1); grd.addColorStop(1, sky2);
@@ -242,7 +260,7 @@ function duelRenderFrame(now, real) {
   g.fillStyle = 'rgba(0,0,0,0.12)';
   for (let i = 0; i < 40; i++) g.fillRect((i * 97) % W, groundY + 6 + ((i * 53) % Math.max(1, H - groundY - 10)), 6, 2);
   }
-  const zoom = (1 + cam.push) * (1 + punch);
+  const zoom = HDm ? cam.z * (1 + punch) : (1 + cam.push) * (1 + punch);
 
   // 两名角色：出手者画在上层；高速移动时加速度线与残影
   const feet = groundY + H * 0.1, sep = W * 0.46;
@@ -295,8 +313,9 @@ function duelRenderFrame(now, real) {
     let prev = null;
     if (P.tr > 0.05 && st.anim) prev = [14, 28, 42, 56, 70].map(dt => duelPose(st, now - dt));
     const flash = (st.flash || 0) > now || ((st.blinkUntil || 0) > now && Math.floor(now / 55) % 2 === 0);
-    st.anch = DFIG.draw(g, u, st.spec, P, { x, feet, s, f, now, flash, prev, crit: st.crit, dpr, zoom, q: DUEL.q });
+    st.anch = DFIG.draw(g, u, st.spec, P, { x, feet, s, f, now, flash, prev, crit: st.crit, dpr, zoom, q: DUEL.q, rim: HDm && !flash ? duelRim(u, st, real) : null });
     if (st.anch) st.anch.feet = [x, feet];
+    if (HDm) duelFigHD(u, st, P, x, feet, s, f, fly, now);
     drawn.push([u, st, P, x, s, f]);
   }
   // 特效
@@ -358,7 +377,8 @@ function duelRenderFrame(now, real) {
   g.restore();
   // 击杀时的暗角脉冲
   const vt = real - DUEL.vigT;
-  if (vt < T(700)) {
+  if (HDm) duelOverlayHD(g, real, now, punch, ox, oy);
+  else if (vt < T(700)) {
     const va = 0.6 * Math.sin(Math.PI * vt / Math.max(1, T(700)));
     const vg = g.createRadialGradient(W / 2, H * 0.45, H * 0.25, W / 2, H * 0.45, W * 0.75);
     vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, `rgba(10,0,0,${va})`);
@@ -374,7 +394,7 @@ function duelRenderFrame(now, real) {
       if (lh && real - lh.real < 3000) { if (lh.big) hb.shakeT = real + 240; if (lh.crit) hb.flashT = real + 360; }
     } else if (u.hp > hb.shown) hb.shown = hb.ghost = u.hp;
     if (real - hb.gT > T(300)) hb.ghost += (hb.shown - hb.ghost) * (1 - Math.exp(-dtR * 9));
-    if (HDm) { duelPanelHD(g, u, isLeft, W, H, real, dtR); continue; }
+    if (HDm) { g.setTransform(dpr, 0, 0, dpr, 0, 0); duelPanelHD(g, u, isLeft, W, H, real, dtR); continue; }
     let bx = isLeft ? W * 0.03 : W * 0.53, byy = by;
     if (real < hb.shakeT) { bx += (Math.random() * 2 - 1) * 3; byy += (Math.random() * 2 - 1) * 2; }
     g.fillStyle = 'rgba(10,6,30,0.82)'; g.fillRect(bx - 4, byy - H * 0.11, bw + 8, H * 0.25);
@@ -608,7 +628,7 @@ const DUEL_HDBG = {
 const DUEL_BGC = { key: '', cv: null };
 function duelRng(seed) { let s = seed >>> 0 || 1; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
 function duelBgHD(terr, W, H, dpr, M) {
-  const key = [terr, W, H, dpr].join('|');
+  const key = [terr, W, H, dpr, M].join('|');
   if (DUEL_BGC.key === key) return DUEL_BGC.cv;
   const cv = DUEL_BGC.cv || document.createElement('canvas');
   cv.width = Math.round((W + 2 * M) * dpr); cv.height = Math.round((H + 2 * M) * dpr);
@@ -803,8 +823,17 @@ function duelBgHD(terr, W, H, dpr, M) {
 function duelRRect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
 function duelPanelHD(g, u, isLeft, W, H, real, dtR) {
   const hb = DUEL.hb[u.uid];
-  const pw = W * 0.455, ph = H * 0.2, py0 = H * 0.775;
-  let px = isLeft ? W * 0.025 : W - W * 0.025 - pw, py = py0;
+  const pw = W * 0.455, ph = H * 0.2, py0 = (DUEL.HC || H) - ph - H * 0.025;
+  // 名牌：开场从两侧滑入（略带回弹），收场滑出
+  const sd = isLeft ? -1 : 1, ko = Math.min(1, Math.max(0, (real - (DUEL.openT || 0) - T(90)) / Math.max(1, T(440)))), kc = DUEL.closeT ? Math.min(1, (real - DUEL.closeT) / Math.max(1, T(300))) : 0;
+  const eb = ko >= 1 ? 1 : 1 + 2.2 * Math.pow(ko - 1, 3) + 1.2 * Math.pow(ko - 1, 2);
+  let px = (isLeft ? W * 0.025 : W - W * 0.025 - pw) + sd * (pw + 24) * ((1 - eb) + kc * kc), py = py0;
+  // HP 条：缓出的平滑流失（命中停顿后开始），红色残影稍后跟上
+  if (hb.disp == null) { hb.disp = hb.shown; hb.to = hb.shown; }
+  if (hb.to !== hb.shown) { hb.from = hb.disp; hb.to = hb.shown; hb.eT = hb.gs = real + (hb.shown < hb.from ? T(80) : 0); hb.g2 = Math.max(hb.g2 || 0, hb.from); }
+  if (hb.eT != null) { const k = Math.min(1, Math.max(0, (real - hb.eT) / Math.max(1, T(560)))); hb.disp = hb.from + (hb.to - hb.from) * (1 - Math.pow(1 - k, 3)); if (k >= 1) hb.eT = null; }
+  if (real - (hb.gs || 0) > T(620)) hb.g2 = (hb.g2 || 0) + (hb.disp - (hb.g2 || 0)) * (1 - Math.exp(-dtR * 7));
+  hb.g2 = Math.max(hb.g2 || 0, hb.disp);
   if (real < hb.shakeT) { px += (Math.random() * 2 - 1) * 3; py += (Math.random() * 2 - 1) * 2; }
   const team = HD_TEAM_DUEL[u.team] || HD_TEAM_DUEL.enemy, r = Math.min(10, ph * 0.22);
   // 面板
@@ -838,7 +867,7 @@ function duelPanelHD(g, u, isLeft, W, H, real, dtR) {
   g.textAlign = 'left'; g.font = `900 italic ${Math.round(H * 0.045)}px sans-serif`; g.fillStyle = '#f2c55a';
   g.strokeStyle = 'rgba(4,8,24,0.9)'; g.lineWidth = 3; g.strokeText('HP', ix, by + bh * 0.88); g.fillText('HP', ix, by + bh * 0.88);
   duelRRect(g, bx - 1.5, by - 1.5, bw + 3, bh + 3, (bh + 3) / 2); g.fillStyle = '#050a1c'; g.fill(); g.strokeStyle = 'rgba(217,180,90,0.7)'; g.lineWidth = 1; g.stroke();
-  const rr = Math.max(0, hb.shown / u.mhp), rg = Math.max(0, hb.ghost / u.mhp);
+  const rr = Math.max(0, hb.disp / u.mhp), rg = Math.max(rr, hb.g2 / u.mhp);
   g.save(); duelRRect(g, bx, by, bw, bh, bh / 2); g.clip();
   g.fillStyle = '#1a2240'; g.fillRect(bx, by, bw, bh);
   if (rg > rr) { g.fillStyle = real - hb.gT < T(110) ? '#ffffff' : '#ff4a5a'; g.fillRect(bx + bw * rr, by, bw * (rg - rr), bh); }
@@ -852,7 +881,7 @@ function duelPanelHD(g, u, isLeft, W, H, real, dtR) {
   // 数值
   const vy = py + ph * 0.93;
   g.font = `900 ${Math.round(H * 0.07)}px "Arial Black","Helvetica Neue",Arial,sans-serif`; g.textAlign = 'left';
-  const hpS = String(Math.max(0, Math.round(hb.shown)));
+  const hpS = String(Math.max(0, Math.round(hb.disp)));
   g.lineWidth = 3.5; g.strokeStyle = 'rgba(4,8,24,0.95)'; g.strokeText(hpS, ix, vy);
   gr = g.createLinearGradient(0, vy - H * 0.06, 0, vy); gr.addColorStop(0, '#ffffff'); gr.addColorStop(1, rr > 0.25 ? '#cfe8ff' : '#ffb0a0');
   g.fillStyle = gr; g.fillText(hpS, ix, vy);
@@ -1002,6 +1031,7 @@ function duelDrawFxHD(g, f, p, now, anc, s) {
     }
     norm(); return true;
   }
+  if (f.type === 'puff') { duelPuffHD(g, f, p); return true; }
   if (f.type === 'glint') {
     const [x, y] = anc(f.u, 'tip'), k = Math.sin(p * Math.PI), r = (6 + (f.big ? 24 : 16) * k) * s * 0.6;
     add(); duelGlowDot(g, x, y, r * 1.4, 'rgba(255,240,170,A)', 0.8 * k);
@@ -1128,4 +1158,222 @@ function duelImpactHD(g, W, H, M, real, drawn, feet, s, now) {
   }
   const sil = inv ? '#fff6e8' : '#1a0a1e';
   for (const [u, st, P, x, sS, f] of drawn) DFIG.draw(g, u, st.spec, P, { x, feet, s: sS, f, now, sil, dpr: DUEL.dpr });
+}
+
+// ================= HD 电影化演出 =================
+// 镜头：焦点（场景坐标）+ 缩放 + 侧倾，由「镜位」驱动、以弹簧平滑：开场横摇、蓄力推近出手者、甩镜到命中点、
+// 暴击特写 / 击杀慢推（带侧倾的环绕感）；全景时自动拉远让高大角色（巨龙、狂神）完整入镜
+const DUEL_RIM = { G: '#fff2c8', R: '#fff2c8', V: '#fff2c8', H: '#fff2c8', F: '#eaffc0', M: '#f0f0ff', S: '#ffd890', N: '#d8ecff', W: '#c8f0ff', T: '#c8f0ff', B: '#fff2c8',
+  C: '#ffd8a0', K: '#ffc890', X: '#ffd8a0', Y: '#ffd8a0', O: '#ffb070', D: '#e0a0ff', L: '#ff9a40', P: '#d8fff0', A: '#ffe0a0' };
+const DUEL_DUST = { S: '#f0d8a0', N: '#ffffff', W: '#e8f8ff', T: '#e8f8ff', L: '#7a4a3a', D: '#8a6aa0', O: '#a89878', C: '#c8c8d0', K: '#c8c8d0', X: '#c8c8d0', Y: '#c8c8d0', M: '#c8b898', B: '#c8a878' };
+function duelCamInit(c) {
+  const W = DUEL.W, H = DUEL.H, r = performance.now();
+  Object.assign(c, { x: W / 2, y: H / 2, z: 1, roll: 0, zw: 1, uw: 0, dim: 0, lines: 0, lb: 0, keyA: 0, key: '#ffffff', tgt: { k: 6 }, next: null, script: null });
+  DUEL.openT = r; DUEL.closeT = 0; DUEL.counterT = -1e9; DUEL.hitT = -1e9;
+  // 开场确立镜头：从左方角色横摇到右方，再拉回全景（与名牌滑入同时进行）
+  const dur = T(640);
+  if (dur > 0) {
+    const L = [W * 0.27, H * 0.47], R = [W * 0.73, H * 0.47], ez = t => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+    c.script = rr => {
+      const t = (rr - r) / dur; if (t >= 1) return null;
+      if (t < 0.5) { const e = ez(t / 0.5); return [L[0] + (R[0] - L[0]) * e, L[1], 1.34 - 0.06 * e]; }
+      const e = 1 - Math.pow(1 - (t - 0.5) / 0.5, 3); return [R[0] + (W / 2 - R[0]) * e, R[1] + (H / 2 - c.uw - R[1]) * e, 1.28 + (c.zw - 1.28) * e];
+    };
+    const p0 = c.script(r); c.x = p0[0]; c.y = p0[1]; c.z = p0[2];
+  }
+}
+function duelShot(o, delay) {
+  const c = DUEL.cam; if (!c || !c.tgt) return;
+  if (delay) { c.next = { t: performance.now() + delay, o }; return; }
+  c.script = null; c.next = null; c.tgt = Object.assign({ k: 6 }, o);
+}
+function duelCamHD(dt, real) {
+  const c = DUEL.cam, W = DUEL.W, H = DUEL.H, M = 84, oy = DUEL.oy || 0;
+  if (c.next && real >= c.next.t) { const o = c.next.o; c.next = null; duelShot(o); }
+  // 全景构图：取两人静止时的外框，必要时拉远（≥ 0.84）并把焦点上移
+  let top = 1e9, l = 1e9, r = -1e9;
+  for (const u of [DUEL.left, DUEL.right]) { const st = DUEL.fig[u.uid]; if (st && st.ext) { top = Math.min(top, st.ext[1]); l = Math.min(l, st.ext[0]); r = Math.max(r, st.ext[2]); } }
+  let zt = 1, ut = 0;
+  if (top < 1e8) {
+    const bar = duelBarRest(), dTop = H / 2 + oy - bar - 4;
+    ut = Math.min(34, Math.max(0, (H / 2 - top) - dTop));
+    zt = Math.min(1, dTop / Math.max(1, H / 2 - ut - top), (W / 2 - 3) / Math.max(1, W / 2 - l), (W / 2 - 3) / Math.max(1, r - W / 2));
+    zt = Math.max(0.8, zt);
+  }
+  const kw = 1 - Math.exp(-dt * 5); c.zw += (zt - c.zw) * kw; c.uw += (ut - c.uw) * kw;
+  const t = c.tgt;
+  let fx = W / 2, fy = H / 2 - c.uw, z = c.zw;
+  if (t.at) {
+    const p = typeof t.at === 'function' ? t.at() : t.at; if (p) { const m = t.mix == null ? 1 : t.mix; fx += (p[0] - fx) * m; fy += (p[1] - fy) * m; }
+    // 高大角色（巨龙、狂神）特写时少推一些，免得头 / 翅膀出画
+    const tall = top < 1e8 ? Math.max(0, Math.min(1, (H * 0.42 - top) / (H * 0.4))) : 0;
+    z = c.zw * (1 + ((t.z || 1) - 1) * (1 - tall * 0.65)); fy -= tall * H * 0.08;
+  }
+  let snap = false;
+  if (c.script) { const e = c.script(real); if (e) { [fx, fy, z] = e; snap = true; } else c.script = null; }
+  const a = snap ? 1 : 1 - Math.exp(-dt * (t.k || 6)), a2 = 1 - Math.exp(-dt * 7);
+  c.z += (z - c.z) * a; c.x += (fx - c.x) * a; c.y += (fy - c.y) * a;
+  c.roll += ((t.roll || 0) - c.roll) * (1 - Math.exp(-dt * 3));
+  c.dim += ((t.dim || 0) - c.dim) * a2; c.lb += ((t.lb || 0) - c.lb) * a2;
+  c.keyA += ((t.keyA || 0) - c.keyA) * a2; if (t.key) c.key = t.key;
+  c.lines = Math.max(t.lines || 0, c.lines - dt * 2.4);
+  // 不露出背景边缘
+  const hw = W / 2 / c.z, hh = (H / 2 + oy) / c.z;
+  c.x = Math.min(W + M - 2 - hw, Math.max(-M + 2 + hw, c.x)); c.y = Math.min(H + M - 2 - hh, Math.max(-M + 2 + hh, c.y));
+}
+const duelBarRest = () => Math.round((DUEL.oy || 0) * 0.82);
+// 宽银幕黑边：开场由中间向外张开、暴击时收紧、收场合上
+function duelBarNow(real) {
+  const HC = DUEL.HC, rest = duelBarRest() + DUEL.cam.lb;
+  const ko = Math.min(1, Math.max(0, (real - DUEL.openT) / Math.max(1, T(460)))), kc = DUEL.closeT ? Math.min(1, (real - DUEL.closeT) / Math.max(1, T(300))) : 0;
+  const bar = HC * 0.5 + (rest - HC * 0.5) * (1 - Math.pow(1 - ko, 3));
+  return Math.min(HC * 0.5, bar + (HC * 0.5 + 1 - bar) * kc * kc);
+}
+// 背景分两层：远景（整张背景，视差 0.5、镜头推近时叠上预先模糊的版本 = 景深）与地面（跟随镜头）
+function duelBgBlur(cv) {
+  if (DUEL_BGC.blurOf === cv && DUEL_BGC.blurKey === DUEL_BGC.key) return DUEL_BGC.blur;
+  const w1 = Math.max(8, Math.round(cv.width / 3)), h1 = Math.max(8, Math.round(cv.height / 3)), w2 = Math.max(4, Math.round(cv.width / 7)), h2 = Math.max(4, Math.round(cv.height / 7));
+  const a = document.createElement('canvas'); a.width = w1; a.height = h1; const ga = a.getContext('2d'); ga.imageSmoothingQuality = 'high'; ga.drawImage(cv, 0, 0, w1, h1);
+  const b = DUEL_BGC.blur && DUEL_BGC.blur.width === w2 && DUEL_BGC.blur.height === h2 ? DUEL_BGC.blur : document.createElement('canvas'); b.width = w2; b.height = h2;
+  const gb = b.getContext('2d'); gb.imageSmoothingQuality = 'high'; gb.drawImage(a, 0, 0, w2, h2);
+  DUEL_BGC.blur = b; DUEL_BGC.blurOf = cv; DUEL_BGC.blurKey = DUEL_BGC.key;
+  return b;
+}
+function duelBgLayersHD(g, terr, W, H, dpr, M, ox, oy, rot) {
+  const c = DUEL.cam, bg = duelBgHD(terr, W, H, dpr, M), gy = H * 0.6;
+  // 远景缩放较小、横向视差 0.5；纵向以地平线为轴对齐主镜头（两层在地平线上不会错位）
+  const fz = 1 + (c.z - 1) * 0.45, pfx = W / 2 + (c.x - W / 2) * 0.5, pfy = gy - (gy - c.y) * c.z / fz;
+  g.save();
+  g.setTransform(dpr, 0, 0, dpr, 0, DUEL.oy * dpr);
+  g.translate(W / 2 + ox * 0.5, H / 2 + oy); g.rotate(rot + c.roll); g.scale(fz, fz); g.translate(-pfx, -pfy);
+  const fh = Math.min(bg.height, Math.ceil((M + gy + 34) * dpr));
+  g.drawImage(bg, 0, 0, bg.width, fh, -M, -M, W + 2 * M, fh / dpr);
+  const dof = Math.min(0.92, Math.max(0, (c.z / c.zw - 1) * 3.2) + c.dim * 0.5);
+  if (dof > 0.03 && DUEL.q > 0.62) { g.globalAlpha = dof; g.drawImage(duelBgBlur(bg), -M, -M, W + 2 * M, H + 2 * M); g.globalAlpha = 1; }
+  g.restore();
+  // 地面层：从地平线略上方切下，跟着主镜头
+  const sy = Math.max(0, Math.floor((M + gy - 3) * dpr));
+  g.drawImage(bg, 0, sy, bg.width, bg.height - sy, -M, sy / dpr - M, W + 2 * M, (bg.height - sy) / dpr);
+  // 地平线接缝：一层柔和的雾，让两层的位移差不显眼
+  const hg = g.createLinearGradient(0, gy - 10, 0, gy + 8); hg.addColorStop(0, 'rgba(255,255,255,0)'); hg.addColorStop(0.6, 'rgba(240,244,255,0.16)'); hg.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = hg; g.fillRect(-M, gy - 10, W + 2 * M, 18);
+  // 暴击 / 击杀：背景压暗；出手者的元素色调（柔光）
+  if (c.dim > 0.01 || c.keyA > 0.01) {
+    g.save(); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    // 一次填色：压暗色混入元素色（只画一层，低端机较省）
+    const n = parseInt((c.key || '#ffffff').slice(1), 16), kr = n >> 16, kg = (n >> 8) & 255, kb = n & 255, dA = c.dim * 0.55, kA = Math.min(0.3, c.keyA * 0.3), tA = Math.min(0.85, dA + kA), m = tA > 0 ? kA / tA : 0;
+    g.fillStyle = `rgba(${(6 + (kr - 6) * m) | 0},${(4 + (kg - 4) * m) | 0},${(26 + (kb - 26) * m) | 0},${tA})`; g.fillRect(0, 0, W, DUEL.HC);
+    g.restore();
+  }
+}
+// 角色边缘光：地形主光从背后（上后方）勾边；出手蓄力时换成元素色、受击瞬间偏金白
+function duelRim(u, st, real) {
+  if (DUEL.q < 0.7) return null;
+  const terr = tileAt(DUEL.d.x, DUEL.d.y), base = DUEL_RIM[terr] || '#fff2c8', c = DUEL.cam;
+  let col = base, a = 0.5;
+  if (u === DUEL.actor && c.keyA > 0.05) { col = c.key; a = 0.5 + c.keyA; }
+  const lh = DUEL.lastHit[u.uid];
+  if (lh && real - lh.real < T(220)) { col = lh.crit ? '#ffe080' : '#ffffff'; a = 0.9; }
+  return { c: col, a: Math.min(0.95, a), w: 1.1 };
+}
+// 每名角色绘制后：记录静止外框（构图用）、冲刺时脚下扬尘
+function duelFigHD(u, st, P, x, feet, s, f, fly, now) {
+  const sp = st.spec;
+  if (st.anch && (!st.anim || !st.ext)) {
+    const half = sp.kind === 'sprite' ? 16 * sp.scale * s * 0.5 : (sp.mount ? 30 : 22) * s;
+    const top = sp.kind === 'sprite' ? st.anch.top[1] - 16 * sp.scale * s * 0.15 - (sp.fly ? 3 * s : 0) : st.anch.top[1] - (sp.wings || sp.bwings ? 12 : 6) * s - (sp.head && /wizhat|mitre|crown|horns|feather/.test(sp.head.t || '') ? 8 * s : 0);
+    st.ext = [x - half, top, x + half];
+  }
+  if (u === DUEL.actor && st.anim && !fly && P.Y > -4 && P.al > 0.5 && (st.v || 0) > 150 * s / 2.33 && (st.v || 0) < 9000 * s / 2.33 && now - (st.dustT || 0) > 38) {
+    st.dustT = now;
+    DUEL.fx.push({ type: 'puff', at: [x - f * (4 + Math.random() * 6) * s, feet - s], t0: now, dur: T(480), dir: -f, r: (4 + Math.random() * 3) * s, vy: -(6 + Math.random() * 8) * s });
+  }
+}
+function duelPuffHD(g, f, p) {
+  const terr = tileAt(DUEL.d.x, DUEL.d.y), col = DUEL_DUST[terr] || '#e8dcc0', n = parseInt(col.slice(1), 16), rgb = `${n >> 16},${(n >> 8) & 255},${n & 255}`;
+  const e = 1 - (1 - p) * (1 - p), x = f.at[0] + f.dir * e * 16 * (f.r / 5), y = f.at[1] + f.vy * e, r = f.r * (0.6 + e * 1.4);
+  const rg = g.createRadialGradient(x, y, 0, x, y, r); rg.addColorStop(0, `rgba(${rgb},${0.5 * (1 - p)})`); rg.addColorStop(1, `rgba(${rgb},0)`);
+  g.fillStyle = rg; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+}
+// 场景坐标 → 画布（CSS px）坐标（忽略侧倾与震动）
+function duelToScreen(p) { const c = DUEL.cam; return [DUEL.W / 2 + (p[0] - c.x) * c.z, DUEL.oy + DUEL.H / 2 + (p[1] - c.y) * c.z]; }
+// 画面层（不随镜头）：命中的放射状缩放模糊、速度线、暗角、宽银幕黑边、反击字幕
+function duelOverlayHD(g, real, now, punch, ox, oy) {
+  const W = DUEL.W, H = DUEL.H, HC = DUEL.HC, dpr = DUEL.dpr, c = DUEL.cam;
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const bar = duelBarNow(real);
+  // 命中：放射状缩放模糊（把画面以命中点为中心放大叠两层）
+  const ht = real - (DUEL.hitT || -1e9), hd = T(DUEL.hitCrit ? 170 : 120);
+  if (ht >= 0 && ht < hd && DUEL.hitAt && DUEL.q > 0.62) {
+    const k = 1 - ht / hd, P = duelToScreen(DUEL.hitAt), cw = duelCv.width, ch = duelCv.height, px = P[0] * dpr, py = P[1] * dpr;
+    g.save(); g.setTransform(1, 0, 0, 1, 0, 0);
+    g.beginPath(); g.rect(0, bar * dpr, cw, ch - 2 * bar * dpr); g.clip();
+    for (const [sc, a] of [[1.05, 0.32], [1.13, 0.18]]) { const z = 1 + (sc - 1) * (DUEL.hitCrit ? 1.5 : 1); g.globalAlpha = a * k; g.drawImage(duelCv, px - px * z, py - py * z, cw * z, ch * z); }
+    g.restore();
+  }
+  // 速度线（漫画式集中线）
+  if (c.lines > 0.03) {
+    const cx = W / 2, cy = DUEL.oy + H / 2, R0 = H * 0.36, R1 = Math.hypot(W, HC) * 0.6;
+    g.save();
+    for (let i = 0; i < 30; i++) {
+      const a = Math.random() * Math.PI * 2, r0 = R0 * (0.85 + Math.random() * 0.5), w = (1.2 + Math.random() * 3.2);
+      duelStreak(g, cx + Math.cos(a) * R1, cy + Math.sin(a) * R1, cx + Math.cos(a) * r0, cy + Math.sin(a) * r0, w, `rgba(255,255,255,${0.55 * Math.min(1, c.lines)})`, 'rgba(255,255,255,0)');
+    }
+    g.restore();
+  }
+  // 暗角（暴击 / 击杀时加深，击杀再加一次脉冲）
+  const vt = real - DUEL.vigT, kp = vt < T(900) ? Math.sin(Math.PI * Math.min(1, vt / Math.max(1, T(900)))) : 0;
+  const va = 0.26 + c.dim * 0.4 + kp * 0.35;
+  // 暗角图快取（低解析度，放大绘制；逐帧只改透明度）
+  const vk = W + 'x' + HC;
+  if (DUEL_BGC.vigKey !== vk) {
+    const vc = DUEL_BGC.vig || document.createElement('canvas'), vw = Math.round(W / 3), vh = Math.round(HC / 3); vc.width = vw; vc.height = vh;
+    const x = vc.getContext('2d'), vg = x.createRadialGradient(vw / 2, vh / 2, vh * 0.38, vw / 2, vh / 2, Math.hypot(vw, vh) * 0.55);
+    vg.addColorStop(0, 'rgba(8,2,14,0)'); vg.addColorStop(0.6, 'rgba(8,2,14,0.35)'); vg.addColorStop(1, 'rgba(8,2,14,1)');
+    x.fillStyle = vg; x.fillRect(0, 0, vw, vh); DUEL_BGC.vig = vc; DUEL_BGC.vigKey = vk;
+  }
+  g.globalAlpha = Math.min(0.9, va); g.drawImage(DUEL_BGC.vig, 0, 0, W, HC); g.globalAlpha = 1;
+  g.restore(); // 场景裁剪（duelRenderFrame 开头）到此为止
+  g.fillStyle = '#04020a'; g.fillRect(0, 0, W, bar); g.fillRect(0, HC - bar, W, bar);
+  g.fillStyle = 'rgba(217,180,90,0.5)'; g.fillRect(0, bar, W, 1); g.fillRect(0, HC - bar - 1, W, 1);
+  // 反击字幕：从反击者那一侧斜切进来
+  const ct = real - DUEL.counterT, cd = T(820);
+  if (ct >= 0 && ct < cd) {
+    const k = ct / cd, sd = DUEL.counterSide || 1, ein = Math.min(1, k / 0.18), eout = k > 0.78 ? (k - 0.78) / 0.22 : 0;
+    const x = W / 2 + sd * W * (1 - (1 - Math.pow(1 - ein, 3))) - sd * W * eout * eout, y = DUEL.oy + H * 0.2;
+    g.save(); g.translate(x, y); g.transform(1, 0, -0.25, 1, 0, 0);
+    const bw = W * 0.62, bh = H * 0.13;
+    const gr = g.createLinearGradient(-bw / 2, 0, bw / 2, 0); gr.addColorStop(0, 'rgba(160,20,30,0)'); gr.addColorStop(0.2, 'rgba(160,20,30,0.85)'); gr.addColorStop(0.8, 'rgba(160,20,30,0.85)'); gr.addColorStop(1, 'rgba(160,20,30,0)');
+    g.fillStyle = gr; g.fillRect(-bw / 2, -bh / 2, bw, bh);
+    g.fillStyle = 'rgba(255,220,140,0.8)'; g.fillRect(-bw * 0.4, -bh / 2, bw * 0.8, 1.5); g.fillRect(-bw * 0.4, bh / 2 - 1.5, bw * 0.8, 1.5);
+    const fs = Math.round(H * 0.1); g.font = `900 italic ${fs}px "PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.lineWidth = fs * 0.18; g.lineJoin = 'round'; g.strokeStyle = '#1a0610'; g.strokeText('反 击 !', 0, 1);
+    const tg = g.createLinearGradient(0, -fs / 2, 0, fs / 2); tg.addColorStop(0, '#fff6d0'); tg.addColorStop(1, '#ffb030'); g.fillStyle = tg; g.fillText('反 击 !', 0, 1);
+    g.restore();
+  }
+}
+// ---------- 镜位 ----------
+function duelKeyCol(u) {
+  const sp = duelFig(u).spec;
+  return sp.aura || (sp.wpn && (sp.wpn.glow || sp.wpn.gem)) || sp.trail || (sp.breath && BREATH_COL[sp.breath] && BREATH_COL[sp.breath][1]) || (BREATH_COL[u.color] && BREATH_COL[u.color][1]) || (u.team === 'enemy' ? '#ff8a6a' : '#8ad0ff');
+}
+function duelChest(u) { const st = DUEL.fig[u.uid]; return st && st.anch ? st.anch.chest : [u === DUEL.left ? DUEL.W * 0.27 : DUEL.W * 0.73, DUEL.H * 0.5]; }
+function duelShotWindup(att, def, crit, counter) {
+  const key = duelKeyCol(att);
+  if (counter) { DUEL.counterT = performance.now(); DUEL.counterSide = att === DUEL.left ? -1 : 1; }
+  duelShot({ at: () => { const a = duelChest(att), d = duelChest(def); return [a[0] + (d[0] - a[0]) * 0.22, a[1] - 4]; }, z: crit ? 1.36 : 1.18, k: counter ? 13 : crit ? 6 : 5, dim: crit ? 0.65 : 0.12, key, keyA: crit ? 0.5 : 0.22, lb: crit ? 10 : 0, lines: counter ? 0.5 : 0 });
+}
+function duelShotWhip(att, def, ranged) {
+  const t = DUEL.cam.tgt;
+  duelShot({ at: () => { const a = duelChest(att), d = duelChest(def); return [a[0] + (d[0] - a[0]) * (ranged ? 0.62 : 0.55), (a[1] + d[1]) / 2 - 2]; }, z: ranged ? 1.1 : 1.16, k: 11, dim: t.dim, key: t.key, keyA: t.keyA * 0.8, lb: t.lb, lines: ranged ? 0 : 0.35 });
+}
+function duelShotImpact(att, def, crit, kill, dir) {
+  const big = crit || kill, t0 = performance.now();
+  if (kill) duelShot({ at: () => { const d = duelChest(def), e = Math.min(1, (performance.now() - t0) / 900); return [d[0] - dir * 10 * e, d[1] - 6 + 4 * e]; }, z: 1.44, k: 2.6, roll: dir * 0.04, dim: 0.75, keyA: 0, lb: 14, lines: 1 });
+  else duelShot({ at: () => duelChest(def), mix: 0.85, z: crit ? 1.4 : 1.22, k: crit ? 20 : 16, dim: crit ? 0.5 : 0, keyA: 0, lb: crit ? 10 : 0, lines: big ? 1 : 0.4 });
+  duelShot({ k: kill ? 2.2 : 4.2 }, T(kill ? 760 : crit ? 470 : 300));
+}
+function duelShotMiss(def) {
+  duelShot({ at: () => duelChest(def), mix: 0.6, z: 1.1, k: 9, lines: 0 });
+  duelShot({ k: 4.5 }, T(300));
 }

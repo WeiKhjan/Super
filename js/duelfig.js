@@ -1107,10 +1107,11 @@ const DFIG = (() => {
     const wh = pc('#ffffff'), iris = pc(S.eyeC || '#3a4a9a'), mouth = pc('#a8484a'), blush = pc('#f78c8c');
     const bangs = x => -1.1 - ((Math.floor((x + 8) * 1.25) % 3) === 0 ? 0.9 : 0);
     // HD：Q 版脸改用矢量绘制（大眼、刘海、腮红），斗篷暗脸 / 骷髅仍走通用贴图
-    if (REC && !shadowFace && !S.skull) { const rx = r * HK * 1.1; rec('face', { x: hc[0], y: hc[1], rx, ry: r * HK * 0.96, a: J.ha, S, hs, backHair: !covered && hs !== 'bald' }, hc[0] - rx, hc[1] - rx, hc[0] + rx, hc[1] + rx, null, skin); }
+    // HD：侧脸（单眼、鼻梁、嘴、下巴轮廓与耳朵；外形见 PROF），骷髅也画成侧面
+    if (REC && !shadowFace) { const rx = r * HK * 1.1, R = 8.2 * HK; rec('face', { x: hc[0], y: hc[1], rx, ry: r * HK * 0.96, a: J.ha, S, hs, covered, hd: hd.t || '', mo: P.mo || 0, fx: (P.hd || 0) < -8 ? 1 : P.lean > 22 ? 2 : 0, backHair: !covered && hs !== 'bald' && !S.skull }, hc[0] - R, hc[1] - R, hc[0] + R, hc[1] + R, null, skin); }
     else ell(hc, r * HK * 1.1, r * HK * 0.96, J.ha, (px, py) => {
       const [x, y] = L(px, py);
-      if (shadowFace) return (x > 0.9 && x < 2.5 && y > -1.4 && y < 0.6) || (x > 3.7 && x < 4.7 && y > -1.4 && y < 0.6) ? eyesCol : pc('#120a18');
+      if (shadowFace) return (REC ? (x > 3.6 && x < 5.6 && y > -1.3 && y < 0.5 && y > -1.3 + (5.6 - x) * 0.25) : ((x > 0.9 && x < 2.5 && y > -1.4 && y < 0.6) || (x > 3.7 && x < 4.7 && y > -1.4 && y < 0.6))) ? eyesCol : pc('#120a18');
       if (S.skull) {
         if (((x >= 0.4 && x < 2.8) || (x >= 3.4 && x < 4.9)) && y >= -1.6 && y < 1.2) return pc('#2a1a24');
         if (x >= 4.6 && x < 5.4 && y >= 1.6 && y < 2.4) return pc('#2a1a24');
@@ -1132,8 +1133,8 @@ const DFIG = (() => {
       capK(W(-2, -5), W(-7, -8.5 + sw), 1.6, 0.5, hair); capK(W(1, -6), W(-1.5, -10.5), 1.6, 0.5, hair); capK(W(-4.5, -2), W(-9.5, -3.5 + sw), 1.5, 0.5, hair); capK(W(3, -5), W(5.5, -8), 1.2, 0.4, hair);
     }
     if (hs === 'topknot' && !['kabuto', 'helm'].includes(hd.t)) { part(NF, nid); discK(W(-1.5, -7), 2.2, hair); }
-    if (S.beard) { part(NF, nid); poly([W(1, 2), W(5.6, 2), W(4.5, 6.5), W(1.5, 8.5), W(-1.5, 4)], hair); }
-    if (S.elf) { part(NF, nid); poly([W(-2.6, -0.6), W(-9.5, -5.5), W(-2.2, 2)], skin); }
+    if (S.beard) { part(NF, nid); poly(REC ? [W(0.9, 1.2), W(3.2, 2.9), W(5.4, 2.5), W(6.9, 2.6), W(6.7, 4.4), W(6.2, 6.6), W(4.2, 8.6), W(1.4, 7.6), W(-0.4, 4.6)] : [W(1, 2), W(5.6, 2), W(4.5, 6.5), W(1.5, 8.5), W(-1.5, 4)], hair); }
+    if (S.elf) { part(NF, nid); poly(REC ? [W(-0.2, -0.2), W(-6.8, -5.6), W(-1.2, 2.2)] : [W(-2.6, -0.6), W(-9.5, -5.5), W(-2.2, 2)], skin); }
     drawHeadgear(J, S, P, W, L, hc, r);
   }
   function drawHeadgear(J, S, P, W, L, hc, r) {
@@ -1152,14 +1153,14 @@ const DFIG = (() => {
     } else if (t === 'straw') {
       dome(r + 0.8, () => -1.6); ellK(W(0, -2.5), 11, 1.8, J.ha, c1);
     } else if (t === 'hood' || t === 'cowl') {
-      discK(hc, r + 1.6, (px, py) => { const [x, y] = L(px, py); return (t === 'hood' && x > 0.6 && y > -3.6 && y < 5.5) || (t === 'cowl' && x > 2.5 && y > -2.8 && y < 4) ? 0 : c1; });
+      discK(hc, r + 1.6, (px, py) => { const [x, y] = L(px, py); return (t === 'hood' && y > -3.6 && y < 5.5 && x > (REC ? 0.5 + 0.13 * (y - 1) * (y - 1) : 0.6)) || (t === 'cowl' && x > 2.5 && y > -2.8 && y < 4) ? 0 : c1; });
       poly([W(-7.5, -1), W(-2, 6), W(-3.5, 10), W(-8.5, 9)], c1);
       if (t === 'cowl') poly([W(1, -8.5), W(5.5, -6), W(4.6, -4), W(0, -6)], c1);
       if (hd.horns) { part(NF); const hc2 = pc(hd.horns); chainK([W(-1, -7), W(-4, -11), W(-8.5, -12.5)], 1.8, 0.6, hc2); chainK([W(2.5, -7), W(4, -11), W(2, -14)], 1.6, 0.5, hc2); }
     } else if (t === 'helm' || t === 'kettle' || t === 'mask' || t === 'beakhelm') {
       // HD：脸部开口改成圆角（像素版是直角缺口）
       const rc = (x, xa, xb, ya, yb) => { const u = clamp((x - xa) / (xb - xa), 0, 1); return yb + (ya - yb) * (1 - Math.sqrt(Math.max(0, 1 - (1 - u) * (1 - u)))); };
-      const lim = t === 'mask' ? (REC ? (x => rc(x, -0.6, 1.4, 5, -1.6)) : (x => (x > 0.4 ? -1.6 : 5))) : t === 'kettle' ? (() => -0.6) : hd.visor ? (() => 5) : REC ? (x => rc(x, -2.8, -0.4, 4, -0.4)) : (x => (x < -1.6 ? 4 : -0.4));
+      const lim = t === 'mask' ? (REC ? (x => rc(x, -0.6, 1.4, 5, -1.6)) : (x => (x > 0.4 ? -1.6 : 5))) : t === 'kettle' ? (() => (REC ? -1.95 : -0.6)) : hd.visor ? (() => 5) : REC ? (x => rc(x, -2.6, 0.2, 4, -1.85)) : (x => (x < -1.6 ? 4 : -0.4));
       discK(hc, r + 1.3, (px, py) => {
         const [x, y] = L(px, py);
         if (y >= lim(x)) return 0;
@@ -1167,9 +1168,9 @@ const DFIG = (() => {
         if (hd.visor && x > 2.5 && y > 1.5 && y < 4 && (Math.floor(y) % 2 === 0)) return eye;
         return (y < -5.4 || (x < -6)) ? c2 : c1;
       });
-      if (hd.nasal && !hd.visor) capK(W(4.6, -1.5), W(5.3, 2), 0.9, 0.9, c1);
-      if (t === 'mask') { poly([W(-0.5, 2), W(6.6, 1.6), W(6, 5.5), W(0, 6.5)], c2); if (hd.eyes) poly([W(0.6, -2.4), W(5.5, -2.4), W(5.5, -1.6), W(0.6, -1.6)], pc(hd.eyes)); }
-      if (t === 'kettle') ellK(W(0, -1.4), 9.5, 1.5, J.ha, c1);
+      if (hd.nasal && !hd.visor) { if (REC) capK(W(6.75, -2.2), W(7.35, 0.9), 0.8, 0.6, c1); else capK(W(4.6, -1.5), W(5.3, 2), 0.9, 0.9, c1); }
+      if (t === 'mask') { poly(REC ? [W(-0.5, 1.6), W(5.6, 1.5), W(7.8, 1.0), W(7.4, 3.2), W(6.4, 5.6), W(0, 6.5)] : [W(-0.5, 2), W(6.6, 1.6), W(6, 5.5), W(0, 6.5)], c2); if (hd.eyes) poly(REC ? [W(3.4, -2.4), W(6.6, -2.4), W(6.6, -1.6), W(3.4, -1.6)] : [W(0.6, -2.4), W(5.5, -2.4), W(5.5, -1.6), W(0.6, -1.6)], pc(hd.eyes)); }
+      if (t === 'kettle') ellK(W(0, REC ? -2.3 : -1.4), 9.5, 1.5, J.ha, c1);
       if (t === 'beakhelm') { poly([W(3, -4.5), W(10, -1.5), W(4.5, -0.6)], c1); }
       if (hd.crest) { part(NF); const cc = pc(hd.crest); poly([W(-5, -6), W(-1, -9.8), W(3.5, -8), W(-2, -6.8)], cc); }
       if (hd.horns) { part(NF); const hc2 = pc(hd.horns); chainK([W(-1.5, -6), W(-4.5, -8.5), W(-4, -11)], 1.8, 0.6, hc2); chainK([W(2, -6), W(4.8, -8), W(4.6, -10.5)], 1.6, 0.5, hc2); }
@@ -1216,7 +1217,7 @@ const DFIG = (() => {
       discK(hc, r + 1.4, (px, py) => { const [x, y] = L(px, py); if (x > -0.4 && y > -1.9 && y < 1.6) return 0; return c1; });
       const sw = Math.sin(NOW * 0.012) * 1.5; capK(W(-6.5, -1.5), W(-10.5, 0.5 + sw), 1.2, 0.7, c1); capK(W(-6.5, -1.5), W(-10, 3 + sw), 1.1, 0.6, c1);
       if (hd.band) { part(NF); discK(hc, r + 1.6, (px, py) => { const [, y] = L(px, py); return y > -4.4 && y < -3 ? pc(hd.band) : 0; }); poly([W(3, -4.6), W(5.4, -4.6), W(5.4, -2.8), W(3, -2.8)], pc(C.silver)); }
-      if (hd.eyes) { part(NF); poly([W(-0.4, -1.9), W(6.6, -1.9), W(6.6, 1.6), W(-0.4, 1.6)], pc('#120a18')); part(FLAT); poly([W(0.8, -0.9), W(2.8, -0.6), W(2.8, 0.3), W(0.8, 0.1)], pc(hd.eyes)); poly([W(3.9, -0.7), W(5, -0.5), W(5, 0.3), W(3.9, 0.2)], pc(hd.eyes)); }
+      if (hd.eyes) { part(NF); poly(REC ? [W(-0.4, -1.9), W(6.7, -1.9), W(7.5, 1.6), W(-0.4, 1.6)] : [W(-0.4, -1.9), W(6.6, -1.9), W(6.6, 1.6), W(-0.4, 1.6)], pc('#120a18')); part(FLAT); if (REC) poly([W(3.7, -0.8), W(5.9, -0.9), W(5.7, 0.3), W(4.0, 0.15)], pc(hd.eyes)); else { poly([W(0.8, -0.9), W(2.8, -0.6), W(2.8, 0.3), W(0.8, 0.1)], pc(hd.eyes)); poly([W(3.9, -0.7), W(5, -0.5), W(5, 0.3), W(3.9, 0.2)], pc(hd.eyes)); } }
     } else if (t === 'circlet' || t === 'crown') {
       discK(hc, r + 0.8, (px, py) => { const [, y] = L(px, py); return y > -4.2 && y < -2.4 ? c1 : 0; });
       if (t === 'crown') { const b = hd.big ? 1.3 : 1; for (const x of [-4, -1, 2, 4.5]) poly([W(x - 1.3, -3.5), W(x + 1.3, -3.5), W(x, -3.5 - 4 * b)], c1); if (hd.big) poly([W(-5, -3.5), W(5, -3.5), W(4, -6), W(-4, -6)], pc(C.dRed)); }
@@ -1242,7 +1243,7 @@ const DFIG = (() => {
         part(NF); chainK([W(-3, -5), W(-8, -9 + s), W(-13, -9 + s * 1.5)], 1.6, 0.6, pc(hd.plume));
       }
     } else if (t === 'kabuto') {
-      discK(hc, r + 1.4, (px, py) => { const [x, y] = L(px, py); return y < -0.6 || (REC ? y < 3 - 3.6 * Math.sqrt(Math.max(0, 1 - clamp((-x - 0.8) / 2.4, 0, 1) ** 2)) : (x < -2 && y < 3)) ? (y < -5 ? c2 : c1) : 0; });
+      discK(hc, r + 1.4, (px, py) => { const [x, y] = L(px, py); return y < (REC ? -1.9 : -0.6) || (REC ? y < 3 - 4.9 * Math.sqrt(Math.max(0, 1 - clamp((-x - 0.8) / 2.4, 0, 1) ** 2)) : (x < -2 && y < 3)) ? (y < -5 ? c2 : c1) : 0; });
       poly([W(-3, 0), W(-11, 5), W(-9, 7), W(-2, 3.5)], (px, py) => { const [, y] = L(px, py); return Math.floor(y) % 2 ? c1 : pc(S.p); });
       poly([W(3.8, -1), W(7.5, -2.5), W(6.8, 0.5)], c1);
       const cc = pc(hd.cc || C.gold);
@@ -1738,7 +1739,8 @@ const DFIG = (() => {
   function pathPrim(g, p) {
     const q = p.g;
     switch (p.k) {
-      case 'e': case 'face': { const a = (q.a || 0) * RAD; g.moveTo(q.x + q.rx * Math.cos(a), q.y + q.rx * Math.sin(a)); g.ellipse(q.x, q.y, q.rx, q.ry, a, 0, TAU); break; }
+      case 'face': { const a = (q.a || 0) * RAD, ca = Math.cos(a) * HK, sa = Math.sin(a) * HK; profPath(g, (u, v) => [q.x + u * ca - v * sa, q.y + u * sa + v * ca]); break; }
+      case 'e': { const a = (q.a || 0) * RAD; g.moveTo(q.x + q.rx * Math.cos(a), q.y + q.rx * Math.sin(a)); g.ellipse(q.x, q.y, q.rx, q.ry, a, 0, TAU); break; }
       case 'clipdisc': break;
       case 'dot': g.moveTo(q.x + 0.62, q.y); g.arc(q.x, q.y, 0.62, 0, TAU); break;
       case 'ring': g.moveTo(q.x + q.r1, q.y); g.arc(q.x, q.y, q.r1, 0, TAU); g.moveTo(q.x + q.r0, q.y); g.arc(q.x, q.y, q.r0, TAU, 0, true); break;
@@ -1876,75 +1878,147 @@ const DFIG = (() => {
     g.restore();
     return hole;
   }
-  // Q 版脸（局部坐标：x 朝前、y 朝下，单位 = 像素版的头部单位）
-  function paintFace(g, p, dim) {
-    const q = p.g, S = q.S, hs = q.hs;
-    g.save(); g.translate(q.x, q.y); g.rotate(q.a * RAD); g.scale(HK, HK);
-    const RX = q.rx / HK, RY = q.ry / HK;
-    g.beginPath(); g.ellipse(0, 0, RX, RY, 0, 0, TAU);
-    if (MODE) { g.fillStyle = MODE === 2 ? SILC : '#ffffff'; g.fill(); g.restore(); return; }
-    g.clip();
-    const ca = Math.cos(-q.a * RAD), sa = Math.sin(-q.a * RAD), lx = LX * ca - LY * sa, ly = LX * sa + LY * ca;
-    const sk = clut(pc(S.skin)), hr = clut(pc(S.hair));
-    let gr = g.createRadialGradient(lx * 2.6, ly * 2.6, 0.5, 0, 0, 7.6);
-    gr.addColorStop(0, sk.css[kIdx(0.3, dim)]); gr.addColorStop(0.5, sk.css[kIdx(0.02, dim)]); gr.addColorStop(0.82, sk.css[kIdx(-0.12, dim)]); gr.addColorStop(1, sk.css[kIdx(-0.5, dim)]);
-    g.fillStyle = gr; g.fillRect(-8, -8, 16, 16);
-    // 腮红
-    for (const [bx, by, br] of [[1.35, 2.15, 1.25], [4.95, 2.05, 0.75]]) {
-      const bg = g.createRadialGradient(bx, by, 0, bx, by, br); bg.addColorStop(0, 'rgba(255,120,130,0.55)'); bg.addColorStop(1, 'rgba(255,120,130,0)');
-      g.fillStyle = bg; g.fillRect(bx - br, by - br, br * 2, br * 2);
+  // 侧脸外形（局部坐标：x 朝前、y 朝下，单位 = 像素版的头部单位）：圆胖后脑 → 前额 → 眉骨 → 鼻梁 / 鼻尖 → 唇 → 小下巴 → 下颚线回到后颈
+  const PROF = [[0.2, -6.15],
+    [-3.7, -6.25, -6.95, -4.0, -6.95, -0.7], [-6.95, 2.1, -5.9, 3.7, -4.5, 4.45], [-3.2, 5.25, -0.9, 5.75, 1.5, 5.7],
+    [2.9, 5.68, 4.05, 5.55, 4.85, 5.25], [5.5, 5.0, 5.95, 4.75, 5.98, 4.25], [6.0, 3.9, 5.8, 3.7, 5.86, 3.45],
+    [6.15, 3.4, 6.2, 3.15, 6.0, 2.95], [6.25, 2.8, 6.3, 2.55, 6.2, 2.3], [6.15, 2.1, 6.4, 1.95, 6.85, 1.88],
+    [7.3, 1.82, 7.45, 1.45, 7.25, 1.2], [6.95, 0.75, 6.55, 0.3, 6.45, -0.25], [6.38, -0.7, 6.6, -1.1, 6.62, -1.55],
+    [6.68, -2.7, 6.25, -3.75, 5.35, -4.45], [4.2, -5.45, 2.4, -6.1, 0.2, -6.15]];
+  function profPath(g, tf) {
+    let p = tf(PROF[0][0], PROF[0][1]); g.moveTo(p[0], p[1]);
+    for (let i = 1; i < PROF.length; i++) { const c = PROF[i], a = tf(c[0], c[1]), b = tf(c[2], c[3]), e = tf(c[4], c[5]); g.bezierCurveTo(a[0], a[1], b[0], b[1], e[0], e[1]); }
+    g.closePath();
+  }
+  const ID_TF = (u, v) => [u, v];
+  // 发际线（侧面）：前刘海成束垂到眉上、鬓角垂在耳前、绕过耳朵到后颈；长发则整片盖住耳朵
+  function hairCapPath(g, hs) {
+    g.moveTo(-9, -9); g.lineTo(9, -9); g.lineTo(9, -2.4);
+    g.quadraticCurveTo(7.4, -2.5, 6.95, -1.85);
+    g.quadraticCurveTo(6.6, -1.2, 6.15, -0.75);         // 刘海尖（眉骨前）
+    g.quadraticCurveTo(5.85, -1.75, 5.2, -2.35);
+    g.quadraticCurveTo(4.75, -1.5, 4.05, -0.95);        // 刘海尖（眼睛上方）
+    g.quadraticCurveTo(3.65, -1.85, 2.95, -2.3);
+    if (hs === 'long') {
+      g.quadraticCurveTo(2.75, 0.6, 2.75, 3.4); g.quadraticCurveTo(2.6, 5.2, 1.6, 6.6);    // 侧发垂过耳朵
+      g.lineTo(-9, 6.6); g.closePath(); return;
     }
-    // 眼睛：深色上半 + 虹膜渐层 + 上眼线 + 两点高光
+    g.quadraticCurveTo(2.45, 0.2, 2.15, 2.35);          // 鬓角
+    g.quadraticCurveTo(1.55, 0.8, 1.05, -0.35);
+    g.quadraticCurveTo(-0.3, -1.05, -1.75, -0.35);      // 盖过耳朵上缘
+    g.quadraticCurveTo(-2.35, 1.6, -2.0, 3.5);          // 耳后
+    g.quadraticCurveTo(-2.3, 4.9, -3.4, 5.1); g.lineTo(-9, 5.0); g.closePath();
+  }
+  function paintFace(g, p, dim) {
+    const q = p.g, S = q.S, hs = q.hs, skull = !!S.skull;
+    g.save(); g.translate(q.x, q.y); g.rotate(q.a * RAD); g.scale(HK, HK);
+    g.beginPath(); profPath(g, ID_TF);
+    if (MODE) { g.fillStyle = MODE === 2 ? SILC : '#ffffff'; g.fill(); g.restore(); return; }
+    g.save(); g.clip();
+    const ca = Math.cos(-q.a * RAD), sa = Math.sin(-q.a * RAD), lx = LX * ca - LY * sa, ly = LX * sa + LY * ca;
+    const sk = clut(pc(S.skin)), hr = clut(pc(S.hair || '#3a2a1a')), K = v => sk.css[kIdx(v, dim)];
+    let gr = g.createRadialGradient(0.8 + lx * 2.6, ly * 2.6, 0.5, 0.4, 0, 8.2);
+    gr.addColorStop(0, K(0.3)); gr.addColorStop(0.5, K(0.03)); gr.addColorStop(0.8, K(-0.12)); gr.addColorStop(1, K(-0.5));
+    g.fillStyle = gr; g.fillRect(-8, -8, 17, 16);
+    // 下颚下缘的阴影（让下巴与脖子分开）、颧骨受光
+    gr = g.createLinearGradient(0, 3.6, 0, 5.8); gr.addColorStop(0, 'rgba(120,40,60,0)'); gr.addColorStop(1, 'rgba(120,40,60,0.28)');
+    g.fillStyle = gr; g.fillRect(-3, 3.6, 10, 2.4);
+    const ink = '#1a0c1e', line = sk.line;
+    if (skull) {
+      // 骷髅侧面：眼窝、鼻孔、牙列
+      g.fillStyle = 'rgba(70,50,40,0.2)'; g.beginPath(); g.ellipse(3.2, 1.9, 2.4, 1.2, -0.2, 0, TAU); g.fill();
+      g.fillStyle = '#24141e'; g.beginPath(); g.moveTo(3.4, -1.2); g.quadraticCurveTo(5.9, -1.9, 6.05, -0.2); g.quadraticCurveTo(5.9, 1.5, 4.4, 1.25); g.quadraticCurveTo(3.0, 0.9, 3.4, -1.2); g.fill();
+      g.fillStyle = '#ff5040'; g.globalAlpha = 0.85; g.beginPath(); g.arc(5.0, 0.0, 0.42, 0, TAU); g.fill(); g.globalAlpha = 1;
+      g.fillStyle = '#24141e'; g.beginPath(); g.moveTo(6.6, 0.9); g.lineTo(7.0, 1.9); g.lineTo(6.2, 1.95); g.closePath(); g.fill();
+      g.fillStyle = K(0.25); g.fillRect(3.6, 2.55, 2.7, 1.25);
+      g.strokeStyle = '#3a2a2a'; g.lineWidth = 0.22; g.beginPath(); g.moveTo(3.5, 3.15); g.lineTo(6.35, 3.15);
+      for (const x of [4.1, 4.7, 5.3, 5.9]) { g.moveTo(x, 2.6); g.lineTo(x, 3.75); } g.stroke();
+      g.strokeStyle = 'rgba(60,40,40,0.5)'; g.lineWidth = 0.28; g.beginPath(); g.moveTo(-1.5, 2.8); g.quadraticCurveTo(1, 4.2, 3.4, 3.6); g.stroke();
+      g.restore(); g.restore(); return;
+    }
+    // 腮红
+    let bg = g.createRadialGradient(3.55, 2.2, 0, 3.55, 2.2, 1.35); bg.addColorStop(0, 'rgba(255,110,125,0.5)'); bg.addColorStop(1, 'rgba(255,110,125,0)');
+    g.fillStyle = bg; g.fillRect(2, 0.8, 3.2, 2.9);
+    // 耳朵（长发盖住；头盔盖住的部分由头盔自己画在上层）
+    const ear = hs !== 'long';
+    const drawEar = () => {
+      g.beginPath(); g.moveTo(-0.15, 0.05); g.bezierCurveTo(-1.0, -0.35, -1.75, 0.3, -1.7, 1.2); g.bezierCurveTo(-1.65, 2.1, -1.0, 2.55, -0.25, 2.25); g.closePath();
+      gr = g.createLinearGradient(-1.7, 0, 0, 0); gr.addColorStop(0, K(-0.3)); gr.addColorStop(1, K(0.1)); g.fillStyle = gr; g.fill();
+      g.strokeStyle = sk.css[kIdx(-0.85, dim)]; g.lineWidth = 0.2; g.stroke();
+      g.strokeStyle = sk.css[kIdx(-0.6, dim)]; g.lineWidth = 0.2; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(-0.55, 0.55); g.quadraticCurveTo(-1.3, 0.45, -1.2, 1.25); g.quadraticCurveTo(-1.1, 1.8, -0.6, 1.8); g.stroke();
+    };
+    // 眼睛（侧面的动漫眼：前缘几乎垂直、后方收成眼尾；虹膜是贴着前缘的窄椭圆）
     const iris = S.eyeC || '#3a4a9a', ir = PRGB[pc(iris)];
     const irL = `rgb(${Math.min(255, ir[0] * 0.6 + 110) | 0},${Math.min(255, ir[1] * 0.6 + 120) | 0},${Math.min(255, ir[2] * 0.6 + 130) | 0})`;
-    for (const [ex, ew, eh, near] of [[1.72, 1.02, 1.36, 1], [4.22, 0.56, 1.24, 0]]) {
-      g.beginPath(); g.ellipse(ex, 0.05, ew, eh, 0, 0, TAU);
-      const eg = g.createLinearGradient(0, -eh, 0, eh);
-      eg.addColorStop(0, '#140a1c'); eg.addColorStop(0.4, '#1c1030'); eg.addColorStop(0.62, iris); eg.addColorStop(1, irL);
+    const fierce = q.fx === 2, hurt = q.fx === 1;
+    const eyeShape = () => {
+      g.beginPath();
+      if (hurt) { g.moveTo(5.35, 0.1); g.quadraticCurveTo(4.5, -0.45, 3.7, 0.25); g.quadraticCurveTo(4.5, 0.55, 5.35, 0.45); g.closePath(); return; }
+      const top = fierce ? -0.75 : -1.2;
+      g.moveTo(5.38, top); g.quadraticCurveTo(4.15, fierce ? -1.05 : -1.45, 3.62, 0.55);
+      g.quadraticCurveTo(4.15, 1.42, 5.12, 1.38); g.quadraticCurveTo(5.5, 0.2, 5.38, top); g.closePath();
+    };
+    g.save(); g.translate(4.7, 0.2); g.scale(1.14, 1.12); g.translate(-4.7, -0.2);
+    eyeShape(); g.fillStyle = '#fbf8ff'; g.fill();
+    if (!hurt) {
+      g.save(); eyeShape(); g.clip();
+      g.beginPath(); g.ellipse(4.82, 0.22, 0.66, 1.2, 0.05, 0, TAU);
+      const eg = g.createLinearGradient(0, -1.0, 0, 1.4); eg.addColorStop(0, '#140a1c'); eg.addColorStop(0.38, '#1c1030'); eg.addColorStop(0.62, iris); eg.addColorStop(1, irL);
       g.fillStyle = eg; g.fill();
-      g.fillStyle = 'rgba(16,8,24,0.75)'; g.beginPath(); g.ellipse(ex + ew * 0.12, 0.12, ew * 0.42, eh * 0.46, 0, 0, TAU); g.fill();
-      g.strokeStyle = '#140a1c'; g.lineCap = 'round'; g.lineWidth = near ? 0.42 : 0.34;
-      g.beginPath(); g.ellipse(ex, 0.12, ew * 1.04, eh * 1.0, 0, Math.PI * 1.08, Math.PI * 1.92); g.stroke();
-      if (near) { g.beginPath(); g.moveTo(ex - ew * 0.92, -eh * 0.42); g.lineTo(ex - ew * 1.38, -eh * 0.62); g.stroke(); }
-      g.fillStyle = '#ffffff';
-      g.beginPath(); g.ellipse(ex - ew * 0.36, -eh * 0.36, ew * (near ? 0.36 : 0.4), eh * 0.3, -0.3, 0, TAU); g.fill();
-      g.beginPath(); g.arc(ex + ew * 0.42, eh * 0.5, near ? 0.19 : 0.13, 0, TAU); g.fill();
+      g.fillStyle = 'rgba(16,8,24,0.78)'; g.beginPath(); g.ellipse(4.95, 0.28, 0.3, 0.58, 0, 0, TAU); g.fill();
+      g.fillStyle = 'rgba(40,20,60,0.22)'; g.fillRect(3.4, -1.6, 2.4, 0.75);
+      g.fillStyle = '#ffffff'; g.beginPath(); g.ellipse(4.62, -0.32, 0.27, 0.36, -0.3, 0, TAU); g.fill();
+      g.beginPath(); g.arc(5.08, 0.8, 0.14, 0, TAU); g.fill();
+      g.restore();
     }
-    // 嘴
-    g.strokeStyle = '#8a3a3c'; g.lineWidth = 0.32; g.lineCap = 'round';
-    g.beginPath(); g.moveTo(3.05, 2.8); g.quadraticCurveTo(3.45, 3.25, 3.9, 2.85); g.stroke();
+    // 上睫毛线（粗，眼尾上挑）、下眼线
+    g.strokeStyle = ink; g.lineCap = 'round'; g.lineJoin = 'round';
+    if (hurt) { g.lineWidth = 0.42; g.beginPath(); g.moveTo(5.4, 0.1); g.quadraticCurveTo(4.5, -0.5, 3.4, 0.0); g.stroke(); }
+    else {
+      g.lineWidth = 0.5; g.beginPath(); g.moveTo(5.5, fierce ? -0.8 : -1.25); g.quadraticCurveTo(4.15, fierce ? -1.1 : -1.5, 3.62, 0.5); g.quadraticCurveTo(3.45, 0.15, 3.2, 0.12); g.stroke();
+      g.lineWidth = 0.2; g.beginPath(); g.moveTo(4.1, 1.3); g.quadraticCurveTo(4.6, 1.48, 5.1, 1.38); g.stroke();
+    }
+    g.restore();
+    // 鼻尖高光、鼻孔、嘴
+    g.fillStyle = sk.css[kIdx(0.75, dim)]; g.globalAlpha = 0.7; g.beginPath(); g.ellipse(6.95, 1.05, 0.28, 0.2, -0.5, 0, TAU); g.fill(); g.globalAlpha = 1;
+    g.strokeStyle = sk.css[kIdx(-0.7, dim)]; g.lineWidth = 0.2; g.beginPath(); g.moveTo(6.55, 1.75); g.quadraticCurveTo(6.75, 1.6, 6.95, 1.75); g.stroke();
+    g.strokeStyle = '#8a3a3c'; g.lineWidth = 0.3;
+    if (q.mo > 0.3 || fierce) { g.fillStyle = '#5a1a24'; g.beginPath(); g.moveTo(6.1, 2.75); g.quadraticCurveTo(5.3, 2.8, 5.25, 3.1); g.quadraticCurveTo(5.5, 3.4, 6.0, 3.3); g.closePath(); g.fill(); }
+    else { g.beginPath(); g.moveTo(6.05, 2.98); g.quadraticCurveTo(5.65, 3.12, 5.3, 2.92); g.stroke(); }
     if (S.clown) {
-      g.fillStyle = '#e83a3a'; g.beginPath(); g.ellipse(6.4, 1.6, 1.1, 0.8, 0, 0, TAU); g.fill();
-      g.fillStyle = '#3a6ab8'; g.beginPath(); g.moveTo(1.6, 1.5); g.lineTo(2.2, 2.2); g.lineTo(1.6, 2.9); g.lineTo(1.0, 2.2); g.closePath(); g.fill();
+      g.fillStyle = '#3a6ab8'; g.beginPath(); g.moveTo(4.4, 1.7); g.lineTo(4.85, 2.25); g.lineTo(4.4, 2.8); g.lineTo(3.95, 2.25); g.closePath(); g.fill();
     }
     // 头发（与脑后发团同一组渐变；裁剪区并上脑后发团，避免脸缘的抗锯齿露出肤色细线）
+    g.restore();
     const hcx = -1.7, hcy = -1.2, hR = ((6.3 + 0.5) * 1.08 + 6.9) / 2;
-    if (q.backHair) { g.restore(); g.save(); g.translate(q.x, q.y); g.rotate(q.a * RAD); g.scale(HK, HK); g.beginPath(); g.ellipse(0, 0, RX, RY, 0, 0, TAU); g.moveTo(hcx + 7.344, hcy); g.ellipse(hcx, hcy, 7.344, 6.9, 0, 0, TAU); g.clip(); }
+    g.save(); g.beginPath(); profPath(g, ID_TF); if (q.backHair) { g.moveTo(hcx + 7.344, hcy); g.ellipse(hcx, hcy, 7.344, 6.9, 0, 0, TAU, true); } g.clip();
     gr = g.createRadialGradient(hcx + lx * 0.42 * hR, hcy + ly * 0.42 * hR, 0, hcx, hcy, hR * 1.12);
     for (const [pos, k] of RAMP.cloth) gr.addColorStop(pos, hr.css[kIdx(k, dim)]);
     g.fillStyle = gr; g.beginPath();
-    if (hs === 'bald') g.rect(-8, -3.2, 6, 6.2);
-    else {
-      g.moveTo(-8, -8); g.lineTo(8, -8); g.lineTo(8, -0.5);
-      g.quadraticCurveTo(6.3, -0.7, 5.5, -0.2);           // 前鬓
-      g.quadraticCurveTo(5.0, -1.6, 4.4, -2.1);
-      g.quadraticCurveTo(3.9, -1.2, 3.25, -0.55);          // 刘海尖
-      g.quadraticCurveTo(2.7, -1.6, 2.0, -2.15);
-      g.quadraticCurveTo(1.4, -1.0, 0.75, -0.75);
-      g.quadraticCurveTo(0.2, -1.6, -0.5, -2.0);
-      g.quadraticCurveTo(-1.1, -0.9, -1.6, -0.6);
-      g.quadraticCurveTo(-2.0, -1.4, -2.4, -1.6);
-      g.lineTo(-2.4, 3.6); g.quadraticCurveTo(-3.4, 4.2, -4.4, 3.4); g.lineTo(-8, 3.6); g.closePath();
-    }
+    if (hs === 'bald') { g.moveTo(-8, -3.2); g.lineTo(-2.2, -3.2); g.quadraticCurveTo(-1.6, 0.4, -2.1, 3.2); g.lineTo(-8, 3.4); g.closePath(); }
+    else hairCapPath(g, hs);
     g.fill();
     if (hs !== 'bald') {
-      // 发丝高光弧
+      // 发丝高光弧 + 几道朝后的发流线
       g.strokeStyle = hr.css[kIdx(0.62, dim)]; g.globalAlpha = 0.75; g.lineWidth = 0.55; g.lineCap = 'round';
-      g.beginPath(); g.ellipse(-1.2, -1.6, 5.2, 4.2, 0, Math.PI * 1.14, Math.PI * 1.5); g.stroke();
+      g.beginPath(); g.ellipse(-1.0, -1.4, 5.4, 4.3, 0, Math.PI * 1.12, Math.PI * 1.55); g.stroke();
+      g.globalAlpha = 0.5; g.strokeStyle = hr.css[kIdx(-0.75, dim)]; g.lineWidth = 0.28;
+      g.beginPath(); g.moveTo(4.6, -3.4); g.quadraticCurveTo(1.0, -3.6, -2.8, -1.4); g.moveTo(5.6, -2.6); g.quadraticCurveTo(3.4, -2.6, 2.4, -1.2); g.moveTo(-0.5, -4.6); g.quadraticCurveTo(-3.8, -3.4, -4.8, 0.8); g.stroke();
       g.globalAlpha = 1;
+      if (ear) drawEar();
+    } else if (ear) drawEar();
+    // 眉毛（画在刘海上，半透明，侧面只露一道）
+    if (!q.covered || ['band', 'circlet', 'crown', 'horns', 'veil', 'batears', 'fin', 'jester', 'tricorne', 'straw', 'wizhat', 'feather', 'mitre', 'headdress'].includes(q.hd)) {
+      g.strokeStyle = hr.css[kIdx(-0.85, dim)]; g.globalAlpha = 0.85; g.lineWidth = 0.42; g.lineCap = 'round';
+      g.beginPath(); g.moveTo(3.85, fierce ? -2.15 : -2.3); g.quadraticCurveTo(4.9, fierce ? -2.05 : -2.45, 5.85, fierce ? -1.55 : -2.05); g.stroke(); g.globalAlpha = 1;
     }
-    if (S.beard) { g.fillStyle = hr.css[kIdx(-0.1, dim)]; g.beginPath(); g.moveTo(-2.4, 1.8); g.quadraticCurveTo(3, 2.6, 8, 1.6); g.lineTo(8, 8); g.lineTo(-2.4, 8); g.closePath(); g.fill(); }
-    g.restore();
+    if (S.beard) { g.fillStyle = hr.css[kIdx(-0.1, dim)]; g.beginPath(); g.moveTo(0.9, 1.0); g.quadraticCurveTo(3, 2.9, 5.4, 2.45); g.quadraticCurveTo(6.4, 2.2, 7.2, 2.6); g.lineTo(7.2, 8); g.lineTo(-0.6, 8); g.lineTo(-0.4, 4.6); g.closePath(); g.fill(); }
+    if (S.clown) {
+      gr = g.createRadialGradient(7.0, 1.15, 0.1, 7.25, 1.4, 1.05); gr.addColorStop(0, '#ffb0a0'); gr.addColorStop(0.4, '#e83a3a'); gr.addColorStop(1, '#8a1020');
+      g.fillStyle = gr; g.beginPath(); g.arc(7.25, 1.4, 1.0, 0, TAU); g.fill();
+    }
+    g.restore(); g.restore();
   }
   // 粗略探测图案函数是否在外形内留空（头盔下缘、兜帽开口等）：这类图元不用矢量描边，改由贴图外扩描边
   function hasHole(p) {
@@ -2080,6 +2154,21 @@ const DFIG = (() => {
     L.setTransform(k * f, 0, 0, k, -sx0 * k, -ay0 * k);
     L.imageSmoothingEnabled = true;
     REC = R; const trail = hdRender(L); REC = null;
+    // 边缘光：图层减去朝光源反方向位移的自身 = 背光侧的一圈细边，着色后以加色叠回
+    const rim = opt.rim;
+    if (rim && !MODE && rim.a > 0.02) {
+      if (!HDL.rcv) { HDL.rcv = document.createElement('canvas'); HDL.rg = HDL.rcv.getContext('2d'); HDL.rcv.width = HDL.rcv.height = 16; }
+      if (HDL.rcv.width < lw || HDL.rcv.height < lh) { HDL.rcv.width = Math.max(HDL.rcv.width, lw); HDL.rcv.height = Math.max(HDL.rcv.height, lh); }
+      const Rg = HDL.rg, d = Math.max(1, rim.w * k), dx = Math.round(d * 0.85) * f, dy = Math.round(d * 0.75);
+      Rg.setTransform(1, 0, 0, 1, 0, 0); Rg.globalAlpha = 1;
+      Rg.globalCompositeOperation = 'source-over'; Rg.clearRect(0, 0, lw + 2, lh + 2); Rg.drawImage(HDL.cv, 0, 0, lw, lh, 0, 0, lw, lh);
+      Rg.globalCompositeOperation = 'destination-out'; Rg.drawImage(HDL.cv, 0, 0, lw, lh, dx, dy, lw, lh);
+      Rg.globalCompositeOperation = 'source-in'; Rg.fillStyle = rim.c; Rg.fillRect(0, 0, lw, lh);
+      Rg.globalCompositeOperation = 'source-over';
+      L.setTransform(1, 0, 0, 1, 0, 0); L.globalCompositeOperation = 'lighter'; L.globalAlpha = rim.a;
+      L.drawImage(HDL.rcv, 0, 0, lw, lh, 0, 0, lw, lh);
+      L.globalCompositeOperation = 'source-over'; L.globalAlpha = 1;
+    }
     g.save();
     g.globalAlpha *= P.al;
     g.translate(x, feet);

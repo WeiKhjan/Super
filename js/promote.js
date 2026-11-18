@@ -303,7 +303,7 @@ function promoRenderHD(now) {
       const s = S / 36 * sc, feet = cy + S * 0.62 + bob;
       const Q = DFIG.stance(F.spec); DFIG.proc(Q, F.spec, now, 0.7);
       if (revealed && rp < 1) Q.lean += (1 - rp) * 8;
-      DFIG.draw(g, P.u, F.spec, Q, { x: cx, feet, s, f: 1, now, sil, dpr: P.dpr });
+      DFIG.draw(g, P.u, F.spec, Q, { x: cx, feet, s, f: 1, now, sil, dpr: P.dpr, rim: sil ? null : { c: '#ffe6a8', a: 0.75, w: 1.1 } });
     } else {
       const s2 = S * 1.25 * sc;
       g.drawImage(sil ? F.sil : F.spr, cx - s2 / 2, cy - s2 / 2 + bob, s2, s2);
