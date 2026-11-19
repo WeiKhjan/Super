@@ -1718,6 +1718,9 @@ function spellTiles(u, spId) {
       if (c && !hostile(u, c) && sp.cures.some(s => hasStatus(c, s))) out.push(t);
     } else if (sp.kind === 'buff') {
       if (c && !hostile(u, c) && !(c.buffs || []).some(b => b.stat === sp.stat)) out.push(t);
+    } else if (sp.area || sp.line) {
+      // 范围 / 直线攻击：可以空地为中心，只要范围内有可命中的敌人
+      if (spellAffected(u, spId, t.x, t.y).some(o => hostile(u, o) && !(sp.groundOnly && isFlying(o)) && !(sp.kind === 'status' && hasStatus(o, sp.status)))) out.push(t);
     } else {
       if (c && hostile(u, c) && !(sp.groundOnly && isFlying(c))) {
         if (sp.kind === 'status' && hasStatus(c, sp.status)) continue;
