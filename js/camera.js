@@ -1,0 +1,2 @@
+// camera
+'use strict';

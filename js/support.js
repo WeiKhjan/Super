@@ -1,0 +1,2 @@
+// support
+'use strict';
