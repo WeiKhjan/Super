@@ -12,6 +12,40 @@ function silhouette(src, color) {
   x.globalCompositeOperation = 'source-atop'; x.fillStyle = color; x.fillRect(0, 0, c.width, c.height);
   return c;
 }
+// 职业造型预览：静态全身像（HD 用战斗画面的矢量纸娃娃，怪物类与像素模式用精灵）
+function classFigure(u, w, h) {
+  const dpr = Math.min(3, window.devicePixelRatio || 1);
+  const c = document.createElement('canvas'); c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+  c.style.width = w + 'px'; c.style.height = h + 'px'; c.className = 'cls-fig';
+  const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const hd = typeof artHD === 'function' && artHD();
+  if (hd && typeof DFIG !== 'undefined') {
+    try {
+      const sp = DFIG.specOf(u);
+      if (sp.kind === 'doll') {
+        // 先画在大画布上，量出实际轮廓（坐骑、翅膀、长柄武器大小不一），再等比缩放置中
+        const k = Math.max(2, h * dpr / 40), OW = Math.round(140 * k), OH = Math.round(130 * k);
+        const o = document.createElement('canvas'); o.width = OW; o.height = OH;
+        const og = o.getContext('2d');
+        const Q = DFIG.stance(sp); DFIG.proc(Q, sp, 0, 0.7);
+        DFIG.draw(og, u, sp, Q, { x: OW / 2, feet: OH * 0.9, s: k, f: 1, now: 0, dpr: 1, rim: { c: '#ffe6a8', a: 0.6, w: 1 } });
+        const px = og.getImageData(0, 0, OW, OH).data;
+        let x0 = OW, y0 = OH, x1 = -1, y1 = -1;
+        for (let y = 0; y < OH; y++) for (let x = 0; x < OW; x++) if (px[(y * OW + x) * 4 + 3] > 24) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+        if (x1 >= 0) {
+          const bw = x1 - x0 + 1, bh = y1 - y0 + 1, f = Math.min(w * 0.94 / bw, h * 0.94 / bh);
+          g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+          g.drawImage(o, x0, y0, bw, bh, (w - bw * f) / 2, h - bh * f - h * 0.02, bw * f, bh * f);
+          return c;
+        }
+      }
+    } catch (e) { console.warn('职业造型预览', e); }
+  }
+  const spr = (hd && typeof unitSpriteHD === 'function' && unitSpriteHD(u)) || unitSprite(u), s = Math.min(w, h);
+  g.imageSmoothingEnabled = hd; if (hd) g.imageSmoothingQuality = 'high';
+  g.drawImage(spr, (w - s) / 2, h - s, s, s);
+  return c;
+}
 function promoResize() {
   const w = Math.min(window.innerWidth, 560), h = Math.min(window.innerHeight, Math.round(w * 1.9));
   const dpr = Math.min(3, window.devicePixelRatio || 1);
@@ -20,10 +54,15 @@ function promoResize() {
   Object.assign(PROMO, { W: w, H: h, dpr });
 }
 
-async function promoteAnim(u, fromTier) {
+// from = { cls, path }：转职所改换职业时，旧形象用原职业
+async function promoteAnim(u, fromTier, from) {
   if (AUTO || !OPT.anim) return;
-  const toTier = u.tier, newDef = tierDef(u), sprNew = unitSprite(u);
-  u.tier = fromTier; // 旧职阶（分支前用 A 路线的外观）
+  const toTier = u.tier, toCls = u.cls, toPath = u.path;
+  const setOld = () => { u.tier = fromTier; if (from) { u.cls = from.cls; u.path = from.path; } }; // 旧职阶（分支前用 A 路线的外观）
+  const setNew = () => { u.tier = toTier; u.cls = toCls; u.path = toPath; };
+  const onMap = typeof B !== 'undefined' && B && B.units && B.units.includes(u) && typeof PFX !== 'undefined';
+  const newDef = tierDef(u), sprNew = unitSprite(u);
+  setOld();
   const oldDef = tierDef(u), sprOld = unitSprite(u);
   // HD：用战斗画面的矢量纸娃娃（怪物类则用高清精灵）
   const hd = typeof artHD === 'function' && artHD() && typeof DFIG !== 'undefined';
@@ -31,14 +70,14 @@ async function promoteAnim(u, fromTier) {
   if (hd) {
     try {
       const mk = () => { const sp = DFIG.specOf(u); return sp.kind === 'doll' ? { spec: sp } : (() => { const c = typeof unitSpriteHD === 'function' ? unitSpriteHD(u) : null; return c ? { spr: c, sil: silhouette(c, '#fff6d0') } : null; })(); };
-      hdOld = mk(); u.tier = toTier; hdNew = mk();
+      hdOld = mk(); setNew(); hdNew = mk();
     } catch (e) { console.warn('转职 HD 立绘失败，改用像素', e); hdOld = hdNew = null; }
   }
-  u.tier = toTier;
+  setNew();
 
   // 1) 地图上：旧形象被光柱包围
-  u.tier = fromTier;
-  if (typeof PFX !== 'undefined') {
+  setOld();
+  if (onMap) {
     const x = tc(u.x), y = tc(u.y);
     PFX.circles.push({ x, y: y + TS * 0.32, r: 0.7, color: '#ffe080', t0: now0(), dur: T(1000) });
     PFX.pillars.push({ x, y: y + TS * 0.3, w: 0.6, color: '#fff2a0', t0: now0() + T(150), dur: T(900) });
@@ -46,8 +85,8 @@ async function promoteAnim(u, fromTier) {
     tween(t => { PFX.dim = 0.45 * t; }, 250);
   }
   sfx('charge');
-  await wait(850);
-  u.tier = toTier;
+  if (onMap) await wait(850);
+  setNew();
 
   // 2) 全屏变身
   promoResize();
@@ -74,7 +113,7 @@ async function promoteAnim(u, fromTier) {
   el.classList.remove('in'); el.classList.add('out');
   await sleep(260);
   el.hidden = true; PROMO.on = false;
-  if (typeof PFX !== 'undefined') {
+  if (onMap) {
     const x = tc(u.x), y = tc(u.y);
     tween(t => { PFX.dim = 0.45 * (1 - t); }, 350);
     PFX.rings.push({ x, y: y + TS * 0.3, r0: 0.2, r1: 1.2, color: '#ffe080', t0: now0(), dur: T(500), flat: true });

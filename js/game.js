@@ -337,9 +337,20 @@ $('#camp').addEventListener('click', async e => {
     const id = rc.dataset.reclass, d = S.roster[id];
     sfx('select');
     const pool = reclassPool(d);
-    const html = pool.map(k => { const C = CLASSES[k]; return `<button class="pick" data-pick="${k}"><b>${esc(C.tiers[0].name)}${C.needItem || C.hiddenOf ? ' ✦隐藏' : ''}</b><span>${esc(C.line)}${C.needItem ? ` · 消耗${esc(ITEMS[C.needItem].name)}` : ''}${C.passive ? ` · 特殊能力：${C.passive.map(p => PERK_NAME[p] || p).join('、')}` : ''}</span><small>${C.tiers.map(t => esc(t.name)).join(' → ')}</small></button>`; }).join('');
-    const locked = hiddenInfo(d).filter(x => !x.ok && x.cls !== d.cls).map(x => `<div class="pick" style="opacity:.55"><b>🔒 ${esc(CLASSES[x.cls].tiers[0].name)}</b><span>${esc(d.name)}专属隐藏职业</span><small>条件：${esc(needText(x.need))}（目前 ${Object.keys(x.need).map(k => `${CLASSES[k].line} ${masteryOf(d, k)}`).join('、')}）</small></div>`).join('');
-    const k = await modal(`${esc(d.name)} · 转职所`, `<p class="dim small">转职后等级回到 Lv1（能力值保留），已学会的招式全部保留，可以一直循环转职。</p><div class="pick-list">${html}${locked}</div>`, [{ label: '取消', value: null }], { dismiss: null, wide: true });
+    // 卡片：新职业 Lv1 的全身造型、职阶路线、特殊能力与前期招式；未解锁的隐藏职业显示剪影与条件
+    const firstSkills = C => (C.skills || []).filter(s => s[0] <= 10 && SPELLS[s[1]]).slice(0, 4).map(s => SPELLS[s[1]].name);
+    const opts = pool.map(k => { const C = CLASSES[k]; return {
+      value: k, u: previewUnit(d, { cls: k, tier: 0, lv: 1, path: undefined }), label: C.tiers[0].name + (C.needItem || C.hiddenOf ? ' ✦隐藏' : ''),
+      tiers: C.tiers.map(t => t.name).join(' → '), focus: C.line + (C.needItem ? ` · 消耗${ITEMS[C.needItem].name}` : ''),
+      desc: C.passive ? `特殊能力：${C.passive.map(p => PERK_NAME[p] || p).join('、')}` : '', skills: firstSkills(C),
+    }; });
+    for (const x of hiddenInfo(d).filter(x => !x.ok && x.cls !== d.cls)) opts.push({
+      locked: true, u: previewUnit(d, { cls: x.cls, tier: 0, lv: 1, path: undefined }), label: '🔒 ' + CLASSES[x.cls].tiers[0].name,
+      focus: `${d.name}专属隐藏职业`, desc: `条件：${needText(x.need)}（目前 ${Object.keys(x.need).map(k => `${CLASSES[k].line} ${masteryOf(d, k)}`).join('、')}）`,
+    });
+    const fromCls = d.cls, fromTier = d.tier, fromPath = d.path;
+    const k = await promoPicker(`${esc(d.name)} · 转职所`, '转职后等级回到 Lv1（能力值保留），已学会的招式全部保留，可以一直循环转职。', opts,
+      { u: previewUnit(d), label: tierDef(previewUnit(d)).name }, [{ label: '取消', value: null }], { dismiss: null });
     if (!k) return;
     const u = Object.assign({ status: {}, buffs: [] }, d);
     d.learned = [...new Set([...(d.learned || []), ...skillsOf(u)])];
@@ -351,7 +362,9 @@ $('#camp').addEventListener('click', async e => {
     Object.assign(d, { cls: k, lv: 1, exp: 0, tier: 0, path: undefined });
     const u2 = Object.assign({ status: {}, buffs: [] }, d);
     if (d.weapon && !canUseWeapon(u2, d.weapon)) { S.inv[d.weapon] = (S.inv[d.weapon] || 0) + 1; d.weapon = null; }
-    sfx('promote'); toast(`${d.name} 转职为「${CLASSES[k].tiers[0].name}」`); persist();
+    persist();
+    if (typeof promoteAnim === 'function') await promoteAnim(previewUnit(d), fromTier, { cls: fromCls, path: fromPath }); // 变身演出：旧职业 → 新职业造型
+    sfx('promote'); toast(`${d.name} 转职为「${CLASSES[k].tiers[0].name}」`);
     return renderCamp();
   }
   const skb = e.target.closest('[data-skills]');

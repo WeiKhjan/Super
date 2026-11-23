@@ -346,3 +346,15 @@ canvas.hdp { image-rendering: auto; }
 .eq-line .eq-item { display: inline-block; margin-right: 10px; }
 .eq-line .eq-item b { color: #ffe08a; font-weight: 600; }
 .eq-line .eq-item i { font-style: normal; color: #9ad8ff; font-size: 11px; }
+/* 转职选择：全身造型卡片 */
+.path-cards.one { grid-template-columns: minmax(0, 260px); justify-content: center; }
+.path-card .pc-art { height: auto; min-height: 96px; }
+.path-card .cls-fig { display: block; filter: drop-shadow(0 4px 6px rgba(0,0,0,.45)); }
+.path-card .pc-art { background: radial-gradient(ellipse at 50% 85%, rgba(255,214,120,.28), transparent 62%); border-radius: 10px; width: 100%; display: flex; justify-content: center; }
+.pc-stats { font-size: 12px; color: #9ae0ff; font-weight: 700; }
+.path-card.locked { cursor: default; opacity: .7; border-style: dashed; }
+.path-card.locked .cls-fig { filter: brightness(0) drop-shadow(0 0 4px rgba(160,190,255,.6)); }
+.pp-cur { display: flex; align-items: center; gap: 8px; justify-content: center; margin: 4px 0 2px; }
+.pp-cur > div:nth-child(2) { display: flex; flex-direction: column; }
+.pp-cur b { color: #fff; }
+.pp-arrow { color: var(--gold); font-size: 20px; }

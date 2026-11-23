@@ -1207,7 +1207,6 @@ function modal(title, bodyHtml, buttons, opts) {
       <div class="m-btns">${(buttons || []).map((b, i) => `<button class="btn ${b.cls || ''}" data-i="${i}" ${b.disabled ? 'disabled' : ''}>${b.label}</button>`).join('')}</div>
     </div>`;
     m.hidden = false;
-    if (opts && opts.onOpen) opts.onOpen(m);
     const done = v => { m.hidden = true; m.innerHTML = ''; m.onclick = null; res(v); };
     m.onclick = e => {
       if (opts && opts.onClick && opts.onClick(e, done)) return;
@@ -1227,35 +1226,53 @@ function pathInfo(C, p) {
   const skills = (p === 'b' ? C.alt.skills : C.skills.filter(s => s[0] >= bl)).filter(s => SPELLS[s[1]]).map(s => SPELLS[s[1]].name);
   return { tiers, skills: [...new Set(skills)], label: p === 'b' ? C.alt.label : C.aLabel, desc: p === 'b' ? C.alt.desc : C.aDesc, focus: p === 'b' ? C.alt.focus : C.aFocus };
 }
-function pathCardsHtml(C, cur) {
-  return ['a', 'b'].map(p => {
-    const I = pathInfo(C, p);
-    return `<button class="path-card ${cur === p ? 'on' : ''}" data-pick="${p}">
-      <div class="pc-art" data-art="${p}"></div>
-      <div class="pc-label">${esc(I.label)}</div>
-      <div class="pc-tiers">${I.tiers.map(t => esc(t.name)).join(' → ')}</div>
-      <div class="pc-focus">${esc(I.focus || '')}</div>
-      <div class="pc-desc">${esc(I.desc || '')}</div>
-      <div class="pc-skills">${I.skills.map(s => `<span>${esc(s)}</span>`).join('')}</div>
-    </button>`;
-  }).join('');
+// 转职选择界面：每张卡显示新职业的全身造型、职阶路线、转职加成与新招式；上方是当前造型
+// opts: [{ value, u（预览用的单位）, label, tiers, focus, stats, desc, skills, locked }]
+const statBonusText = P => STATS.filter(k => P && P[k]).map(k => `${STAT_NAME[k]} +${P[k]}`).join(' · ');
+function promoCardHtml(o, i) {
+  const tag = o.locked ? 'div' : 'button';
+  return `<${tag} class="path-card${o.locked ? ' locked' : ''}" ${o.locked ? '' : `data-pick="${esc(o.value)}"`}>
+    <div class="pc-art" data-fig="${i}"></div>
+    <div class="pc-label">${esc(o.label)}</div>
+    ${o.tiers ? `<div class="pc-tiers">${esc(o.tiers)}</div>` : ''}
+    ${o.focus ? `<div class="pc-focus">${esc(o.focus)}</div>` : ''}
+    ${o.stats ? `<div class="pc-stats">${esc(o.stats)}</div>` : ''}
+    ${o.desc ? `<div class="pc-desc">${esc(o.desc)}</div>` : ''}
+    ${o.skills && o.skills.length ? `<div class="pc-skills">${o.skills.map(s => `<span>${esc(s)}</span>`).join('')}</div>` : ''}
+  </${tag}>`;
 }
-function fillPathArt(m, u) {
-  const C = clsOf(u), at = C.alt.at;
-  for (const el of m.querySelectorAll('[data-art]')) {
-    const p = el.dataset.art, key = p === 'b' ? C.alt.sprite : C.sprite;
-    const pv = previewSprite(key, at, u.team || 'player', u.hair, key === 'dragon_b' ? 'blue' : undefined, gearOf(u)), spr = pv.c;
-    if (u.id && typeof getPortrait === 'function') {
-      try { const p0 = getPortrait(u.id, undefined, at, p), pc = portraitHD(p0) || p0; const c = document.createElement('canvas'); c.width = pc.width; c.height = pc.height; c.getContext('2d').drawImage(pc, 0, 0); c.className = (pc === p0 ? 'pix' : 'hdp') + ' pc-port'; el.appendChild(c); } catch (e) { }
-    }
-    const c = document.createElement('canvas'); c.width = spr.width; c.height = spr.height; c.getContext('2d').drawImage(spr, 0, 0); c.className = (pv.hd ? 'hdp' : 'pix') + ' pc-spr'; el.appendChild(c);
-  }
+function promoPicker(title, intro, opts, cur, buttons, extra) {
+  const curHtml = cur ? `<div class="pp-cur"><div data-cur></div><div><span class="dim small">目前造型</span><b>${esc(cur.label)}</b></div><span class="pp-arrow">➜</span></div>` : '';
+  const body = `${intro ? `<p class="dim small">${intro}</p>` : ''}${curHtml}<div class="path-cards${opts.length === 1 ? ' one' : ''}">${opts.map(promoCardHtml).join('')}</div>`;
+  const fig = (u, w, h) => (typeof classFigure === 'function' ? classFigure(u, w, h) : (() => { const c = document.createElement('canvas'); const s = unitSprite(u); c.width = s.width; c.height = s.height; c.getContext('2d').drawImage(s, 0, 0); c.className = 'pix cls-fig'; c.style.width = c.style.height = Math.min(w, h) + 'px'; return c; })());
+  return modal(title, body, buttons || [], Object.assign({ wide: true, onOpen: m => {
+    const big = opts.length === 1 ? 150 : 118;
+    for (const el of m.querySelectorAll('[data-fig]')) { const o = opts[+el.dataset.fig]; if (o.u) el.appendChild(fig(o.u, Math.round(big * 0.95), big)); }
+    const ce = m.querySelector('[data-cur]'); if (ce && cur) ce.appendChild(fig(cur.u, 56, 60));
+  } }, extra || {}));
 }
+const previewUnit = (u, patch) => Object.assign({ status: {}, buffs: [], team: 'player', x: 0, y: 0 }, u, patch);
 async function choosePath(u) {
-  const C = clsOf(u);
+  const C = clsOf(u), at = C.alt.at;
   sfx('charge');
-  const p = await modal(`${esc(u.name)} 的转职之路`, `<p class="dim small">到达 Lv ${branchLv(C)}，请选择今后的道路（选择后不可更改）。</p><div class="path-cards">${pathCardsHtml(C)}</div>`, [], { wide: true, onOpen: m => fillPathArt(m, u) });
+  const opts = ['a', 'b'].map(p => {
+    const I = pathInfo(C, p);
+    return { value: p, u: previewUnit(u, { tier: at, path: p }), label: I.label, tiers: I.tiers.map(t => t.name).join(' → '), focus: I.focus, stats: statBonusText(p === 'b' ? C.alt.promo : C.promo), desc: I.desc, skills: I.skills };
+  });
+  const p = await promoPicker(`${esc(u.name)} 的转职之路`, `到达 Lv ${branchLv(C)}，请选择今后的道路（选择后不可更改）。`, opts, { u: previewUnit(u, { tier: at - 1, path: undefined }), label: C.tiers[at - 1].name });
   return p === 'b' ? 'b' : 'a';
+}
+// 一般转职（不分支）：先展示新职业造型与加成，确认后播放变身演出
+async function showPromotion(u, r) {
+  const C = altOf(u) || clsOf(u), def = tierDef(u);
+  const cur = previewUnit(u, { tier: r.from }), oldDef = tierDef(cur);
+  const extra = [def.mov > oldDef.mov && `移动 ${oldDef.mov} → ${def.mov}`, def.move !== oldDef.move && def.move === 'fly' && '获得飞行能力'].filter(Boolean).join(' · ');
+  const tiers = C.tiers;
+  sfx('charge');
+  await promoPicker(`${esc(u.name)} · 转职`, `已达到 Lv ${u.lv}，可以转职为「${esc(def.name)}」！`, [{
+    value: 'go', u: previewUnit(u), label: def.name, tiers: tiers.map(t => t.name).join(' → '), stats: [statBonusText(C.promo), extra].filter(Boolean).join(' · '),
+    skills: r.newSkills.map(s => SPELLS[s] && SPELLS[s].name).filter(Boolean),
+  }], { u: cur, label: oldDef.name }, [{ label: '转职！', value: 'go', cls: 'primary' }], { dismiss: 'go' });
 }
 // 立绘：优先使用 portraits.js 的手绘风半身像（64×72），没有时退回放大的单位精灵
 // 英雄当前的职阶（战斗中以场上单位为准，否则看存档）——立绘随转职换装
@@ -1647,6 +1664,7 @@ async function gainExp(u, amt) {
       if (u.weapon && !canUseWeapon(u, u.weapon)) u.weapon = null;
     }
     if (!AUTO) {
+      if (r.promoted && !r.choose) await showPromotion(u, r);
       if (r.promoted && typeof promoteAnim === 'function') await promoteAnim(u, r.from);
       sfx('levelup');
       const rows = STATS.map(k => `<div class="lv-row"><span>${STAT_NAME[k]}</span><b>${k === 'hp' ? u.mhp : k === 'mp' ? u.mmp : u[k]}</b>${r.gains[k] ? `<em>+${r.gains[k]}</em>` : ''}</div>`).join('');
