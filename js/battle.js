@@ -858,6 +858,7 @@ function render(now) {
     hl(B.hlHeal, 'rgba(60,230,120,0.30)', 'rgba(120,255,160,0.85)');
     hl(B.hlArea, 'rgba(255,220,60,0.35)', 'rgba(255,240,120,0.9)');
   }
+  if (typeof bossDrawGround === 'function') bossDrawGround(ctx, now, ts); // 首领战（js/boss.js）：预警格、危险地形、光环
   // 选中我方角色时：标出哪些敌人被我克制（绿「克」）、哪些克制我（红「危」）
   const sel = B.sel, ADV_LAB = new Map();
   if (sel && sel.team === 'player' && sel.hp > 0 && ['move', 'move2', 'action', 'target', 'spell'].includes(B.mode)) {
@@ -991,6 +992,7 @@ function render(now) {
       ctx.strokeStyle = `rgba(255,236,120,${pa})`; ctx.strokeRect(x * ts + 2, y * ts + 2, ts - 4, ts - 4);
     }
   }
+  if (typeof bossDrawTop === 'function') bossDrawTop(ctx, now, ts); // 首领战（js/boss.js）：预警外框、破招槽、首领血条
   drawFx(now);
   if (typeof drawSpellFx === 'function') drawSpellFx(now);
   for (let i = FLOATS.length - 1; i >= 0; i--) {
@@ -1873,6 +1875,7 @@ async function useItem(u, itemId, target) {
 function searcherOn() { return !!B && B.units.some(o => o.team === 'player' && o.hp > 0 && hasPerk(o, 'search')); }
 async function finishUnit(u) {
   u.acted = true;
+  if (typeof bossCheckpoint === 'function') await bossCheckpoint(); // 首领战（js/boss.js）：阶段转换、破招判定
   // 隐藏关入口：我方停在指定格子上
   const sec = B.def.secret;
   if (sec && u.team === 'player' && u.hp > 0 && !B.secretFound && u.x === sec.at[0] && u.y === sec.at[1] && condOk(sec.if)) {
@@ -2202,7 +2205,9 @@ async function aiUnit(u) {
   if ((!foes.length && !reachGoal) || u.cls === 'villager') return; // 「抵达」类关卡：敌人清光后仍要走向目标
   const careful = (u.team === 'player' || u.team === 'ally') && (u.lord || B.turn <= 6);
   const danger = careful ? dangerMap(u, foes) : null;
-  const risk = (st, hpLeft) => { if (!danger) return 0; const d = danger.get(key(st.x, st.y)) || 0; return d >= hpLeft ? (u.lord ? 300 : 60) + d : d * 0.4; };
+  if (typeof bossAI === 'function' && await bossAI(u)) return; // 首领战（js/boss.js）：首领蓄力 / 发动大招
+  const riskBase = (st, hpLeft) => { if (!danger) return 0; const d = danger.get(key(st.x, st.y)) || 0; return d >= hpLeft ? (u.lord ? 300 : 60) + d : d * 0.4; };
+  const risk = (st, hpLeft) => riskBase(st, hpLeft) + (typeof bossTileRisk === 'function' ? bossTileRisk(u, st.x, st.y) : 0); // 首领战：避开预警格与危险地形
   const reach = reachable(u);
   const stops = [...reach.values()].filter(v => v.stop && (u.ai !== 'guard' || (v.x === u.x && v.y === u.y)));
   const skills = skillsOf(u).filter(id => SPELLS[id].kind !== 'pair' && canCastNow(u, id));
