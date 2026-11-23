@@ -8,7 +8,9 @@ const DFIG = (() => {
   const FW = 208, FH = 164, OX = 104, OY = 150; // 离屏画布与脚底原点
   const RAD = Math.PI / 180;
   const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
-  const dv = (a, l = 1) => [Math.sin(a * RAD) * l, Math.cos(a * RAD) * l]; // 0 = 向下、90 = 向前、180 = 向上
+  // DVP：旋转预览时把「侧视平面内的方向」投影到屏幕（武器、翅膀所在的平面）；决斗画面恒为 null
+  let DVP = null;
+  const dv = (a, l = 1) => (DVP ? DVP(a, l) : [Math.sin(a * RAD) * l, Math.cos(a * RAD) * l]); // 0 = 向下、90 = 向前、180 = 向上
   const add = (p, q, k = 1) => [p[0] + q[0] * k, p[1] + q[1] * k];
   const mix = (p, q, t) => [p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t];
   const angOf = (p, q) => Math.atan2(q[0] - p[0], q[1] - p[1]) / RAD;
@@ -35,7 +37,7 @@ const DFIG = (() => {
   const cvx = cv.getContext('2d');
   const img = cvx.createImageData(FW, FH), U32 = new Uint32Array(img.data.buffer);
   const COL = new Uint16Array(FW * FH), ID = new Uint8Array(FW * FH), FL = new Uint8Array(256), GR = new Uint8Array(256);
-  const SH = 1, OL = 2, DIM = 4, FLAT = 8, GLW = 16, SPK = 32, TRL = 64; // GLW：HD 模式下画成柔光（像素模式视同 FLAT）
+  const SH = 1, OL = 2, DIM = 4, FLAT = 8, GLW = 16, SPK = 32, TRL = 64, LIN = 128; // GLW：HD 模式下画成柔光（像素模式视同 FLAT）
   const NF = SH | OL, BF = SH | OL | DIM;
   let F = 1, cur = 0;
   function clear() { if (!REC) { COL.fill(0); ID.fill(0); } cur = 0; }
@@ -1079,10 +1081,10 @@ const DFIG = (() => {
   }
   function drawHead(J, S, P) { return inFrame({ x: J.hc[0], y: J.hc[1], a: J.ha, id: 'h' }, () => drawHead0(J, S, P)); }
   function drawHead0(J, S, P) {
-    const hc = J.hc, hd = S.head || {}, r = 6.3;
+    const hc = J.hc, hd = S.head || {}, r = 6.3, mx = J.mx || 1; // mx = -1：旋转预览中朝左的侧脸（镜像）
     const ca = Math.cos(J.ha * RAD), sa = Math.sin(J.ha * RAD);
-    const L = (px, py) => { const x = (px - hc[0]) / HK, y = (py - hc[1]) / HK; return [x * ca + y * sa, -x * sa + y * ca]; };
-    const W = (x, y) => [hc[0] + (x * ca - y * sa) * HK, hc[1] + (x * sa + y * ca) * HK];
+    const L = (px, py) => { const x = (px - hc[0]) / HK, y = (py - hc[1]) / HK; return [(x * ca + y * sa) * mx, -x * sa + y * ca]; };
+    const W = (x, y) => [hc[0] + (x * mx * ca - y * sa) * HK, hc[1] + (x * mx * sa + y * ca) * HK];
     const hair = pc(S.hair), skin = pc(S.skin), eye = pc(C.eye);
     const hs = S.hs;
     // 后发（长发 / 马尾）
@@ -1108,7 +1110,7 @@ const DFIG = (() => {
     const bangs = x => -1.1 - ((Math.floor((x + 8) * 1.25) % 3) === 0 ? 0.9 : 0);
     // HD：Q 版脸改用矢量绘制（大眼、刘海、腮红），斗篷暗脸 / 骷髅仍走通用贴图
     // HD：侧脸（单眼、鼻梁、嘴、下巴轮廓与耳朵；外形见 PROF），骷髅也画成侧面
-    if (REC && !shadowFace) { const rx = r * HK * 1.1, R = 8.2 * HK; rec('face', { x: hc[0], y: hc[1], rx, ry: r * HK * 0.96, a: J.ha, S, hs, covered, hd: hd.t || '', mo: P.mo || 0, fx: (P.hd || 0) < -8 ? 1 : P.lean > 22 ? 2 : 0, backHair: !covered && hs !== 'bald' && !S.skull }, hc[0] - R, hc[1] - R, hc[0] + R, hc[1] + R, null, skin); }
+    if (REC && !shadowFace) { const rx = r * HK * 1.1, R = 8.2 * HK; rec('face', { x: hc[0], y: hc[1], rx, ry: r * HK * 0.96, a: J.ha, mx, S, hs, covered, hd: hd.t || '', mo: P.mo || 0, fx: (P.hd || 0) < -8 ? 1 : P.lean > 22 ? 2 : 0, backHair: !covered && hs !== 'bald' && !S.skull }, hc[0] - R, hc[1] - R, hc[0] + R, hc[1] + R, null, skin); }
     else ell(hc, r * HK * 1.1, r * HK * 0.96, J.ha, (px, py) => {
       const [x, y] = L(px, py);
       if (shadowFace) return (REC ? (x > 3.6 && x < 5.6 && y > -1.3 && y < 0.5 && y > -1.3 + (5.6 - x) * 0.25) : ((x > 0.9 && x < 2.5 && y > -1.4 && y < 0.6) || (x > 3.7 && x < 4.7 && y > -1.4 && y < 0.6))) ? eyesCol : pc('#120a18');
@@ -1135,8 +1137,9 @@ const DFIG = (() => {
     if (hs === 'topknot' && !['kabuto', 'helm'].includes(hd.t)) { part(NF, nid); discK(W(-1.5, -7), 2.2, hair); }
     if (S.beard) { part(NF, nid); poly(REC ? [W(0.9, 1.2), W(3.2, 2.9), W(5.4, 2.5), W(6.9, 2.6), W(6.7, 4.4), W(6.2, 6.6), W(4.2, 8.6), W(1.4, 7.6), W(-0.4, 4.6)] : [W(1, 2), W(5.6, 2), W(4.5, 6.5), W(1.5, 8.5), W(-1.5, 4)], hair); }
     if (S.elf) { part(NF, nid); poly(REC ? [W(-0.2, -0.2), W(-6.8, -5.6), W(-1.2, 2.2)] : [W(-2.6, -0.6), W(-9.5, -5.5), W(-2.2, 2)], skin); }
-    drawHeadgear(J, S, P, W, L, hc, r);
+    if (!NOGEAR) drawHeadgear(J, S, P, W, L, hc, r);
   }
+  let NOGEAR = false; // 旋转预览的侧脸只借用侧面的脸与头发，头饰改由 3D 版本绘制
   function drawHeadgear(J, S, P, W, L, hc, r) {
     const hd = S.head; if (!hd || !hd.t) return;
     const c1 = pc(hd.c), c2 = pc(hd.c2 || hd.c), eye = pc(C.eye);
@@ -1263,7 +1266,7 @@ const DFIG = (() => {
     // 远耳
     poly([W(-6, -2), W(-5.5, -10.5), W(-2.2, -4)], pc(C.dIron));
     discK(hc, 5.8, (px, py) => { const [x, y] = L(px, py); if (!REC && x > 0.6 && x < 2.8 && y > -2.8 && y < 0.2) return x < 1.3 && y < -2 ? pc('#ffffff') : y > -0.8 ? dk : eye; if (y > 2 && x > -1) return lt; return fur; });
-    if (REC) { ellK(W(1.75, -1.25), 1.15, 1.3, J.ha - 12, eye); ellK(W(2.05, -1.0), 0.45, 1.05, J.ha, dk); discK(W(1.3, -2.0), 0.32, pc('#ffffff')); }
+    if (REC) { ellK(W(1.75, -1.25), 1.15, 1.3, (J.mx || 1) * (J.ha - 12), eye); ellK(W(2.05, -1.0), 0.45, 1.05, J.ha, dk); discK(W(1.3, -2.0), 0.32, pc('#ffffff')); }
     const mo = P.mo || 0;
     capK(W(2.5, 1.2), W(8, 2.2), 2.6, 2.2, (px, py) => { const [, y] = L(px, py); return y > 2.2 ? lt : fur; });
     if (mo > 0.2) capK(W(2, 3), W(8.5, 5 + mo * 3), 1.6, 1.2, fur);
@@ -1271,7 +1274,7 @@ const DFIG = (() => {
     poly([W(-3.5, -3.5), W(-1.8, -11.5), W(0.8, -4)], fur);
     if (S.mark) { part(FLAT); const mk = pc(S.mark), mc = W(0.4, -3.6); disc(mc, 1.6 * HK, (px, py) => { const [x, y] = L(px, py); return Math.hypot(x - 1.1, y + 4.1) > 1.3 ? mk : 0; }); }
     part(NF); capK(W(-4, 2), W(-8, 8), 3, 2.2, fur);
-    drawHeadgear(J, Object.assign({}, S, { head: S.head && S.head.t !== 'beakhelm' ? S.head : null }), P, W, L, hc, 5.8);
+    if (!NOGEAR) drawHeadgear(J, Object.assign({}, S, { head: S.head && S.head.t !== 'beakhelm' ? S.head : null }), P, W, L, hc, 5.8);
   }
   function drawHawkHead(J, S, P, W, L, nid) {
     part(NF, nid);
@@ -1287,7 +1290,7 @@ const DFIG = (() => {
     const mo = P.mo || 0;
     poly([W(4.5, -2.6), W(9, -1.2), W(11, 1.6), W(9.6, 2.6), W(9, 1), W(4.6, 2 - mo)], bk);
     if (mo > 0.2) poly([W(4.6, 2.4), W(9, 2.5 + mo * 2), W(5, 4 + mo)], bk);
-    if (S.head && S.head.t === 'beakhelm') {
+    if (S.head && S.head.t === 'beakhelm' && !NOGEAR) {
       part(NF); const hcol = pc(S.head.c);
       discK(hc, 6.9, (px, py) => { const [x, y] = L(px, py); return y < -2.4 && x < 4.5 ? hcol : 0; });
       if (S.head.crest) { part(NF); chainK([W(-1, -7), W(-6, -10), W(-11, -9)], 2, 0.8, pc(S.head.crest)); }
@@ -1743,7 +1746,7 @@ const DFIG = (() => {
       case 'e': { const a = (q.a || 0) * RAD; g.moveTo(q.x + q.rx * Math.cos(a), q.y + q.rx * Math.sin(a)); g.ellipse(q.x, q.y, q.rx, q.ry, a, 0, TAU); break; }
       case 'clipdisc': break;
       case 'dot': g.moveTo(q.x + 0.62, q.y); g.arc(q.x, q.y, 0.62, 0, TAU); break;
-      case 'ring': g.moveTo(q.x + q.r1, q.y); g.arc(q.x, q.y, q.r1, 0, TAU); g.moveTo(q.x + q.r0, q.y); g.arc(q.x, q.y, q.r0, TAU, 0, true); break;
+      case 'ring': if (q.sx) { g.moveTo(q.x + q.r1 * q.sx, q.y); g.ellipse(q.x, q.y, q.r1 * q.sx, q.r1, 0, 0, TAU); g.moveTo(q.x + q.r0 * q.sx, q.y); g.ellipse(q.x, q.y, q.r0 * q.sx, q.r0, 0, TAU, 0, true); break; } g.moveTo(q.x + q.r1, q.y); g.arc(q.x, q.y, q.r1, 0, TAU); g.moveTo(q.x + q.r0, q.y); g.arc(q.x, q.y, q.r0, TAU, 0, true); break;
       case 'bands': case 'poly': { const P = q.pts; g.moveTo(P[0][0], P[0][1]); for (let i = 1; i < P.length; i++) g.lineTo(P[i][0], P[i][1]); g.closePath(); break; }
       case 'cap': {
         const a = q.a, b = q.b, r0 = q.r0, r1 = q.r1, dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy);
@@ -1826,7 +1829,7 @@ const DFIG = (() => {
     else {
       ensureTex(w, h);
       const IW = HDL.iw, U = HDL.u32, M = HDL.M, ins = p.ins, cf = p.c, isFn = typeof cf === 'function';
-      const sh = flat ? null : shadeOf(p), tf = sh && sh.t, ramp = RAMP_LUT;
+      const sh = flat ? null : shadeOf(p.shadeBy || p), tf = sh && sh.t, ramp = RAMP_LUT;
       for (let j = 0; j < h; j++) {
         const v = v0 + (j + 0.5) / K; let o = j * IW;
         for (let i = 0; i < w; i++, o++) {
@@ -1911,11 +1914,11 @@ const DFIG = (() => {
   }
   function paintFace(g, p, dim) {
     const q = p.g, S = q.S, hs = q.hs, skull = !!S.skull;
-    g.save(); g.translate(q.x, q.y); g.rotate(q.a * RAD); g.scale(HK, HK);
+    g.save(); g.translate(q.x, q.y); g.rotate(q.a * RAD); g.scale(HK * (q.mx || 1), HK);
     g.beginPath(); profPath(g, ID_TF);
     if (MODE) { g.fillStyle = MODE === 2 ? SILC : '#ffffff'; g.fill(); g.restore(); return; }
     g.save(); g.clip();
-    const ca = Math.cos(-q.a * RAD), sa = Math.sin(-q.a * RAD), lx = LX * ca - LY * sa, ly = LX * sa + LY * ca;
+    const ca = Math.cos(-q.a * RAD), sa = Math.sin(-q.a * RAD), lx = (LX * ca - LY * sa) * (q.mx || 1), ly = LX * sa + LY * ca;
     const sk = clut(pc(S.skin)), hr = clut(pc(S.hair || '#3a2a1a')), K = v => sk.css[kIdx(v, dim)];
     let gr = g.createRadialGradient(0.8 + lx * 2.6, ly * 2.6, 0.5, 0.4, 0, 8.2);
     gr.addColorStop(0, K(0.3)); gr.addColorStop(0.5, K(0.03)); gr.addColorStop(0.8, K(-0.12)); gr.addColorStop(1, K(-0.5));
@@ -2064,6 +2067,7 @@ const DFIG = (() => {
       if (!part || !part.prims.length) continue;
       const fl = part.fl, dim = !!(fl & DIM) && !MODE;
       if (fl & TRL) { trail = part.prims; continue; }
+      if (fl & LIN) { drawLines(g, part.prims); continue; }
       if (fl & FLAT) {
         if (MODE === 2) { g.fillStyle = SILC; g.beginPath(); for (const p of part.prims) pathPrim(g, p); g.fill(); continue; }
         for (const p of part.prims) {
@@ -2110,6 +2114,7 @@ const DFIG = (() => {
         }
         if (p.k === 'cap' && typeof p.c === 'function' && !MODE && tOnly(p.c)) { capSegs(g, p, part, dim); continue; }
         if (p.k === 'face') paintFace(g, p, dim);
+        else if (p.k === 'face3') paintFace3(g, p, dim);
         else if (typeof p.c === 'function') { if (MODE) fillConst(g, p, 1, part, dim); else if (texPrim(g, p, part, dim)) p.hole = true; }
         else fillConst(g, p, p.c, part, dim);
       }
@@ -2138,7 +2143,7 @@ const DFIG = (() => {
     TK = clamp(Math.round(kq / 1.75 * 2) / 2, 2, 5.5); TKH = clamp(Math.round(kq / 1.05 * 2) / 2, 2, 8); LW = clamp(2.5 / s, 0.6, 1.3);
     REC = { parts: [] }; CUR_S = S;
     let J;
-    try { J = drawDoll(S, P, prev, crit); } finally { REC.done = 1; }
+    try { J = opt.yaw != null ? turnDoll(S, P, opt) : drawDoll(S, P, prev, crit); } finally { REC.done = 1; }
     const R = REC; REC = null;
     // 包围盒（美术坐标）
     let ax0 = 1e9, ay0 = 1e9, ax1 = -1e9, ay1 = -1e9;
@@ -2226,6 +2231,980 @@ const DFIG = (() => {
     g.restore();
     return anchors(J, S, P, x, feet, s, f);
   }
+
+  // ================= 可旋转的 2.5D 纸娃娃（转职预览 / 转职演出；决斗画面仍走上面的侧面绘制） =================
+  // 角色座标：X = 朝前、Y = 向下、Z = 角色的右侧。yaw θ：0 = 正面、90 = 面向右（侧面，与决斗相同）、180 = 背面。
+  // 投影：屏幕 x = X·sinθ − Z·cosθ，深度（朝向观者）= X·cosθ + Z·sinθ。骨架沿用侧视的 rigHuman / rigMount（X、Y），
+  // 每个关节另给横向 Z；躯干 / 袍 / 裙 / 头 / 盔等改成「车削体」（竖轴、椭圆截面）逐像素反求表面点再上图案；
+  // 四肢与武器是胶囊（任何角度投影都一样）；部件依深度排序后由远到近录进显示列表，再交给同一个 hdRender。
+  let YS = 1, YC = 0, XOFF = 0;
+  const PX = (X, Z) => X * YS - Z * YC + XOFF, DP = (X, Z) => X * YC + Z * YS;
+  const pj = q => [q[0] * YS - q[2] * YC + XOFF, q[1]];
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const sstep = (e0, e1, x) => { const t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); };
+  const push3 = (L, d, fn) => L.push({ d, fn, i: L.length });
+  const run3 = L => { L.sort((a, b) => a.d - b.d || a.i - b.i); for (const it of L) it.fn(); };
+  function withYaw(deg, xoff, fn) { const s = YS, c = YC, o = XOFF; YS = Math.sin(deg * RAD); YC = Math.cos(deg * RAD); XOFF = xoff; try { return fn(); } finally { YS = s; YC = c; XOFF = o; } }
+  // 车削体：fr(t) → [Y, a（横向半轴）, b（前后半轴）, X, Z（截面中心）, u（附带参数）]，t = 0..1 时 Y 递增
+  // mat(m)：m = { lat, fwd（相对截面中心）, ang（0 = 正前、+90 = 右侧、±180 = 背后）, u, px, py } → 调色盘索引；0 = 镂空
+  function lathe(fr, N, mat) {
+    const R = []; for (let i = 0; i <= N; i++) R.push(fr(i / N));
+    const Lp = [], Rp = [];
+    for (const r of R) { const c = PX(r[3], r[4]), hw = Math.sqrt((r[2] * YS) ** 2 + (r[1] * YC) ** 2); Rp.push([c + hw, r[0]]); Lp.push([c - hw, r[0]]); }
+    const pts = Rp.concat(Lp.reverse());
+    if (!REC) { poly(pts, mat); return pts; }
+    // 内外判断：二分找截面再比左右缘（比多边形逐边测试快得多）
+    const ring = py => { let lo = 0, hi = R.length - 1; if (py <= R[0][0]) hi = 0; else if (py >= R[hi][0]) lo = hi; else { while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (R[mid][0] <= py) lo = mid; else hi = mid; } } return [lo, hi]; };
+    const ins = (px, py) => {
+      if (py < R[0][0] || py > R[R.length - 1][0]) return false;
+      const [lo, hi] = ring(py), t = hi === lo ? 0 : (py - R[lo][0]) / Math.max(1e-6, R[hi][0] - R[lo][0]);
+      return Math.abs(px - lerp(Rp[lo][0] + Lp[Lp.length - 1 - lo][0], Rp[hi][0] + Lp[Lp.length - 1 - hi][0], t) / 2) <= lerp(Rp[lo][0] - Lp[Lp.length - 1 - lo][0], Rp[hi][0] - Lp[Lp.length - 1 - hi][0], t) / 2 || false;
+    };
+    let x0 = 1e9, x1 = -1e9; for (const q of pts) { x0 = Math.min(x0, q[0]); x1 = Math.max(x1, q[0]); }
+    if (typeof mat !== 'function') { rec('poly', { pts }, x0, R[0][0], x1, R[R.length - 1][0], ins, mat); return pts; }
+    const m = {}, ys = YS, yc = YC, xo = XOFF;
+    rec('poly', { pts }, x0, R[0][0], x1, R[R.length - 1][0], ins, (px, py) => {
+      const [lo, hi] = ring(py);
+      const A = R[lo], B = R[hi], t = hi === lo ? 0 : (py - A[0]) / Math.max(1e-6, B[0] - A[0]);
+      const a = Math.max(1e-3, lerp(A[1], B[1], t)), b = Math.max(1e-3, lerp(A[2], B[2], t));
+      const dx = px - (lerp(A[3], B[3], t) * ys - lerp(A[4], B[4], t) * yc + xo);
+      // 单位圆参数 (p, q)：lat = a·p、fwd = b·q；屏幕 x = b·q·sinθ − a·p·cosθ，取深度最大的解
+      const m1p = -a * yc, m1q = b * ys, n1 = Math.hypot(m1p, m1q) || 1e-6, k = clamp(dx / n1, -1, 1);
+      const up = m1p / n1, uq = m1q / n1, vp = -uq, vq = up;
+      let s = Math.sqrt(1 - k * k); if (a * ys * vp + b * yc * vq < 0) s = -s;
+      const p = k * up + s * vp, q = k * uq + s * vq;
+      m.lat = a * p; m.fwd = b * q; m.p = p; m.q = q; m.ang = Math.atan2(p, q) / RAD; m.u = lerp(A[5] || 0, B[5] || 0, t); m.px = px; m.py = py;
+      return mat(m);
+    });
+    return pts;
+  }
+  // 椭球（轴对齐于角色座标）：C = [X, Y, Z] 中心、A = [前后, 上下, 横向] 半轴；mat(m)：m.X / m.Y / m.Z 为相对中心的表面点
+  function ellip(Cc, A, c, mat) {
+    const [X, Y, Z] = Cc, [ax, ay, az] = A, sx = PX(X, Z), rx = Math.sqrt((ax * YS) ** 2 + (az * YC) ** 2);
+    if (!mat) return ell([sx, Y], rx, ay, 0, c);
+    const m = {}, ys = YS, yc = YC;
+    const A2 = (yc / ax) ** 2 + (ys / az) ** 2;
+    return ell([sx, Y], rx, ay, 0, (px, py) => {
+      const x = px - sx, y = py - Y;
+      const B2 = 2 * x * ys * yc * (1 / (ax * ax) - 1 / (az * az)), C2 = (x * ys / ax) ** 2 + (x * yc / az) ** 2 + (y / ay) ** 2 - 1;
+      const d = (-B2 + Math.sqrt(Math.max(0, B2 * B2 - 4 * A2 * C2))) / (2 * A2);
+      m.X = x * ys + d * yc; m.Y = y; m.Z = -x * yc + d * ys; m.px = px; m.py = py;
+      return mat(m);
+    });
+  }
+  // 只描线的部件（无描边的车削体补画局部轮廓）：pts 中 keep() 为假的点处断开
+  function outline(pts, keep, col, closed) {
+    const segs = []; let cu = null; const n = pts.length;
+    for (let i = 0; i < (closed ? n + 1 : n); i++) { const q = pts[i % n]; if (keep(q)) { if (!cu) segs.push(cu = []); cu.push(q); } else cu = null; }
+    if (!segs.some(s => s.length > 1)) return;
+    part(LIN);
+    for (const s2 of segs) if (s2.length > 1) {
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9; for (const q of s2) { x0 = Math.min(x0, q[0]); y0 = Math.min(y0, q[1]); x1 = Math.max(x1, q[0]); y1 = Math.max(y1, q[1]); }
+      rec('line', { pts: s2 }, x0, y0, x1, y1, null, col);
+    }
+  }
+  function drawLines(g, prims) {
+    if (MODE === 1) return;
+    g.lineJoin = 'round'; g.lineCap = 'round'; g.lineWidth = LW;
+    for (const p of prims) {
+      g.strokeStyle = MODE === 2 ? SILC : clut(p.c).line;
+      g.beginPath(); p.g.pts.forEach((q, i) => g[i ? 'lineTo' : 'moveTo'](q[0], q[1])); g.stroke();
+    }
+  }
+  function ring3(c, r0, r1, sx, col) {
+    const x = c[0], y = c[1], R = r1;
+    rec('ring', { x, y, r0, r1, sx }, x - R * sx, y - R, x + R * sx, y + R, (px, py) => { const d = Math.hypot((px - x) / sx, py - y); return (d <= r1 && d >= r0) || false; }, col);
+  }
+
+  // ---------- 躯干截面（沿用侧面躯干的躯干单位：u 高度、v 前后；横向半宽另给） ----------
+  const TPRO = [[0, 4.2, -4.4, 4.75], [2.5, 4.55, -4.75, 4.85], [5, 4.9, -5.0, 5.0], [8, 5.4, -5.2, 5.35], [10, 5.7, -5.05, 5.7], [12.2, 5.55, -4.8, 6.1], [14, 5.2, -4.55, 6.15], [15.5, 4.0, -4.3, 5.4], [16.3, 3.0, -3.0, 4.1], [16.8, 0.6, -1.6, 1.8]];
+  const tq = u => { let i = 1; while (i < TPRO.length - 1 && TPRO[i][0] < u) i++; const A = TPRO[i - 1], B = TPRO[i], t = clamp((u - A[0]) / (B[0] - A[0]), 0, 1); return [lerp(A[1], B[1], t), lerp(A[2], B[2], t), lerp(A[3], B[3], t)]; };
+  // 车削环：躯干 u1（上）→ u0（下）；grow = 横向 / 前后额外加宽（美术单位）
+  const torsoRing = (J, bk, u1, u0, grow, cxv) => t => {
+    const u = lerp(u1, u0, t), [f, b, l] = tq(Math.min(16.8, u)), kv = KV * bk, c = T(J, (f + b) / 2 + (cxv || 0), u, bk);
+    return [c[1], l * kv + (grow || 0), (f - b) / 2 * kv + (grow || 0) * 0.85, c[0], 0, u];
+  };
+  function torsoMat(S, bk) {
+    const a = S.armor, sh = pc(S.shirt), bl = pc(S.belt), bu = pc(S.buckle || S.belt);
+    const ac = a ? pc(a.c) : 0, ac2 = a ? pc(a.c2 || a.c) : 0, tr = a && a.trim ? pc(a.trim) : 0;
+    const em = S.emblem ? pc(S.emblem) : 0, tb = S.tabard ? pc(S.tabard) : 0, sk = pc(S.skin), col = S.collar ? pc(S.collar) : 0;
+    const fur = S.fur ? pc(S.fur) : 0, kv = KV * bk;
+    return m => {
+      const u = m.u, x = m.lat / kv, ax = Math.abs(x), fr = Math.abs(m.ang) < 90;
+      if (u >= 1.2 && u < 3.8) return fr && ax < 1.2 && S.buckle ? bu : bl;
+      if (col && fr && u > 11 && Math.abs(ax - (u - 11) * 0.62 - 0.3) < 0.6) return col;
+      if (col && !fr && u > 15.2) return col;
+      if (!a) return sh;
+      switch (a.t) {
+        case 'coat': return fr && u > 7.5 && ax < (u - 7.5) * 0.34 + 0.5 ? (u > 14.4 && ax < 1.5 ? sk : sh) : ac;
+        case 'tunic': return fr && u > 14.6 && ax < 2.4 ? sk : ac;
+        case 'vest': return fr && ax < 1.7 + (u > 12 ? (u - 12) * 0.25 : 0) ? (a.bare ? sk : sh) : ac;
+        case 'leather': if (u > 14.6) return fr && ax < 2.8 ? sh : ac; return (fr && ax < 0.42) || (u > 9.5 && u < 10.5) ? ac2 : ac;
+        case 'chain': if (tb && ax < 3.4 && u < 14.6) return em && fr && ax + Math.abs(u - 9) < 2 ? em : tb; return (Math.floor(m.px) + Math.floor(m.py)) & 1 ? ac : ac2;
+        case 'plate': {
+          if (u > 15.4) return ac2;
+          if (tr && u < 4.4) return tr;
+          if (em && fr && ax * 1.15 + Math.abs(u - 9.5) < 2.4) return em;
+          if (Math.floor(u * KU) % 4 === 0 && u > 4) return ac2;
+          if (fr && ax < 0.25 && u > 4.4) return ac2;
+          return ac;
+        }
+        case 'do': return u > 14.8 ? ac2 : Math.floor(u * KU) % 3 === 0 ? ac2 : ac;
+        case 'bare': if (a.paint && fr && (Math.abs(u - 10.5 + ax * 0.3) < 0.9 || Math.abs(u - 7.5 + ax * 0.3) < 0.9)) return pc(a.paint); return Math.abs(x - (u * 0.72 - 5.6)) < 0.85 ? ac : sk;
+        case 'diamond': return u > 15.2 ? pc(S.collar || '#ffffff') : ((Math.floor(x * 0.8 + u * 0.5) + Math.floor(-x * 0.8 + u * 0.5)) & 1 ? ac : ac2);
+        case 'ribs': return (fr && u > 6 && u < 14.5 && Math.floor(u * KU) % 2 === 0 && ax < 4.4) || (!fr && ax < 0.7) ? pc('#5a4a3a') : ac;
+        case 'harness': return (a.plate && u > 8) ? ac : (Math.abs(ax - (u * 0.7 - 5.5)) < 0.85 || (u > 3.4 && u < 4.6) ? ac : (fur || sk));
+      }
+      return sh;
+    };
+  }
+  function drawTorso3(J, S) {
+    const bk = S.bulk;
+    part(NF);
+    lathe(torsoRing(J, bk, 16.8, 0), 26, torsoMat(S, bk));
+  }
+  function drawRobe3(J, S, P) {
+    const r = S.robe; if (!r) return;
+    const c1 = pc(r.c), c2 = pc(r.c2), tr = pc(r.trim), sa = r.sash ? pc(r.sash) : 0, wh = pc('#ffffff');
+    const gy = J.ground != null ? J.ground : Math.max(J.fF[1], J.fB[1]);
+    const hem = r.short ? Math.max(J.kF[1], J.kB[1]) + 2 : gy - 3.4;
+    const fx = Math.max(J.fF[0], J.kF[0]) + 4, bx = Math.min(J.fB[0], J.kB[0]) - 4.4, sway = Math.sin(NOW * 0.004) * 0.8;
+    const w0 = T(J, 0.1, 4, 1.1), [, , l4] = tq(4), a0 = l4 * KV * 1.1, b0 = 4.7 * KV * 1.1;
+    const bh = Math.max((fx - bx) / 2, b0 * 1.05), ah = Math.max(a0 * 1.5, bh * 1.05), ch = (fx + bx) / 2 + sway;
+    part(NF);
+    lathe(t => { const e = Math.pow(t, 0.85); return [lerp(w0[1], hem, t), lerp(a0, ah, e), lerp(b0, bh, e), lerp(w0[0], ch, t), 0, t]; }, 16, m => {
+      if (m.py > hem - 1.6) return tr;
+      const fr = Math.abs(m.ang) < 90;
+      if (fr && Math.abs(m.lat) < 0.75) return tr;
+      if (sa && fr && m.lat > 0.9 && m.lat < 2.5) return sa;
+      if (r.stars && ((Math.floor(m.px) * 7 + Math.floor(m.py) * 13) % 29 === 0)) return wh;
+      if (r.runes && m.u > 0.5 && m.u < 0.65 && Math.floor(m.ang / 12) % 3 === 0) return tr;
+      return m.u > 0.55 ? c2 : c1;
+    });
+    // 上身袍子
+    part(NF);
+    const bl = pc(S.belt);
+    lathe(torsoRing(J, 1.1, 16.8, 2.6), 22, m => {
+      const u = m.u, x = Math.abs(m.lat) / (KV * 1.1), fr = Math.abs(m.ang) < 90;
+      if (u >= 1.4 && u < 3.8) return bl;
+      if (fr && u > 8 && Math.abs(x - (u - 9) * 0.55 - 0.35) < 0.7) return tr;
+      return c1;
+    });
+  }
+  function drawSkirt3(J, S) {
+    const sk = S.skirt; if (!sk) return;
+    const len = sk.t === 'tassets' ? 0.62 : 0.75, h = J.hip, bk = S.bulk;
+    const top = T(J, 0, 4.2, bk), fF = add(mix(h, J.kF, len), J.fw, 4.6), fB = add(mix(h, J.kB, len), J.fw, -4.8), hemY = Math.max(fF[1], fB[1]);
+    const [, , l4] = tq(4), a0 = l4 * KV * bk + 0.3, b0 = 4.85 * KV * bk + 0.2, bh = Math.max(b0, (fF[0] - fB[0]) / 2), ch = (fF[0] + fB[0]) / 2;
+    const c1 = pc(sk.c), c2 = pc(sk.c2 || sk.c);
+    part(NF);
+    lathe(t => [lerp(top[1], hemY, t), a0 * (1 + 0.16 * t), lerp(b0, bh, t), lerp(top[0], ch, t), 0, t], 8, sk.t === 'tassets'
+      ? (m => (m.py < h[1] - 3.2 ? c2 : (Math.floor((m.ang + 190) / 21) % 3 === 0 ? c2 : c1))) : c1);
+  }
+  function drawMantle3(J, S) {
+    const mt = S.mantle; if (!mt) return;
+    const c1 = pc(mt.c), tr = pc(mt.trim), fd = pc('#5a3a1a');
+    part(NF);
+    const u1 = mt.collar ? 19.2 : 16.4;
+    lathe(t => {
+      const u = lerp(u1, 8.6, t), [f, b, l] = tq(Math.min(16, u)), kv = KV * 1.1, c = T(J, (f + b) / 2, u, 1.1), cl = u > 16 ? 1 - (u - 16) * 0.1 : 1;
+      return [c[1], l * kv * cl + 1.6, (f - b) / 2 * kv * cl + 1.3, c[0], 0, u];
+    }, 14, m => {
+      if (mt.collar && m.u > 16.3 && Math.abs(m.ang) < 105) return 0;
+      if (m.u < 10.6) return tr;
+      if (mt.fur) return (Math.floor(m.px * 1.3) + Math.floor(m.py)) % 3 ? c1 : fd;
+      return c1;
+    });
+  }
+  // 披风：从肩后垂下、包住背部的曲面，切成小块依深度画（正面看到内衬 c2、背面看到外层 c1）
+  function drawCape3(J, S, P, mounted) {
+    const cp = S.cape; if (!cp) return;
+    const bk = S.bulk, kv = KV * bk;
+    const A = T(J, -3.4, 14.6, bk), [, , lsh] = tq(14.2);
+    const spd = Math.max(P.ra || 0, P.ga || 0);
+    const phi = (mounted ? 38 : 17) + 30 * spd + Math.sin(NOW * 0.0035) * 4 - P.lean * 0.4;
+    const len = (cp.len || 30) * (mounted ? 0.42 : 0.46), d = dv(-phi), wv = Math.sin(NOW * 0.009);
+    const wT = lsh * kv * 0.92, wB = wT * 1.5 + len * 0.12;
+    const pt = (s, t) => {
+      const w = lerp(wT, wB, Math.pow(Math.max(0, t), 0.8)), lat = s * w;
+      const wrap = lerp(5.2, 3.2, t) * (1 - s * s) - lerp(1.6, 0.6, t) * s * s;  // 中间最靠后、两侧包到身侧
+      const fl = Math.sin(s * 3 + NOW * 0.006) * 0.5 * t;
+      return [A[0] + d[0] * len * t - wrap + 2.2 + fl, A[1] + d[1] * len * t + wv * t * t * Math.cos(s * 2), lat];
+    };
+    const c1 = pc(cp.c), c2 = pc(cp.c2 || cp.c), tr = pc(cp.trim || cp.c2 || cp.c), wh = pc('#ffffff'), bk2 = pc('#1a1020');
+    const NS = 8, NT = 6, tTrim = 1 - 2.6 / len, quads = [];
+    const tb = [0, 0.2, 0.4, 0.6, 0.8, tTrim, 1];
+    for (let i = 0; i < NS; i++) for (let j = 0; j < NT; j++) {
+      const s0 = -1 + 2 * i / NS, s1 = -1 + 2 * (i + 1) / NS, t0 = tb[j], t1 = tb[j + 1], es = 0.06, et = 0.012;
+      const q3 = [pt(s0 - es, t0 - et), pt(s1 + es, t0 - et), pt(s1 + es, t1 + et), pt(s0 - es, t1 + et)].map(q => (q[1] < A[1] - 3 ? [q[0], A[1] - 3, q[2]] : q));
+      // 外侧法线（朝后）：∂P/∂s × ∂P/∂t
+      const a = pt(s0, (t0 + t1) / 2), b = pt(s1, (t0 + t1) / 2), c = pt((s0 + s1) / 2, t0), e = pt((s0 + s1) / 2, t1);
+      const us = [b[0] - a[0], b[1] - a[1], b[2] - a[2]], ut = [e[0] - c[0], e[1] - c[1], e[2] - c[2]];
+      let n = [us[1] * ut[2] - us[2] * ut[1], us[2] * ut[0] - us[0] * ut[2], us[0] * ut[1] - us[1] * ut[0]];
+      const mid = pt((s0 + s1) / 2, (t0 + t1) / 2);
+      if (n[0] * (mid[0] - A[0] - 3) + n[2] * mid[2] < 0) n = n.map(v => -v); // 朝外（离开身体轴）
+      const outer = DP(n[0], n[2]) > 0;
+      quads.push({ pts: q3.map(pj), d: DP(mid[0], mid[2]), col: j === NT - 1 ? (cp.ermine ? ((i + j) % 2 ? wh : bk2) : tr) : outer ? c1 : c2 });
+    }
+    quads.sort((a, b) => a.d - b.d);
+    part(NF);
+    let ref = null;
+    for (const q of quads) { const r = rec('poly', { pts: q.pts }, Math.min(...q.pts.map(p => p[0])), Math.min(...q.pts.map(p => p[1])), Math.max(...q.pts.map(p => p[0])), Math.max(...q.pts.map(p => p[1])), null, q.col); if (r) { ref = ref || { k: 'poly', g: { pts: [] }, bb: [1e9, 1e9, -1e9, -1e9] }; r.shadeBy = ref; for (let k = 0; k < 4; k++) ref.bb[k] = k < 2 ? Math.min(ref.bb[k], r.bb[k]) : Math.max(ref.bb[k], r.bb[k]); } }
+  }
+  function drawLeg3(hip, k, f, toe, S, back) {
+    part(back ? BF : NF);
+    const pa = pc(S.pants), bo = pc(S.boots || S.pants), gr = S.greave ? pc(S.greave) : 0;
+    const wide = S.wide ? 1.3 : 0;
+    cap(hip, k, 3.8 + wide, 3.5 + wide, pa);
+    cap(k, f, 3.5 + wide, 3.3 + (wide ? 0.9 : 0), (px, py, t) => (gr && t > 0.12 ? gr : !wide && t > 0.4 ? bo : pa));
+    if (S.beast === 'hawk' || S.talons) { const tc = pc('#e0b030'); cap(f, add(toe, sub2(f, toe), -0.3), 1.5, 0.8, tc); cap(f, add(f, [-(toe[0] - f[0]) * 0.4 + 1.6, 1.2]), 1.3, 0.8, tc); cap(f, add(f, [-(toe[0] - f[0]) * 0.4 - 1.6, 1.2]), 1.3, 0.8, tc); }
+    else if (S.beast === 'wolf') { cap(f, toe, 2.8, 2.3, pc(S.fur)); }
+    else cap(add(f, [0, 0.4]), toe, wide ? 2.6 : 3.2, 2.7, wide ? pc(C.white) : gr || bo);
+    if (gr) disc(k, 3.2, gr);
+  }
+  const sub2 = (a, b) => [a[0] - b[0], a[1] - b[1]];
+  // 盾：平面形状（u 横、v 竖），法线朝前外侧；正面看到盾面，转到背后时看到内侧与握把
+  function drawShield3(h3, S) {
+    const sd = S.shield; if (!sd) return;
+    const nb = 30 * RAD, eu = [Math.sin(nb), 0, Math.cos(nb)], n = [Math.cos(nb), 0, -Math.sin(nb)];
+    const ku = eu[0] * YS - eu[2] * YC, face = DP(n[0], n[2]) > 0, h = pj(h3);
+    const c1 = pc(sd.c), c2 = pc(sd.c2), e = sd.e ? pc(sd.e) : 0;
+    part(NF);
+    const K = sd.s === 'kite' ? 1.3 : 1, sx = Math.abs(ku) < 0.1 ? 0.1 * Math.sign(ku || 1) : ku;
+    const P2 = (x, y) => [h[0] + x * sx, h[1] + y];
+    const back = !face, wood = pc(C.wood);
+    if (sd.s === 'tower') {
+      const w2 = 7, ht = 12, hh = [h[0], h[1] + 3];
+      const Pt = (x, y) => [hh[0] + x * sx, hh[1] + y];
+      poly([Pt(-w2, -ht), Pt(w2, -ht), Pt(w2, ht - 3), Pt(0, ht), Pt(-w2, ht - 3)], (px, py) => {
+        const x = (px - hh[0]) / sx, y = py - hh[1];
+        if (Math.abs(x) > w2 - 1.6 || y < -ht + 1.6 || y > ht - 2.6 - Math.abs(x) * 0.5) return c2;
+        if (back) return Math.abs(y) < 1.4 ? pc(C.dLeather) : wood;
+        if (sd.cross ? (Math.abs(x) < 1.3 && y < ht - 4) || (Math.abs(y + 3) < 1.3) : (e && Math.abs(x) < 1.2)) return e || c2;
+        return Math.floor(y + 20) % 6 === 0 ? c2 : c1;
+      });
+    } else if (sd.s === 'round') {
+      ell(h, 6.2 * Math.abs(sx), 8, 0, (px, py) => { const dd = Math.hypot((px - h[0]) / (6.2 * Math.abs(sx)), (py - h[1]) / 8); return dd > 0.78 ? c2 : back ? (Math.abs(py - h[1]) < 1.2 ? pc(C.dLeather) : wood) : e && dd < 0.38 ? e : c1; });
+    } else {
+      poly([P2(-3.6 * K, -6.5 * K), P2(3.6 * K, -6.5 * K), P2(3.8 * K, 1 * K), P2(0, 8 * K), P2(-3.8 * K, 1 * K)], (px, py) => {
+        const x = (px - h[0]) / sx / K, y = (py - h[1]) / K; const edge = Math.abs(x) > 2.8 || y < -5.6 || y > 6.2 - Math.abs(x) * 1.2;
+        if (edge) return c2; if (back) return Math.abs(y + 0.5) < 1 ? pc(C.dLeather) : wood;
+        if (e && (Math.abs(x) < 1 || (y > -3.2 && y < -1.4))) return e; return c1;
+      });
+    }
+  }
+  function drawBook3(h3, S) {
+    if (!S.book) return;
+    part(NF);
+    const ku = Math.max(0.25, Math.abs(Math.sin(30 * RAD) * YS - Math.cos(30 * RAD) * YC)), h = pj(h3), bc = pc(S.book), gd = pc(C.gold);
+    poly([[h[0] - 4.5 * ku, h[1] - 5], [h[0] + 4.5 * ku, h[1] - 5], [h[0] + 4.5 * ku, h[1] + 4], [h[0] - 4.5 * ku, h[1] + 4]], (px, py) => { const x = (px - h[0]) / ku, y = py - h[1]; return Math.abs(x) > 3.4 || Math.abs(y + 0.5) > 3.6 ? gd : Math.abs(x) < 0.6 ? gd : bc; });
+    dot(h, pc('#8af0ff'));
+  }
+
+  // ---------- 头部（头部单位：x 前、y 下、z 右，×HK = 美术单位） ----------
+  const skullRing = y => { const t = clamp((y + 0.25) / 6.0, -1, 1), k = Math.sqrt(Math.max(0, 1 - t * t)), j = t > 0.15 ? Math.pow((t - 0.15) / 0.85, 1.4) : 0; return [7.15 * k * (1 - 0.22 * j), 6.95 * k * (1 - 0.1 * j), 0.25 + 0.55 * j]; };
+  const sphRing = (R, cy, cx, ka) => y => { const t = clamp((y - (cy || 0)) / R, -1, 1), k = Math.sqrt(Math.max(0, 1 - t * t)); return [R * k * (ka || 1.03), R * k, cx == null ? 0.2 : cx]; };
+  // 头发分布：al = 方位角（0 正前、±90 两侧、180 后脑），y = 高度（头部单位）
+  function hairAt(hs, al, y) {
+    const aa = Math.abs(al);
+    if (hs === 'bald') return aa > 100 && y > -3.6 && y < 3.2;
+    if (y < -5.3) return true;
+    if (aa < 60) {
+      let dm = 99; for (const tp of [-41, -14, 12, 38]) dm = Math.min(dm, Math.abs(al - tp));
+      return y < -0.55 - 2.15 * Math.pow(Math.min(1, dm / 14), 0.75) - (aa > 48 ? (aa - 48) * 0.06 : 0);
+    }
+    if (hs === 'long') return y < 6;
+    if (aa < 76) return y < 2.5;
+    if (aa < 108) return y < -0.4;
+    return y < 4.9 - (aa < 125 ? (125 - aa) * 0.12 : 0);
+  }
+  const COVERED = ['helm', 'kettle', 'hood', 'cowl', 'mask', 'kabuto', 'bandana', 'cap', 'beakhelm', 'ninja'];
+  // 3D 脸（正面 / 3/4 / 背面）：大眼、眉、嘴、腮红随方位角缩放；hdRender 以 paintFace3 画出
+  function paintFace3(g, p, dim) {
+    if (MODE) return;
+    const q = p.g, S = q.S, hs_ = Math.sin(q.phi * RAD), hc_ = Math.cos(q.phi * RAD);
+    g.save(); g.translate(q.x, q.y); g.scale(HK, HK);
+    g.beginPath(); q.clip.forEach((c, i) => g[i ? 'lineTo' : 'moveTo']((c[0] - q.x) / HK, (c[1] - q.y) / HK)); g.closePath(); g.clip();
+    // 脸部表面点：方位 al、高度 y（脸前方较平：用较大的有效半径）
+    const SP = (al, y, R) => { const a = al * RAD, k = Math.sqrt(Math.max(0, 1 - ((y + 0.25) / 6.6) ** 2)), Rr = (R || 7.0) * k; return [(0.25 + Math.cos(a) * Rr * 0.97) * hs_ - Math.sin(a) * Rr * 1.02 * hc_, y, Math.cos(a - q.phi * RAD)]; };
+    const sk = clut(pc(S.skin)), hr = clut(pc(S.hair || '#3a2a1a'));
+    const iris = S.eyeC || '#3a4a9a', ir = PRGB[pc(iris)];
+    const irL = `rgb(${Math.min(255, ir[0] * 0.6 + 110) | 0},${Math.min(255, ir[1] * 0.6 + 120) | 0},${Math.min(255, ir[2] * 0.6 + 130) | 0})`;
+    const ink = '#1a0c1e';
+    if (q.shadow) {
+      // 兜帽 / 面罩里只看到发光的眼
+      for (const sd of [1, -1]) {
+        const [ex, ey, c] = SP(22 * sd, -0.4); if (c < 0.15) continue;
+        const kx = Math.pow(c, 0.7);
+        g.save(); g.shadowColor = q.shadow; g.shadowBlur = 1.2; g.fillStyle = q.shadow; g.beginPath(); g.ellipse(ex, ey, 0.95 * kx, 0.42, 0, 0, TAU); g.fill(); g.restore();
+        g.fillStyle = '#ffffff'; g.globalAlpha = 0.7; g.beginPath(); g.ellipse(ex, ey - 0.05, 0.4 * kx, 0.16, 0, 0, TAU); g.fill(); g.globalAlpha = 1;
+      }
+      g.restore(); return;
+    }
+    if (S.skull) {
+      for (const sd of [1, -1]) {
+        const [ex, ey, c] = SP(25 * sd, 0.2); if (c < 0.12) continue;
+        const kx = Math.pow(c, 0.75);
+        g.fillStyle = '#24141e'; g.beginPath(); g.ellipse(ex, ey, 1.45 * kx, 1.35, 0, 0, TAU); g.fill();
+        g.fillStyle = '#ff5040'; g.globalAlpha = 0.85; g.beginPath(); g.arc(ex, ey + 0.1, 0.42 * kx, 0, TAU); g.fill(); g.globalAlpha = 1;
+      }
+      const [nx, ny, nc] = SP(0, 1.9);
+      if (nc > 0.1) {
+        g.fillStyle = '#24141e'; g.beginPath(); g.moveTo(nx, ny - 0.5); g.lineTo(nx + 0.5 * nc, ny + 0.4); g.lineTo(nx - 0.5 * nc, ny + 0.4); g.closePath(); g.fill();
+        const [tx, ty, tc] = SP(0, 3.2), w = 2.6 * Math.pow(tc, 0.8);
+        g.fillStyle = sk.css[kIdx(0.25, dim)]; g.fillRect(tx - w / 2, ty - 0.6, w, 1.2);
+        g.strokeStyle = '#3a2a2a'; g.lineWidth = 0.2; g.beginPath(); g.moveTo(tx - w / 2, ty); g.lineTo(tx + w / 2, ty);
+        for (const k of [-0.3, -0.1, 0.1, 0.3]) { g.moveTo(tx + k * w, ty - 0.6); g.lineTo(tx + k * w, ty + 0.6); } g.stroke();
+      }
+      g.restore(); return;
+    }
+    // 腮红
+    for (const sd of [1, -1]) {
+      const [bx, by, c] = SP(36 * sd, 2.05); if (c < 0.1) continue;
+      const rx = 1.15 * Math.pow(c, 0.8), bg = g.createRadialGradient(bx, by, 0, bx, by, 1.15);
+      bg.addColorStop(0, 'rgba(255,110,125,0.5)'); bg.addColorStop(1, 'rgba(255,110,125,0)');
+      g.save(); g.translate(bx, by); g.scale(rx / 1.15, 0.7); g.translate(-bx, -by); g.fillStyle = bg; g.fillRect(bx - 1.2, by - 1.2, 2.4, 2.4); g.restore();
+    }
+    // 眼睛：白眼 + 大虹膜（深色上缘 → 虹膜色 → 亮色下缘）+ 瞳孔 + 粗上睫毛（外眼角上挑）+ 两点高光
+    for (const sd of [1, -1]) {
+      const al = 27 * sd, [ex, ey, c] = SP(al, 0.25); if (c < 0.1) continue;
+      const kx = Math.pow(c, 0.8), ew = 1.18 * kx, eh = 1.55;
+      // 外眼角方向（屏幕）：方位角往外增加时屏幕 x 的变化方向
+      const o = Math.sign(SP(al + 6 * sd, 0.25)[0] - ex) || 1;
+      const eye = () => { g.beginPath(); g.moveTo(ex - o * ew, ey - eh * 0.35); g.bezierCurveTo(ex - o * ew * 0.6, ey - eh * 0.98, ex + o * ew * 0.55, ey - eh * 1.02, ex + o * ew * 1.05, ey - eh * 0.58); g.bezierCurveTo(ex + o * ew * 1.08, ey + eh * 0.2, ex + o * ew * 0.6, ey + eh * 0.95, ex, ey + eh * 0.95); g.bezierCurveTo(ex - o * ew * 0.7, ey + eh * 0.95, ex - o * ew * 1.05, ey + eh * 0.3, ex - o * ew, ey - eh * 0.35); g.closePath(); };
+      eye(); g.fillStyle = '#fbf8ff'; g.fill();
+      g.save(); eye(); g.clip();
+      const ix = ex + o * ew * 0.04 - (q.gz || 0) * ew * 0.1;
+      g.beginPath(); g.ellipse(ix, ey + eh * 0.12, ew * 0.8, eh * 0.86, 0, 0, TAU);
+      const eg = g.createLinearGradient(0, ey - eh, 0, ey + eh);
+      eg.addColorStop(0, '#140a1c'); eg.addColorStop(0.36, '#1c1030'); eg.addColorStop(0.64, iris); eg.addColorStop(1, irL);
+      g.fillStyle = eg; g.fill();
+      g.fillStyle = 'rgba(16,8,24,0.78)'; g.beginPath(); g.ellipse(ix, ey + eh * 0.16, ew * 0.36, eh * 0.4, 0, 0, TAU); g.fill();
+      g.fillStyle = 'rgba(40,20,60,0.25)'; g.fillRect(ex - 2, ey - eh * 1.1, 4, eh * 0.55);
+      g.fillStyle = '#ffffff';
+      g.beginPath(); g.ellipse(ix - ew * 0.34, ey - eh * 0.28, Math.max(0.12, ew * 0.3), eh * 0.24, -0.3, 0, TAU); g.fill();
+      if (kx > 0.4) { g.beginPath(); g.arc(ix + ew * 0.36, ey + eh * 0.5, 0.16, 0, TAU); g.fill(); }
+      g.restore();
+      // 睫毛线
+      g.strokeStyle = ink; g.lineCap = 'round'; g.lineJoin = 'round';
+      g.lineWidth = 0.46; g.beginPath(); g.moveTo(ex - o * ew * 1.02, ey - eh * 0.3); g.bezierCurveTo(ex - o * ew * 0.6, ey - eh * 1.0, ex + o * ew * 0.55, ey - eh * 1.05, ex + o * ew * 1.06, ey - eh * 0.6);
+      g.lineTo(ex + o * (ew * 1.06 + 0.45), ey - eh * 0.84); g.stroke();
+      g.lineWidth = 0.18; g.beginPath(); g.moveTo(ex - o * ew * 0.35, ey + eh * 0.93); g.quadraticCurveTo(ex + o * ew * 0.3, ey + eh * 0.98, ex + o * ew * 0.75, ey + eh * 0.62); g.stroke();
+      // 眉毛（画在刘海上，半透明）
+      if (q.brows) {
+        const [bx, by] = SP(al + 2 * sd, -2.55);
+        g.strokeStyle = hr.css[kIdx(-0.85, dim)]; g.globalAlpha = 0.85; g.lineWidth = 0.4;
+        g.beginPath(); g.moveTo(bx - o * ew * 0.85, by + 0.12); g.quadraticCurveTo(bx, by - 0.3, bx + o * ew * 0.95, by + 0.05); g.stroke(); g.globalAlpha = 1;
+      }
+    }
+    // 鼻、嘴
+    const [nx, ny, nc] = SP(0, 1.75, 7.3);
+    if (nc > 0.05) {
+      g.strokeStyle = sk.css[kIdx(-0.65, dim)]; g.lineWidth = 0.2; g.lineCap = 'round';
+      const sx2 = Math.sign(hs_) || 0;
+      g.beginPath(); g.moveTo(nx - 0.12 - sx2 * 0.2, ny + 0.15); g.quadraticCurveTo(nx + sx2 * 0.35, ny + 0.32, nx + 0.15 + sx2 * 0.25, ny + 0.12); g.stroke();
+      const [mx2, my2, mc] = SP(0, 3.05, 7.1), mw = 0.5 * Math.pow(mc, 0.7);
+      g.strokeStyle = '#8a3a3c'; g.lineWidth = 0.3;
+      g.beginPath(); g.moveTo(mx2 - mw, my2 - 0.12); g.quadraticCurveTo(mx2, my2 + 0.32, mx2 + mw, my2 - 0.12); g.stroke();
+    }
+    if (S.clown) {
+      const [cx2, cy2, cc] = SP(28, 2.3); if (cc > 0.2) { g.fillStyle = '#3a6ab8'; g.beginPath(); g.moveTo(cx2, cy2 - 0.55); g.lineTo(cx2 + 0.45 * cc, cy2); g.lineTo(cx2, cy2 + 0.55); g.lineTo(cx2 - 0.45 * cc, cy2); g.closePath(); g.fill(); }
+      const [rx2, ry2, rc] = SP(0, 1.5, 7.6); if (rc > -0.2) { const gr = g.createRadialGradient(rx2 - 0.3, ry2 - 0.3, 0.1, rx2, ry2, 1.0); gr.addColorStop(0, '#ffb0a0'); gr.addColorStop(0.4, '#e83a3a'); gr.addColorStop(1, '#8a1020'); g.fillStyle = gr; g.beginPath(); g.arc(rx2, ry2, 1.0, 0, TAU); g.fill(); }
+    }
+    g.restore();
+  }
+  // 头部 3D：jh = 头心（美术座标 X, Y, Z）、neck、phi = 头的方位角（度）
+  function head3(J, S, P, hc3, neck3, phi, prof) {
+    const hd = S.head || {}, t = hd.t || '', hs = S.hs;
+    const hcS = pj(hc3), hy = hc3[1];
+    // 颈
+    part(NF); capK(pj(neck3), add(hcS, [0, 2]), 2.1, 2.1, pc(S.beast === 'hawk' ? S.hair : S.beast === 'wolf' ? S.fur : S.skin));
+    withYaw(phi, hcS[0], () => {
+      const hS = YS, hC = YC;
+      const H = (x, y, z) => [x * HK * hS - z * HK * hC + XOFF, hy + y * HK];
+      const Hh = (x, y, z) => [x * HK * hS - z * HK * hC + XOFF, hy + (y + (x * hC + z * hS) * 0.16) * HK]; // 水平面略带俯视
+      const Dh = (x, z) => x * hC + z * hS;
+      const shell = (rf, y0, y1, N, mat) => lathe(tt => { const y = lerp(y0, y1, tt), [a, b, cx] = rf(y); return [hy + y * HK, a * HK, b * HK, cx * HK, 0, y]; }, N, mat);
+      const LH = [];
+      const covered = COVERED.includes(t), hair = pc(S.hair), skin = pc(S.skin);
+      const shadowFace = t === 'cowl' || (t === 'ninja' && hd.eyes);
+      let gid = 0;
+      const hairPart = () => { const id = part(NF, gid || undefined); if (!gid) gid = id; return id; };
+      const headSph = { k: 'e', g: { x: H(0.2, 0, 0)[0], y: hy - 0.5 * HK, rx: 7.4 * HK, ry: 7.2 * HK, a: 0 }, bb: [0, 0, 0, 0] };
+      if (prof) {
+        // 侧脸区：沿用侧面的头（侧脸、眼、鼻、耳、头发），头饰仍用下面的 3D 版本
+        push3(LH, 0, () => { NOGEAR = true; try { drawHead0(Object.assign({}, J, { hc: hcS, neck: pj(neck3), ha: 0, mx: phi < 0 ? -1 : 1 }), S, P); } finally { NOGEAR = false; } });
+      } else if (S.beast === 'wolf') beastWolf3(LH, S, P, H, Hh, Dh, shell);
+      else if (S.beast === 'hawk') beastHawk3(LH, S, P, H, Hh, Dh, shell);
+      else {
+        // 脑后发量（比头骨略大、偏上偏后）+ 几团蓬松发团
+        if (!covered && hs !== 'bald') push3(LH, Dh(-1.1, 0) * 0.3, () => {
+          hairPart();
+          const m = ellip([-1.1 * HK, hy - 1.25 * HK, 0], [7.25 * HK, 6.95 * HK, 7.35 * HK], hair); if (m) m.shadeBy = headSph;
+          for (const [x, y, z, rr] of [[-5.8, -3.8, 0, 2.4], [-2.4, -6.4, 0, 2.5], [1.4, -6.5, 0, 2.1], [-7, 0.6, 0, 2], [-2.4, -5.6, 4.0, 2.2], [-2.4, -5.6, -4.0, 2.2], [-5.6, -1.6, 3.4, 2.0], [-5.6, -1.6, -3.4, 2.0], [2.0, -5.6, 2.8, 1.9], [2.0, -5.6, -2.8, 1.9]]) { const q = disc(H(x, y, z), rr * HK, hair); if (q) q.shadeBy = headSph; }
+        });
+        // 长发帘 / 马尾
+        if ((hs === 'long' || hs === 'pony') && t !== 'cowl') {
+          if (hs === 'long') push3(LH, Dh(-4, 0) * 0.5 - 0.2, () => {
+            part(NF);
+            // 从头顶罩下、到肩背的发帘：上半是贴着发量的圆顶，下摆收窄并剪成几绺
+            const hem = 6.6 + Math.sin(NOW * 0.004) * 0.3;
+            shell(y => { if (y < -1.25) { const tt = (y + 1.25) / 6.3, k = Math.sqrt(Math.max(0, 1 - tt * tt)); return [7.45 * k, 7.15 * k, -1.0]; } const k = clamp((y + 1.25) / 8, 0, 1), e = sstep(0.55, 1, k); return [lerp(7.45, 6.4, k) * (1 - 0.3 * e), lerp(7.15, 5.4, k) * (1 - 0.25 * e), lerp(-1.0, -2.1, k)]; }, -7.55, hem, 16,
+              m => (Math.abs(m.ang) < 62 || m.u > hem - 1.5 * (0.5 + 0.5 * Math.cos(m.ang * RAD * 7)) ? 0 : hair));
+          });
+          else { const sw = Math.sin(NOW * 0.006) * 1.5 - (P.ra || 0) * 3; push3(LH, Dh(-7.5, 0), () => { part(NF); chainK([H(-6.2, -3.4, 0), H(-9.2, 0 + sw * 0.3, 0.4), H(-9.6 + sw, 5.5, 0.8)], 1.8, 1.1, hair); }); }
+        }
+        // 头骨（皮肤 / 头发分区）+ 无描边处补画下颚线
+        const fx = shadowFace ? pc('#120a18') : 0, bone = skin;
+        let skPts = null;
+        push3(LH, 0, () => {
+          const id = part(SH, gid || undefined); if (!gid) gid = id;
+          skPts = shell(skullRing, -6.25, 5.75, 22, m => {
+            const y = m.u, aa = Math.abs(m.ang);
+            if (fx && aa < (t === 'ninja' ? 70 : 52) && y > -3.2 && y < 4.6) return fx;
+            if (S.skull) return bone;
+            if (S.beard && aa < 85 && y > 1.7) return hair;
+            return hairAt(hs, m.ang, y) ? hair : skin;
+          });
+        });
+        push3(LH, 0.001, () => {
+          const mc = H(-1.1, -1.25, 0), mrx = Math.sqrt((7.25 * HK * hS) ** 2 + (7.35 * HK * hC) ** 2);
+          const inMass = q => !covered && hs !== 'bald' && ((q[0] - mc[0]) / (mrx - 0.6)) ** 2 + ((q[1] - mc[1]) / (6.95 * HK - 0.6)) ** 2 < 1;
+          outline(skPts, q => !inMass(q), skin, true);
+          // 脸部五官（朝向观者时）
+          const fcos = Math.cos((phi) * RAD);
+          if (fcos > -0.2 || shadowFace) {
+            part(NF);
+            const R = 9 * HK;
+            rec('face3', { x: hcS[0], y: hy, S, phi, clip: skPts, shadow: shadowFace ? (hd.eyes || '#ff60ff') : null, brows: !covered || ['band', 'circlet', 'crown', 'horns', 'veil', 'batears', 'fin', 'jester', 'tricorne', 'straw', 'wizhat', 'feather', 'mitre', 'headdress'].includes(t) }, hcS[0] - R, hy - R, hcS[0] + R, hy + R, null, skin);
+          }
+        });
+        // 耳朵
+        if (hs !== 'long' && !covered && !S.skull) for (const sd of [1, -1]) {
+          const al = 90 * sd, c = Math.cos((al - phi) * RAD); if (c < -0.3) continue;
+          const x = Math.cos(al * RAD) * 7.0 + 0.1, z = sd * 7.2, ec = H(x, 1.0, z), w = (0.32 + 0.62 * Math.abs(c)) * HK;
+          push3(LH, c > 0.08 ? 0.5 + c : -10 + c, () => {
+            part(NF);
+            if (S.elf) { const tip = H(x - 1.5, -4.5, sd * 9.8); poly([[ec[0] - w * 0.7, ec[1] - 1.2 * HK], tip, [ec[0] + w * 0.7, ec[1] - 1.2 * HK], [ec[0] + w * 0.6, ec[1] + 1.4 * HK], [ec[0] - w * 0.6, ec[1] + 1.4 * HK]], skin); }
+            ell(ec, w, 1.3 * HK, 0, skin);
+            if (c > 0.35) { part(FLAT); ell([ec[0] + (H(x - 1, 1, z)[0] - ec[0]) * 0.25, ec[1] + 0.15 * HK], w * 0.42, 0.7 * HK, 0, pc('#d89a7a')); }
+          });
+        }
+        if (hs === 'spiky' && !['helm', 'kettle', 'hood', 'kabuto', 'mask', 'cowl', 'crown', 'mitre', 'wizhat', 'bandana', 'feather', 'cap', 'straw', 'headdress', 'ninja'].includes(t)) {
+          const sw = Math.sin(NOW * 0.005) * 0.5;
+          for (const [a, b, r0] of [[[0.5, -5.2, 0], [-1.2, -10.2, 0.2], 2.6], [[-2, -4.6, 2.8], [-5.6, -8.4 + sw, 5.6], 2.5], [[-2, -4.6, -2.8], [-5.6, -8.4 + sw, -5.6], 2.5], [[-4, -1.6, 4.2], [-8.2, -3.2 + sw, 7.6], 2.3], [[-4, -1.6, -4.2], [-8.2, -3.2 + sw, -7.6], 2.3], [[2.6, -4.4, 2.6], [4.6, -8, 4.6], 2.1], [[2.6, -4.4, -2.6], [4.6, -8, -4.6], 2.1], [[-4.6, -4.2, 0], [-9, -7, 0], 2.5]])
+            push3(LH, Dh(b[0], b[2]) * 0.3 - 0.05, () => { hairPart(); const q = capK(H(...a), H(...b), r0, 0.35, hair); if (q) q.shadeBy = headSph; });
+        }
+        if (hs === 'topknot' && !['kabuto', 'helm'].includes(t)) push3(LH, Dh(-1.5, 0) * 0.3 + 0.002, () => { hairPart(); disc(H(-1.5, -7, 0), 2.2 * HK, hair); });
+      }
+      if (!S.beast || S.head) gear3(LH, S, P, hd, H, Hh, Dh, shell, phi, S.beast === 'wolf' ? 0.86 : S.beast === 'hawk' ? 0.9 : 1);
+      run3(LH);
+    });
+  }
+  function beastWolf3(LH, S, P, H, Hh, Dh, shell) {
+    const fur = pc(S.fur), lt = pc('#e0d8d0'), eye = pc('#ffd040'), dk = pc(C.eye), dI = pc(C.dIron);
+    let gid = 0; const gp = () => { const id = part(NF, gid || undefined); if (!gid) gid = id; };
+    for (const sd of [1, -1]) push3(LH, Dh(-1.5, sd * 4.5) > 0.5 ? 2 + Dh(-1.5, sd * 4.5) : -5, () => { part(NF); poly([H(-1, -3.6, sd * 1.6), H(-2.2, -11.5, sd * 4.2), H(-1.6, -3.2, sd * 5.6)], fur); part(FLAT); poly([H(-1.2, -4.4, sd * 2.6), H(-2.1, -10, sd * 4.2), H(-1.6, -4.2, sd * 4.8)], dI); });
+    push3(LH, Dh(-5, 0) * 0.5, () => { part(NF); capK(H(-3.6, 2.4, 0), H(-6, 5.6, 0), 2.6, 2, fur); });
+    push3(LH, 0, () => { gp(); shell(sphRing(5.8, 0, 0, 1.08), -5.8, 5.8, 16, m => (m.u > 2 && Math.abs(m.ang) < 70 ? lt : fur)); });
+    const sn = Dh(6, 0);
+    push3(LH, sn > 0 ? 0.5 : -0.5, () => { gp(); capK(H(2.5, 1.2, 0), H(8, 2.2, 0), 2.6, 2.2, fur); capK(H(3, 2.4, 0), H(7.6, 3.1, 0), 1.6, 1.3, lt); disc(H(9, 1.4, 0), 0.9 * HK, dk); });
+    push3(LH, 0.7, () => {
+      for (const sd of [1, -1]) { const al = 34 * sd, c = Math.cos((al - Math.atan2(YS, YC) / RAD) * RAD); if (c < 0.12) continue; const a = al * RAD, p = H(Math.cos(a) * 5.4, -1.3, Math.sin(a) * 5.6); part(FLAT); ell(p, 1.1 * HK * Math.pow(c, 0.7), 1.2 * HK, 0, eye); ell(p, 0.4 * HK * Math.pow(c, 0.7), 1.0 * HK, 0, dk); }
+    });
+    if (S.mark) push3(LH, 0.8, () => { const c = Math.cos(Math.atan2(YS, YC)); if (c > 0.2) { part(FLAT); disc(H(5.2, -3.6, 0), 1.3 * HK, pc(S.mark)); } });
+  }
+  function beastHawk3(LH, S, P, H, Hh, Dh, shell) {
+    const fe = pc(S.hair), wh = pc('#f4ecd8'), bkc = pc('#e8b030'), dk = pc(C.eye), ey = pc('#ffe060');
+    const s = Math.sin(NOW * 0.008) * 1.2;
+    let gid = 0; const gp = () => { const id = part(NF, gid || undefined); if (!gid) gid = id; };
+    push3(LH, Dh(-8, 0) * 0.5, () => { part(NF); chainK([H(-4, -3, 0), H(-9, -4.5 + s, 0), H(-13, -3 + s, 0)], 2, 0.7, fe); chainK([H(-4, 0, 0), H(-9, 1 + s, 1.2), H(-12, 3 + s, 1.8)], 1.6, 0.6, wh); chainK([H(-4, 0, 0), H(-9, 1 + s, -1.2), H(-12, 3 + s, -1.8)], 1.6, 0.6, wh); });
+    push3(LH, 0, () => { gp(); shell(sphRing(6, 0, 0, 1.05), -6, 6, 16, m => (m.u > 1.5 && Math.abs(m.ang) < 100 ? wh : fe)); });
+    const bd = Dh(8, 0);
+    push3(LH, bd > 0 ? 0.6 : -0.6, () => { part(NF); capK(H(4.2, -1.2, 0), H(9.8, 0.6, 0), 2.6, 0.9, bkc); capK(H(9.2, 0.2, 0), H(10.6, 2.2, 0), 0.9, 0.5, bkc); });
+    push3(LH, 0.7, () => {
+      const ph = Math.atan2(YS, YC) / RAD;
+      for (const sd of [1, -1]) { const al = 52 * sd, c = Math.cos((al - ph) * RAD); if (c < 0.12) continue; const a = al * RAD, p = H(Math.cos(a) * 5.7, -1.5, Math.sin(a) * 5.9), k = Math.pow(c, 0.7); part(FLAT); ell(p, 1.15 * HK * k, 1.15 * HK, 0, ey); ell(p, 0.55 * HK * k, 0.6 * HK, 0, dk); disc(add(p, [-0.5 * HK * k, -0.5 * HK]), 0.28 * HK, pc('#ffffff')); }
+    });
+  }
+  // 3D 头饰：罩住头部的壳（车削体，镂空处露出脸）+ 依深度排序的配件（角、羽、冠尖、缨……）
+  function gear3(LH, S, P, hd, H0, Hh0, Dh0, shell0, phi, gs) {
+    const t = hd.t; if (!t) return;
+    // 兽首较小：头饰整体缩放
+    const H = (x, y, z) => H0(x * gs, y * gs, z * gs), Hh = (x, y, z) => Hh0(x * gs, y * gs, z * gs), Dh = (x, z) => Dh0(x * gs, z * gs);
+    const shell = gs === 1 ? shell0 : (rf, y0, y1, N, mat) => shell0(y => rf(y / gs).map(v => v * gs), y0 * gs, y1 * gs, N, typeof mat === 'function' ? (m => { m.u /= gs; return mat(m); }) : mat);
+    const c1 = pc(hd.c), c2 = pc(hd.c2 || hd.c), eye = pc(C.eye);
+    const SH_ = 50; // 壳：画在头骨、五官之后
+    const acc = (x, z, fn) => { const d = Dh(x, z); push3(LH, d > 0 ? SH_ + 1 + d * 0.01 : d * 0.5 - 1, fn); };
+    const accF = (fn) => push3(LH, SH_ + 0.5, fn);
+    const S3 = (R, y0, y1, mat, N) => push3(LH, SH_, () => { part(NF); shell(sphRing(R), y0, y1, N || 14, mat); });
+    const sw = Math.sin(NOW * 0.012);
+    const tails = (y, cc, n2) => acc(-7, 0, () => { part(NF); capK(H(-6.6, y, 0), H(-11, y + 1.5 + sw * 1.5, 1.4), 1.1, 0.7, cc); capK(H(-6.6, y, 0), H(-10, y + 4 + sw * 1.5, -1.2), 1, 0.6, n2 || cc); });
+    const brim = (y, R, col) => {
+      // 水平帽沿：远半圈画在头后、近半圈画在脸前（以离观者最远的方向为中心各 ±90°）
+      const half = from => { const a = []; for (let i = 0; i <= 18; i++) { const an = from + Math.PI * i / 18; a.push(Hh(Math.cos(an) * R, y, Math.sin(an) * R)); } return a; };
+      const aFar = Math.atan2(-YS, -YC), cen = Hh(0, y, 0);
+      push3(LH, -0.5, () => { part(NF); poly([...half(aFar - Math.PI / 2), cen], col); });
+      push3(LH, SH_ + 0.4, () => { part(NF); poly([...half(aFar + Math.PI / 2), cen], col); });
+    };
+    if (t === 'band') {
+      push3(LH, SH_, () => { part(NF); shell(sphRing(7.35, 0, 0.2), -4.2, -1.8, 4, c1); });
+      if (hd.tail) tails(-2.8, c1);
+    } else if (t === 'bandana') {
+      S3(7.4, -7.4, -1.5, c1);
+      tails(-2.2, c1, pc(C.dRed));
+    } else if (t === 'cap') {
+      S3(7.35, -7.35, -1.5, c1);
+      accF(() => { part(NF); const pts = []; for (let i = -9; i <= 9; i++) { const a = i * 9 * RAD; pts.push(Hh(6.4 + 3.4 * Math.cos(a), -1.9, 5.0 * Math.sin(a))); } for (let i = 9; i >= -9; i--) { const a = i * 9 * RAD; pts.push(Hh(6.0 * Math.cos(a) * 0.9, -2.1, 5.0 * Math.sin(a))); } poly(pts, c1); });
+    } else if (t === 'straw') {
+      S3(7.3, -7.3, -1.6, c1);
+      brim(-2.4, 11, c1);
+    } else if (t === 'hood' || t === 'cowl') {
+      const op = t === 'hood' ? 56 : 46;
+      push3(LH, SH_, () => {
+        part(NF);
+        shell(y => { if (y < 3) { const r = sphRing(8.0, 0, 0)(y); return r; } const k = clamp((y - 3) / (t === 'cowl' ? 2.6 : 4), 0, 1), e = sstep(0.6, 1, k); const r0 = sphRing(8.0, 0, 0)(3); return [lerp(r0[0], 8.6, k) * (1 - 0.18 * e), lerp(r0[1], 6.8, k) * (1 - 0.2 * e), lerp(r0[2], -1.0, k)]; }, -8, t === 'cowl' ? 5.6 : 7, 18, m => {
+          const aa = Math.abs(m.ang), y = m.u;
+          if (aa < op + (y > 2 ? (y - 2) * 4 : 0) && y > (t === 'hood' ? -3.4 : -2.6)) return 0;
+          return c1;
+        });
+      });
+      if (t === 'cowl') accF(() => { part(NF); capK(H(1.2, -7.6, 0), H(5.6, -6.2, 0), 1.6, 0.5, c1); });
+      if (hd.horns) { const hc2 = pc(hd.horns); for (const sd of [1, -1]) acc(-3, sd * 5, () => { part(NF); chainK([H(-0.5, -6.8, sd * 3), H(-3, -10.5, sd * 5), H(-7.5, -12.5, sd * 6)], 1.8, 0.6, hc2); }); }
+    } else if (t === 'helm' || t === 'kettle' || t === 'mask' || t === 'beakhelm') {
+      const vis = !!hd.visor, ge = hd.eyes ? pc(hd.eyes) : 0;
+      const lim = al => { const aa = Math.abs(al);
+        if (t === 'kettle') return -1.95;
+        if (vis) return 5.2;
+        if (t === 'mask') return aa < 50 ? -1.6 : 5;
+        if (t === 'beakhelm') return -2.4 + 6.4 * sstep(55, 120, aa);
+        return -1.85 + 6.2 * sstep(66, 112, aa); };
+      push3(LH, SH_, () => {
+        part(NF);
+        const Rh = t === 'beakhelm' ? 6.9 : 7.6;
+        shell(sphRing(Rh, 0, 0.15), -Rh, Math.min(5.6, Rh - 0.4), 18, m => {
+          const y = m.u, al = m.ang, aa = Math.abs(al);
+          if (t === 'mask' && aa < 50 && y >= -1.6) return y > 1.6 ? c2 : 0;
+          if (y >= lim(al)) return 0;
+          if (vis && aa < 72 && y > -1.6 && y < 0.4) return ge && Math.abs(aa - 25) < 11 ? ge : eye;
+          if (vis && aa < 42 && y > 1.5 && y < 4 && (Math.floor(y) % 2 === 0)) return eye;
+          if (t === 'mask' && ge && aa < 45 && y > -2.4 && y < -1.6) return ge;
+          return (y < -5.4 || (aa > 100 && y > lim(al) - 0.9)) ? c2 : c1;
+        });
+      });
+      if (t === 'kettle') brim(-2.2, 9.5, c1);
+      if (hd.nasal && !vis) acc(7.6, 0, () => { part(NF); capK(H(7.45, -2.2, 0), H(7.75, 0.9, 0), 0.8, 0.6, c1); });
+      if (hd.crest) { const cc = pc(hd.crest); push3(LH, SH_ + 0.3, () => { part(NF); chainK([H(3.6, -7.6, 0), H(-1, -9.6, 0), H(-5, -7.2, 0)], 1.9, 1.5, cc); }); }
+      if (hd.horns) { const hc2 = pc(hd.horns); for (const sd of [1, -1]) acc(-2, sd * 6, () => { part(NF); chainK([H(-0.5, -5.6, sd * 4.2), H(-1.5, -8.6, sd * 6.6), H(-1, -11.4, sd * 7.4)], 1.8, 0.6, hc2); }); }
+      if (hd.crownTop) crownSpikes(LH, H, Dh, -6.2, 6.4, 3.6, pc(hd.crownTop), SH_);
+      if (hd.plume) { const pl = pc(hd.plume), s2 = Math.sin(NOW * 0.008) * 1.5 - (P.ra || 0) * 2; acc(-6, 0, () => { part(NF); chainK([H(0, -7.8, 0), H(-4, -11, 0), H(-9, -10 + s2, 0), H(-13, -6 + s2 * 1.4, 0)], 2.6, 1.2, pl); }); }
+    } else if (t === 'tricorne') {
+      const b = hd.big ? 1.2 : 1;
+      S3(7.2, -7.2, -2.6, c1);
+      push3(LH, SH_ + 0.2, () => { part(NF); shell(y => { const k = clamp((y + 5.6) / 3.2, 0, 1); return [lerp(7.4, 9.6 * b, k), lerp(7.0, 9.2 * b, k), 0]; }, -5.6, -2.4, 4, m => (m.u > -3.4 ? c2 : c1)); });
+      if (hd.plume) acc(-6, 0, () => { part(NF); const s2 = Math.sin(NOW * 0.008) * 1.2; chainK([H(-2, -6.5, 2), H(-7, -9.5 + s2, 3), H(-12, -8 + s2, 3)], 1.8, 0.7, pc(hd.plume)); });
+    } else if (t === 'veil') {
+      push3(LH, Dh(-4, 0) * 0.5 - 0.3, () => { part(NF); shell(y => { if (y < -1.5) { const tt = (y + 1.5) / 6.3, k = Math.sqrt(Math.max(0, 1 - tt * tt)); return [7.7 * k, 7.4 * k, -0.6]; } const k = clamp((y + 1.5) / 9, 0, 1); return [lerp(7.7, 8.4, k), lerp(7.4, 6.4, k), lerp(-0.6, -2.4, k)]; }, -7.8, 7.5, 14, m => (Math.abs(m.ang) < 70 && m.u > -4.6 ? 0 : c1)); });
+      push3(LH, SH_, () => { part(NF); shell(sphRing(7.35, 0, 0.2), -4.4, -2.8, 3, c2); });
+      if (hd.gem) acc(7.3, 0, () => { part(FLAT); disc(H(7.3, -3.6, 0), 0.9, pc(hd.gem)); });
+    } else if (t === 'jester') {
+      S3(7.5, -7.5, -2.2, c1);
+      push3(LH, SH_ + 0.1, () => { part(NF); shell(sphRing(7.6, 0, 0.2), -2.8, -1.8, 2, pc('#ffffff')); });
+      const swj = Math.sin(NOW * 0.008) * 1.2;
+      for (const sd of [1, -1]) acc(-1, sd * 9, () => { part(NF); chainK([H(-1, -6, sd * 3), H(-1.5, -10.5, sd * 7), H(0, -7 + swj, sd * 11.5)], 2.6, 0.9, sd > 0 ? c1 : c2); part(NF); disc(H(0.2, -6.6 + swj, sd * 11.8), 1.3 * HK, pc(C.gold)); });
+    } else if (t === 'fin') {
+      push3(LH, SH_ + 0.2, () => { part(NF); const P2 = [H(-6, -3, 0), H(-3, -9, 0), H(0, -8, 0), H(2.5, -11, 0), H(4, -5.5, 0)]; const w = Math.abs(YC) * 1.2; if (w > 0.15) chainK([H(-6, -3, 0), H(-3, -9, 0), H(2.5, -11, 0)], 1.2 * w + 0.4, 0.6, c1); poly(P2, c1); });
+    } else if (t === 'batears') {
+      for (const sd of [1, -1]) acc(-1, sd * 5, () => { part(NF); poly([H(-1, -4, sd * 2.5), H(-2.5, -13, sd * 6.5), H(0.5, -5, sd * 6)], c1); part(FLAT); poly([H(-0.9, -5, sd * 3.3), H(-2.2, -11.2, sd * 6), H(0.2, -5.6, sd * 5.4)], pc('#c87a9a')); });
+    } else if (t === 'horns') {
+      const b = hd.big ? 1.3 : 1;
+      for (const sd of [1, -1]) acc(-2, sd * 6, () => { part(NF); chainK([H(0.5, -5.2, sd * 3.6), H(-1, -8.6 * b, sd * 6.2 * b), H(-3.8, -10.2 * b, sd * 7.2 * b), H(-6, -9.2 * b, sd * 7.6 * b)], 2, 0.6, c1); });
+      if (hd.crown) crownSpikes(LH, H, Dh, -5.4, 6.9, 3, pc(C.gold), SH_, true);
+      if (hd.gem) acc(7.2, 0, () => { part(FLAT); dotK(H(7.25, -3.3, 0), pc(hd.gem)); });
+    } else if (t === 'ninja') {
+      push3(LH, SH_, () => { part(NF); shell(sphRing(7.6, 0, 0.15), -7.6, 6.2, 16, m => (Math.abs(m.ang) < 64 && m.u > -1.9 && m.u < 1.6 ? 0 : c1)); });
+      tails(-1.5, c1);
+      if (hd.band) { push3(LH, SH_ + 0.1, () => { part(NF); shell(sphRing(7.75, 0, 0.15), -4.4, -3, 2, pc(hd.band)); }); acc(7.7, 0, () => { part(NF); const a = H(7.75, -4.6, -1.3), b = H(7.75, -2.8, 1.3); poly([[a[0], a[1]], [b[0], a[1]], [b[0], b[1]], [a[0], b[1]]], pc(C.silver)); }); }
+    } else if (t === 'circlet' || t === 'crown') {
+      push3(LH, SH_, () => { part(NF); shell(sphRing(7.3, 0, 0.2), -4.3, -2.4, 3, c1); });
+      if (t === 'crown') {
+        const b = hd.big ? 1.3 : 1;
+        if (hd.big) push3(LH, SH_ - 0.2, () => { part(NF); shell(y => { const r = sphRing(6.9, 0, 0.1)(y); return r; }, -6.9 - 0.2, -3.6, 6, pc(C.dRed)); });
+        crownSpikes(LH, H, Dh, -3.6, 7.3, 4 * b, c1, SH_);
+      }
+      if (hd.gem) acc(7.3, 0, () => { part(FLAT); dotK(H(7.4, -3.4, 0), pc(hd.gem)); });
+      if (hd.wings) { const wc = pc(hd.wings); for (const sd of [1, -1]) acc(-2, sd * 7, () => { part(NF); poly([H(-1, -3.4, sd * 7.2), H(-5.5, -9, sd * 8.6), H(-4.5, -6, sd * 8.2), H(-7.5, -6, sd * 8.6), H(-5.5, -4, sd * 8.2), H(-7, -2.5, sd * 8.4), H(-3, -2.6, sd * 7.6)], wc); }); }
+    } else if (t === 'mitre') {
+      const h = hd.tall ? 17 : 14;
+      push3(LH, SH_, () => { part(NF); shell(y => { const k = clamp((-2.5 - y) / (h - 2.5), 0, 1); return [lerp(6.0, 0.6, Math.pow(k, 1.6)), lerp(5.6, 1.2, k), lerp(0.3, 0.4, k)]; }, -h, -2.5, 14, m => (Math.abs(m.lat) < 0.9 * HK || m.u > -4 ? c2 : c1)); });
+      acc(5, 0, () => { part(FLAT); dotK(H(4.6, -h * 0.5, 0), hd.gem ? pc(hd.gem) : c2); });
+      if (hd.tall) { const g2 = pc(C.gold); for (const sd of [1, -1]) acc(-5, sd * 2, () => { part(NF); capK(H(-5, -3, sd * 2), H(-7.6, 4 + Math.sin(NOW * 0.005), sd * 2.6), 0.9, 0.9, g2); }); }
+    } else if (t === 'wizhat' || t === 'feather') {
+      const big = hd.big ? 1.25 : 1, s2 = Math.sin(NOW * 0.005) * 1.2 - (P.ra || 0) * 2;
+      if (t === 'wizhat') {
+        brim(-3.3, 10.5 * big, c1);
+        push3(LH, SH_, () => {
+          part(NF);
+          const top = -18 * big;
+          shell(y => { const k = clamp((-3.5 - y) / (-3.5 - top), 0, 1); const r = 6.2 * Math.pow(1 - k, 1.05); return [r * 1.02, r, -9 * big * k * k + s2 * k * k]; }, top, -3.5, 16, m => (hd.band && m.u > -5.6 ? pc(hd.band) : hd.star && ((Math.floor(m.u * 1.3 + m.ang / 25) % 7 === 0) && m.u < -7 && Math.abs(m.ang) < 80) ? pc(hd.star) : c1));
+        });
+        if (hd.gem) acc(6.4, 0, () => { part(FLAT); dotK(H(6.5, -4.6, 0), pc(hd.gem)); });
+      } else {
+        brim(-2.5, 9, c1);
+        push3(LH, SH_, () => { part(NF); shell(y => { const k = clamp((-2.6 - y) / 5.4, 0, 1); return [lerp(6.6, 4.4, k), lerp(6.3, 4.0, k), 0.2]; }, -8, -2.6, 6, m => (m.u > -4 ? pc(hd.band) : c1)); });
+        acc(-6, 2, () => { part(NF); chainK([H(-3, -5, 3), H(-8, -9 + s2, 4.5), H(-13, -9 + s2 * 1.5, 5)], 1.6, 0.6, pc(hd.plume)); });
+      }
+    } else if (t === 'kabuto') {
+      push3(LH, SH_, () => { part(NF); shell(sphRing(7.6, 0, 0.15), -7.6, -0.2, 14, m => { const aa = Math.abs(m.ang); if (m.u >= -1.9 + 4.9 * sstep(40, 100, aa) && aa < 100) return 0; return m.u < -5 ? c2 : c1; }); });
+      push3(LH, SH_ - 0.1, () => { part(NF); shell(y => { const k = clamp((y + 1.5) / 7, 0, 1); return [lerp(7.6, 10.8, k), lerp(7.4, 10.2, k), lerp(0, -1.4, k)]; }, -1.5, 5.5, 6, m => (Math.abs(m.ang) < 58 ? 0 : Math.floor(m.u * 1.1) % 2 ? c1 : pc(S.p))); });
+      const cc = pc(hd.cc || C.gold);
+      if (hd.crest === 'bar') acc(7.6, 0, () => { part(NF); capK(H(7.2, -5.2, 0), H(8.4, -9.6, 0), 1.1, 0.8, cc); });
+      if (hd.crest === 'horns') for (const sd of [1, -1]) acc(7.5, sd * 2, () => { part(NF); chainK([H(7, -5.4, sd * 1.4), H(8, -11, sd * 4.6), H(6.6, -16, sd * 3.4)], 1.4, 0.6, cc); });
+      if (hd.crest === 'moon') acc(7.8, 0, () => {
+        part(NF); const pts = [];
+        for (let i = 0; i <= 16; i++) { const a = (-150 + 300 * i / 16) * RAD; pts.push([Math.sin(a) * 6, -11.5 - Math.cos(a) * 6]); }
+        for (let i = 16; i >= 0; i--) { const a = (-130 + 260 * i / 16) * RAD; pts.push([Math.sin(a) * 4.8, -13.3 - Math.cos(a) * 4.6]); }
+        poly(pts.map(([z, y]) => H(7.9, y, z)), cc);
+      });
+    } else if (t === 'headdress') {
+      S3(7.4, -7.4, -2, c1);
+      const w = pc(hd.c2);
+      for (let i = 0; i < 7; i++) {
+        const a = (-135 + i * 45) * RAD, s3 = Math.sin(NOW * 0.006 + i) * 0.6;
+        const bx = Math.cos(a + Math.PI) * 4.6, bz = Math.sin(a + Math.PI) * 4.6;
+        acc(bx * 1.6, bz * 1.6, () => { part(NF); capK(H(bx, -5.4, bz), H(bx * 1.9 + s3, -14 + Math.abs(i - 3) * 1.3, bz * 1.9), 1.4, 0.6, i % 2 ? w : c1); });
+      }
+    }
+  }
+  // 冠尖：沿头顶一圈的三角，远侧在头后、近侧在脸前
+  function crownSpikes(LH, H, Dh, y, R, h, col, SH_, few) {
+    const n = few ? 5 : 9;
+    for (let i = 0; i < n; i++) {
+      const a = (few ? -60 + i * 30 : i * 40) * RAD, x = Math.cos(a) * R, z = Math.sin(a) * R, w = 0.22;
+      const d = Dh(x, z);
+      push3(LH, d > 0 ? SH_ + 0.6 + d * 0.01 : -1 + d * 0.01, () => { part(NF); poly([H(Math.cos(a - w) * R, y, Math.sin(a - w) * R), H(Math.cos(a + w) * R, y, Math.sin(a + w) * R), H(x * 0.94, y - h, z * 0.94)], col); });
+    }
+  }
+
+  // ---------- 坐骑 3D ----------
+  function mount3(L, R, M, P) {
+    const c = pc(M.c), m = pc(M.m || M.c2 || M.c), wy = M.t === 'wyvern', B = R.B, Lc = R.L;
+    const p3 = (v, z) => { const q = Lc(v); return [q[0], q[1], z]; };
+    // 翅膀
+    const wingD = (side) => DP(R.wroot[0] - 3, side * 4);
+    for (const side of [-1, 1]) {
+      const beta = 55 * YC * YC * RAD, kx = Math.cos(beta) * YS + side * Math.sin(beta) * YC;
+      const root = pj([R.wroot[0] + (side > 0 ? 1 : 0), R.wroot[1], side * 4]);
+      if (M.t === 'pegasus') push3(L, wingD(side), () => { DVP = (a, l = 1) => [Math.sin(a * RAD) * l * kx, Math.cos(a * RAD) * l]; try { featherWing(root, (side > 0 ? 195 : 205 + 8) + Math.sin(NOW * (P.wf > 0.5 ? 0.03 : 0.006) + (side > 0 ? 0.3 : 0)) * (P.wf > 0.5 ? 48 : 15), side > 0 ? 1.4 : 1.3, M.wing, M.wing2, DP(0, side) < -0.3 ? BF : NF); } finally { DVP = null; } });
+      if (wy) push3(L, wingD(side), () => { const bp = pj(p3([-7, -4], side * 3)); DVP = (a, l = 1) => [Math.sin(a * RAD) * l * kx, Math.cos(a * RAD) * l]; try { batWing(root, (side > 0 ? 190 : 210) + Math.sin(NOW * 0.007 + (side > 0 ? 0.4 : 0)) * 22, side > 0 ? 1.2 : 1.05, M.c2, M.c, DP(0, side) < -0.3 ? BF : NF, bp); } finally { DVP = null; } });
+    }
+    // 腿
+    for (const lg of R.legs) {
+      const z = (lg.far ? -1 : 1) * (wy ? 4.6 : 4.8), d = DP(lg.k[0], z), back = d < DP(B[0], 0) - 2;
+      push3(L, d - (wy ? 0 : 0.3), () => {
+        part(back ? BF : NF);
+        const hip = pj([lg.hip[0], lg.hip[1], z]), k = pj([lg.k[0], lg.k[1], z]), f = pj([lg.f[0], lg.f[1], z]);
+        if (wy) { cap(hip, k, 5, 3.8, c); cap(k, f, 3.4, 2.6, c); const tc = pc(C.bone); cap(f, pj([lg.f[0] + 4.5, lg.f[1] + 0.8, z]), 1.8, 0.7, tc); cap(f, pj([lg.f[0] + 3, lg.f[1] + 2, z + 1.2]), 1.6, 0.7, tc); }
+        else { cap(hip, k, 3.8, 3.3, c); cap(k, f, 3.3, 2.9, c); cap(f, add(f, [0, 1.2]), 3, 3, pc('#2a2020')); }
+      });
+    }
+    // 身体（披挂 / 鞍毯画在椭球表面）
+    push3(L, DP(B[0], 0), () => {
+      part(NF);
+      const bard = M.bard ? pc(M.bard) : 0, tr = pc(M.trim || M.bard || M.c), bl = M.blanket ? pc(M.blanket) : 0, gold = pc(C.gold);
+      if (wy) {
+        const bel = pc(M.belly || M.c);
+        const mat = q => {
+          if (bl && q.X > -5.5 && q.X < 4.5 && q.Y < 1) return Math.abs(q.Y + 0.5) < 1.2 ? pc(M.trim) : bl;
+          return q.Y > 3.4 ? bel : c;
+        };
+        ellip([B[0], B[1], 0], [12, 8, 7.6], c, mat);
+        const ch = Lc([8, -0.5]);
+        ellip([ch[0], ch[1], 0], [7, 7, 6.6], c, q => ((q.Y + ch[1] - B[1]) > 3.4 ? bel : c));
+        for (let i = 0; i < 4; i++) disc(pj(p3([-8 + i * 4.5, -8], 0)), 1.1, pc(M.c2));
+      } else {
+        const mat = q => {
+          const y = q.Y, x = q.X;
+          if (bard) {
+            if (y > 8) return c;
+            if (y < -8.8 + Math.abs(x) * 0.02 && Math.abs(q.Z) < 3.4) return c;
+            if (y > 5.8 + Math.sin(x * 0.9 + q.Z * 0.9) * 0.8) return tr;
+            if (M.trim && Math.abs(x - 1) < 2.2 && Math.abs(q.Z) > 2.5) return tr;
+            if (M.trim && x > 13.6 && Math.abs(q.Z) < 1.6) return tr;
+            return bard;
+          }
+          if (bl && x > -10.5 && x < 3.5 && y < 3.5) return y > 1.9 ? gold : bl;
+          return c;
+        };
+        ellip([B[0], B[1], 0], [15.8, 9.8, 8.4], c, mat);
+      }
+      // 鞍
+      part(NF);
+      const dl = pc(C.dLeather);
+      cap(pj(p3([-7, -9.6], 0)), pj(p3([0.8, -9.6], 0)), 2.1, 2.1, dl);
+      cap(pj(p3([-8.4, -10.4], -1.6)), pj(p3([-8.4, -10.4], 1.6)), 1.4, 1.4, dl);
+      cap(pj(p3([1.6, -10.6], -1.3)), pj(p3([1.6, -10.6], 1.3)), 1.2, 1.2, dl);
+    });
+    // 尾
+    push3(L, DP(R.tail[1][0], 0), () => {
+      part(NF);
+      const tl = R.tail.map(q => pj([q[0], q[1], 0]));
+      if (wy) { chain(tl, 4.4, 1.8, c); const tp = R.tail[R.tail.length - 1]; poly([pj([tp[0] - 1, tp[1] - 3.5, 0]), pj([tp[0] - 7, tp[1], 0]), pj([tp[0] - 1, tp[1] + 3.5, 0])], pc(M.c2)); }
+      else chain(tl, 2.8, 3.6, m);
+    });
+    // 颈与头：颈、头、口鼻依深度排序；耳、眼、鬃毛、面甲
+    const hd3 = [R.head[0], R.head[1], 0], dk = pc(C.eye), wh = pc('#ffffff');
+    push3(L, DP(R.head[0], 0) * 0.6 + DP(R.neck[0][0], 0) * 0.4, () => {
+      if (wy) {
+        const nk = R.neck.map(q => pj([q[0], q[1], 0])), hdP = pj(hd3), mz = R.muzzle, mzP = pj([mz[0], mz[1], 0]), a = angOf(R.head, mz);
+        const hcol = pc(C.bone);
+        const horns = () => { part(NF); for (const sd of [-1, 1]) { cap(pj([...add(R.head, dv(a + 120, 3)), sd * 2.4]), pj([...add(R.head, dv(a + 160, 11)), sd * 3.6]), 1.7, 0.6, hcol); } };
+        if (YC < 0) horns();
+        part(NF);
+        const seq = [[DP(R.neck[1][0], 0), () => chain(nk, 5, 4.2, c)], [DP(R.head[0], 0), () => disc(hdP, 5.8, c)], [DP(mz[0], 0), () => cap(hdP, mzP, 4.4, 3.3, c)]].sort((p, q) => p[0] - q[0]);
+        for (const [, fn] of seq) fn();
+        for (const sd of [-1, 1]) { const e3 = [...add(R.head, dv(a + 62, 2.4)), sd * 4.2], vis = DP(dv(a + 62, 1)[0] * 0.5, sd) > 0; if (vis) { part(FLAT); const ep = pj(e3); disc(ep, 1.9, pc('#ffd040')); disc(ep, 0.9, dk); } }
+        part(FLAT); for (const sd of [-1, 1]) dot(pj([...add(mz, dv(a + 40, 1.6)), sd * 1.2]), dk);
+        if (YC >= 0) horns();
+        for (let i = 0; i < 3; i++) { part(NF); disc(pj([...add(R.neck[1], dv(-120 + i * 30, 4.6)), 0]), 1, pc(M.c2)); }
+        return;
+      }
+      const nb = R.neck[0], nt = R.neck[1], mz = R.muzzle, a = angOf(nt, mz), back = dv(angOf(nb, nt) - 90);
+      const ntP = pj([nt[0], nt[1], 0]), nbP = pj([nb[0], nb[1], 0]), mzP = pj([mz[0], mz[1], 0]);
+      // 鬃毛在颈后（正面看时被头挡住）
+      const mane = () => { part(NF); chain([pj([...add(add(nt, back, 5.5), dv(a + 180, 2)), 0]), pj([...add(mix(nb, nt, 0.5), back, 5.4), 0]), pj([...add(nb, back, 5.4), 0])], 2.6, 2.8, m); cap(pj([...add(nt, dv(a + 150, 5.5)), 0]), pj([...add(nt, dv(a + 95, 5.5)), 0]), 2, 1.4, m); };
+      const ears = () => { part(NF); for (const sd of [-1, 1]) cap(pj([...add(nt, dv(a + 150, 4.2)), sd * 2.6]), pj([...add(nt, dv(a + 170, 9.5)), sd * 3.4]), 1.9, 0.5, c); };
+      if (YC >= 0) { ears(); mane(); }
+      part(NF);
+      const seq = [[DP(mix(nb, nt, 0.5)[0], 0), () => cap(nbP, ntP, 5.6, 4.8, c)], [DP(nt[0], 0), () => disc(ntP, 6.8, c)], [DP(mz[0], 0), () => cap(pj([...add(nt, dv(a, 2)), 0]), mzP, 4.8, 4, c)]].sort((p, q) => p[0] - q[0]);
+      for (const [, fn] of seq) fn();
+      if (M.plate) { part(NF); const pl = pc(M.plate); cap(pj([...add(nt, dv(a, 1.5)), 0]), pj([...add(mz, dv(a, -1)), 0]), 3.2, 2.6, (px, py, t) => (t > 0.3 && t < 0.42 ? pc(M.trim || M.plate) : pl)); }
+      if (M.beak) { part(NF); const bk = pc('#f0b030'); cap(pj([...add(nt, dv(a + 20, 3)), 0]), pj([...add(mz, dv(a, 4)), 0]), 3.2, 0.7, bk); cap(pj([...add(mz, dv(a, 3.6)), 0]), pj([...add(mz, dv(a - 40, 5)), 0]), 1, 0.5, bk); }
+      // 眼（两侧）、鼻孔
+      for (const sd of [-1, 1]) {
+        const off = dv(a + 62, 2.6), e3 = [nt[0] + off[0] * 0.7, nt[1] + off[1], sd * 5.0];
+        if (DP(off[0] * 0.5, sd * 5) > 0.4) { part(FLAT); const ep = pj(e3), k = clamp(DP(off[0] * 0.5, sd * 5) / 5, 0.35, 1); ell(ep, 1.9 * k, 1.9, 0, M.eyes ? pc(M.eyes) : dk); dot(add(ep, [-0.6 * k, -0.7]), wh); }
+      }
+      if (DP(mz[0] - nt[0], 0) > -1) { part(FLAT); for (const sd of [-1, 1]) disc(pj([...add(mz, dv(a + 35, 2)), sd * 1.5]), 0.75, pc('#2a1a20')); }
+      if (M.plate) { part(NF); const pl = pc(M.plate); for (let i = 0; i < 2; i++) disc(pj([...add(mix(nb, nt, 0.25 + i * 0.4), back, 3.4), 0]), 2.8, pl); }
+      if (YC < 0) { mane(); ears(); }
+    });
+  }
+
+  // ---------- 整体 ----------
+  // 预览姿势：决斗的侧面站姿正面看会让武器挡住脸，改成武器立在身侧、空手自然下垂
+  const PREVIEW_POSE = {
+    sword: { fa: 8, fe: 52, w: 52, two: 0 }, katana: { fa: 8, fe: 50, w: 48, two: 0, lt: 12, ls: -4, bt: -14, bs: -18 }, axe: { fa: 8, fe: 46, w: 62, two: 0 },
+    lance: { fa: 10, fe: 70, w: 162 }, fork: { fa: 10, fe: 70, w: 162 }, staff: { fa: 12, fe: 78, w: 164, two: 0 }, bow: { ba: 8, be: 82, fa: 10, fe: 40, sik: 0, dr: 0 },
+    claw: { fa: 14, fe: 62, ba: 12, be: 58, lean: 6, lt: 12, ls: -4, bt: -14, bs: -18 }, fist: { fa: 16, fe: 70, ba: 14, be: 66, lean: 6, lt: 12, ls: -4, bt: -14, bs: -18 }, none: { fa: 10, fe: 40, ba: 8, be: 36, lean: 4 },
+  };
+  function previewPose(S, P) {
+    const o = PREVIEW_POSE[S.wpn.k]; if (!o) return P;
+    const b = Math.sin(NOW * 0.0042 + 0.7), Q = Object.assign({}, P, o);
+    if (!S.mount && o.ba == null && !S.shield && !S.book && !S.wpn2) Object.assign(Q, { ba: 6, be: 28 });
+    if (S.shield && !S.mount) Object.assign(Q, { ba: 34, be: 80 });
+    if (S.wpn2) Object.assign(Q, { ba: 6, be: 44 });
+    if (S.mount) Object.assign(Q, { lt: P.lt, ls: P.ls, bt: P.bt, bs: P.bs });
+    Q.fa += b * 2; Q.w += b * 2.5; Q.ba -= b * 1.5;
+    return Q;
+  }
+  function turnDoll(S, P, opt) {
+    YS = Math.sin(opt.yaw * RAD); YC = Math.cos(opt.yaw * RAD); XOFF = 0;
+    if (!opt.duelPose) P = previewPose(S, P);
+    const M = S.mount, k = S.wpn.k, bk = S.bulk;
+    let R = null, J;
+    if (M) { R = rigMount(P, M, NOW); J = rigHuman(P, S, add(R.seat, [0, -1.5])); }
+    else J = rigHuman(P, S, null);
+    J.ha = 0;
+    const L = [], kv = KV * bk;
+    const zS = tq(13.2)[2] * kv * 0.8;
+    const two = P.two > 0.5 && k !== 'bow';
+    const psi = 25 * YC * YC * RAD, tp = Math.tan(psi);
+    // 关节的横向 Z
+    const zHF = two ? 2.4 : zS + (k === 'lance' || k === 'staff' || k === 'fork' ? 3.0 : 2.0), zl = M ? 3.4 : 2.6 * bk / 1.08;
+    const sF = [J.sF[0], J.sF[1], zS], sB = [J.sB[0], J.sB[1], -zS];
+    const hF = [J.hF[0], J.hF[1], zHF], eF = [J.eF[0], J.eF[1], two ? zS + 1.2 : zS + 1.9];
+    let hB, eB;
+    if (two) { hB = [J.hB[0], J.hB[1], zHF + (J.hB[0] - J.hF[0]) * tp - 0.6]; eB = [J.eB[0], J.eB[1], -(zS + 0.6)]; }
+    else if (k === 'bow') { hB = [J.hB[0], J.hB[1], -(zS + 2.2)]; eB = [J.eB[0], J.eB[1], -(zS + 1.6)]; }
+    else { hB = [J.hB[0], J.hB[1], -(zS + 1.3)]; eB = [J.eB[0], J.eB[1], -(zS + 1.9)]; }
+    if (k === 'bow' && P.sik > 0.5) hF[2] = 1.2;
+    const mlat = M ? (M.t === 'wyvern' ? 7.8 : 8.6) : 0;
+    const legs = [[1, J.kF, J.fF], [-1, J.kB, J.fB]].map(([sd, kk, ff]) => {
+      const hip = [J.hip[0], J.hip[1], sd * zl], kn = [kk[0], kk[1], sd * (M ? mlat + 1.6 : zl + 0.25)], ft = [ff[0], ff[1], sd * (M ? mlat + 1.0 : zl + 0.4)];
+      const sa = angOf(kk, ff), td = dv(sa + 92, 3.4), toe = [ff[0] + td[0], ff[1] + td[1] + 0.4, ft[2]];
+      return { sd, hip, kn, ft, toe };
+    });
+    const hipX = J.hip[0], baseD = DP(hipX, 0);
+    const avg = (...q) => [q.reduce((s, v) => s + v[0], 0) / q.length, 0, q.reduce((s, v) => s + v[2], 0) / q.length];
+    const dOf = q => DP(q[0], q[2]);
+    const back = d => d < baseD - 1.6;
+    // 坐骑
+    if (M) mount3(L, R, M, P);
+    // 腿
+    let legMax = -1e9;
+    for (const lg of legs) {
+      const d = M ? dOf(lg.kn) : DP(lg.kn[0], lg.sd * zl) - 1.2;
+      legMax = Math.max(legMax, d);
+      push3(L, d, () => drawLeg3(pj(lg.hip), pj(lg.kn), pj(lg.ft), pj(lg.toe), S, back(d + 1.2)));
+    }
+    // 躯干 / 袍 / 裙 / 披肩
+    push3(L, baseD, () => (S.robe ? drawRobe3(J, S, P) : drawTorso3(J, S)));
+    const skD = Math.max(legMax, baseD) + 0.02;
+    if (S.skirt && !S.robe) push3(L, skD, () => drawSkirt3(J, S));
+    if (S.mantle) push3(L, skD + 0.01, () => drawMantle3(J, S));
+    // 胸前串珠、腰间药瓶
+    if (S.beads) push3(L, YC > 0 ? skD + 0.02 : baseD - 2, () => {
+      part(NF); const bd = pc('#8a4a2a');
+      for (let i = 0; i < 7; i++) { const s = -1 + i / 3, u = 15.2 - (1 - s * s) * 3.6, [f, , l] = tq(u), x = s * l * kv * 0.62, c2 = T(J, f * 0.92, u, bk), z3 = [c2[0] - Math.abs(s) * 2.2, c2[1], x]; if (DP(z3[0] - hipX, z3[2]) < -1) continue; disc(pj(z3), 1.1, i === 3 ? pc(C.gold) : bd); }
+    });
+    if (S.flasks) push3(L, YC > 0 ? skD + 0.02 : baseD - 2, () => {
+      part(NF);
+      [['#9aff4a', 25], ['#ff7a9a', 0], ['#7ad8ff', -25]].forEach(([fc, al]) => { const a = al * RAD, [f, , l] = tq(1.2), b0 = T(J, 0, 1.2, bk), q3 = [b0[0] + Math.cos(a) * f * kv, b0[1], Math.sin(a) * l * kv]; if (DP(q3[0] - hipX, q3[2]) < 0) return; const p = pj(q3); cap(p, add(p, [0, -3]), 1.4, 1.1, pc(fc)); dot(add(p, [0, -3.8]), pc(C.wood)); });
+    });
+    // 披风、箭筒、尾巴、背旗、翅膀
+    const capeX = T(J, -5, 14, bk)[0];
+    if (S.cape) push3(L, YC >= 0 ? baseD + (capeX - hipX) * YC : baseD + 0.05, () => drawCape3(J, S, P, !!M));
+    if (S.quiver) push3(L, baseD + (T(J, -7, 12)[0] - hipX) * YC + (YC < 0 ? 0.1 : 0), () => {
+      part(NF);
+      const a = T(J, -4.5, 5), b = T(J, -7, 19), A3 = [a[0], a[1], 2.4], B3 = [b[0], b[1], -2.6];
+      cap(pj(A3), pj(B3), 3, 3.2, pc(C.leather));
+      const tpn = pj([b[0] - 0.6, b[1] - 2.6, -3]);
+      disc(add(tpn, [-0.8, 0]), 1.2, pc(C.white)); disc(add(tpn, [0.6, -0.5]), 1.1, pc(C.red)); disc(add(tpn, [-1.8, 0.6]), 1.1, pc(C.white));
+    });
+    if (S.beast === 'wolf') push3(L, baseD - 5 * YC + (YC < 0 ? 0.1 : 0), () => {
+      part(NF); const s = Math.sin(NOW * 0.006) * 8, h = add(add(J.hip, J.up, 2), J.fw, -5), a = add(h, dv(-60 + s * 0.5, 6)), b = add(a, dv(-40 + s, 7));
+      chain([pj([h[0], h[1], 0]), pj([a[0], a[1], 1.5]), pj([b[0], b[1], 3])], 3.2, 3.8, pc(S.fur));
+    });
+    if (S.banner) push3(L, baseD - 6.5 * YC + (YC < 0 ? 0.12 : 0), () => {
+      const b = S.banner, h = J.hip, fw = J.fw, up = J.up, TP2 = (v, u, z) => { const q = add(add(h, fw, v), up, u); return [q[0], q[1], z || 0]; };
+      const gm = 90 * YC * YC * RAD, ex = Math.cos(gm), ez = Math.sin(gm); // 旗面：侧看朝后展开，正 / 背面看改为横向
+      part(NF); cap(pj(TP2(-6, 4)), pj(TP2(-7.5, 50)), 1.1, 1.1, pc(C.dLeather));
+      const s = Math.sin(NOW * 0.01) * 1.2, F = (dx, u) => { const q = TP2(-7.2, u); return pj([q[0] + dx * ex, q[1], dx * ez]); };
+      part(NF);
+      const pts = [F(0, 49), F(-9.8, 49 + s), F(-10.3, 37 + s), F(0, 37)], cc = F(-5, 43);
+      poly(pts, (px, py) => (Math.hypot((px - cc[0]) / Math.max(0.3, Math.abs(ex * YS - ez * YC)), py - cc[1]) < 2.6 ? pc(C.white) : pc(b.c)));
+    });
+    const wingRoot = T(J, -3.5, 13), wingX = wingRoot[0];
+    if (S.wings || S.bwings) for (const side of [-1, 1]) {
+      const beta = 60 * YC * YC * RAD, kx = Math.cos(beta) * YS + side * Math.sin(beta) * YC;
+      const d = baseD + (wingX - 1 - hipX) * YC + side * 3 * YS + (YC < 0 ? 0.08 : 0);
+      push3(L, d, () => {
+        const root = pj([wingRoot[0] + (side > 0 ? 1 : 0), wingRoot[1] - (side > 0 ? 0.6 : 0), side * 3.2]);
+        DVP = (a, l = 1) => [Math.sin(a * RAD) * l * kx, Math.cos(a * RAD) * l];
+        try {
+          const fl = DP(0, side) < -0.3 ? BF : NF;
+          if (S.wings) featherWing(root, (side > 0 ? 195 : 211) + Math.sin(NOW * (P.wf > 0.5 ? 0.03 : 0.006) + (side > 0 ? 0.4 : 0)) * (P.wf > 0.5 ? 52 : 13), (S.wings.big ? 1.3 : 1.1) + (side > 0 ? 0.1 : 0), S.wings.c, S.wings.c2, fl);
+          if (S.bwings) { const bw = S.bwings, sc = bw.big ? 1.15 : 0.95, f2 = Math.sin(NOW * 0.006) * 14; const bp = T(J, -6.5, 2.5); batWing(root, (side > 0 ? 195 : 205) + f2, sc * (side > 0 ? 1.1 : 1), bw.c, bw.c2, fl, pj([bp[0], bp[1], side * 2])); }
+        } finally { DVP = null; }
+      });
+    }
+    // 光环、浮游沙漏、环绕光球
+    const hc3 = [J.hc[0], J.hc[1], 0], neck3 = [J.neck[0], J.neck[1], 0];
+    const headD = baseD + 0.3 + (YC < 0 ? -YC * 8 : 0);
+    if (S.halo) push3(L, S.halo === 'ring' ? headD + 0.5 : headD + (YC < 0 ? 0.01 : -0.01), () => {
+      part(FLAT);
+      if (S.halo === 'ring') { const rc = add(pj(hc3), [-1 * YS, -HR - 4 + Math.sin(NOW * 0.004)]); ell(rc, 8, 2.2, 0, (px, py) => { const dx = (px - rc[0]) / 8, dy = (py - rc[1]) / 2.2; return dx * dx + dy * dy > 0.42 ? pc('#ffe680') : 0; }); return; }
+      const c0 = pj([hc3[0] - 3, hc3[1] - 2, 0]), Rr = HR + 4, sx = Math.max(0.16, Math.abs(YC));
+      if (S.halo === 'moon') { const mc = pc('#e8f0ff'); ell(c0, Rr * sx, Rr, 0, (px, py) => (Math.hypot((px - c0[0]) / sx - 4 * Math.sign(YC || 1), py - c0[1] + 3) > Rr - 2.5 ? mc : 0)); return; }
+      ring3(c0, Rr - 1.4, Rr, sx, pc(C.gold));
+      for (let i = 0; i < 12; i++) { const q = dv(i * 30, Rr - 2.6); dot([c0[0] + q[0] * sx, c0[1] + q[1]], pc('#fff6c0')); }
+      part(NF); const h1 = dv(180 - NOW * 0.12, Rr - 3), h2 = dv(180 - NOW * 0.01, Rr - 6);
+      cap(c0, [c0[0] + h1[0] * sx, c0[1] + h1[1]], 0.8, 0.5, pc(C.gold)); cap(c0, [c0[0] + h2[0] * sx, c0[1] + h2[1]], 1, 0.6, pc(C.gold));
+    });
+    if (S.float === 'hourglass') { const q = T(J, -9, 30); push3(L, baseD + (q[0] - hipX) * YC, () => {
+      part(NF);
+      const c0 = add(pj([q[0], q[1], 0]), [0, Math.sin(NOW * 0.004) * 2]), d = dv(180 + Math.sin(NOW * 0.002) * 20), pp = dv(270 + Math.sin(NOW * 0.002) * 20);
+      poly([add(add(c0, d, 4), pp, -3), add(add(c0, d, 4), pp, 3), c0], pc('#e8f6ff')); poly([add(add(c0, d, -4), pp, -3), add(add(c0, d, -4), pp, 3), c0], pc('#f4d070'));
+      cap(add(add(c0, d, 4.5), pp, -3.6), add(add(c0, d, 4.5), pp, 3.6), 0.9, 0.9, pc(C.gold)); cap(add(add(c0, d, -4.5), pp, -3.6), add(add(c0, d, -4.5), pp, 3.6), 0.9, 0.9, pc(C.gold));
+    }); }
+    if (S.orbs) { const c0 = T(J, 0, 10), n = S.orbs.length; S.orbs.forEach((col, i) => {
+      const a = NOW * 0.003 + i * Math.PI * 2 / n, X = c0[0] + Math.cos(a) * 15, Z = Math.sin(a) * 15, d = DP(X, Z);
+      push3(L, d + (d > baseD ? 2 : 0), () => { const p = [PX(X, Z), c0[1] - 8 + Math.sin(NOW * 0.005 + i) * 2 + DP(X - c0[0], Z) * 0.16]; part(FLAT | GLW); disc(p, 3.4, pc(col)); disc(add(p, [-0.6, -0.6]), 1.6, pc('#ffffff')); });
+    }); }
+    // 头、围巾
+    const phiAbs = Math.abs(opt.yaw), prof = phiAbs >= 70 && phiAbs <= 110;
+    push3(L, headD, () => head3(J, S, P, hc3, neck3, prof ? (opt.yaw < 0 ? -90 : 90) : opt.yaw, prof));
+    if (S.scarf) {
+      push3(L, headD - 0.05, () => { part(NF); const q = T(J, 0, 16.4, S.bulk), n = pj([q[0], q[1], 0]); ell(n, Math.sqrt((5.6 * YS) ** 2 + (6.6 * YC) ** 2), 3.2, 0, pc(S.scarf)); });
+      push3(L, baseD - 4 * YC + (YC < 0 ? 0.1 : 0), () => {
+        part(NF);
+        const n = add(add(J.neck, J.fw, -3.5), J.up, -1.5), spd = Math.max(P.ra || 0, Math.abs(P.Y) > 6 ? 0.6 : 0);
+        const w1 = Math.sin(NOW * 0.011) * 9, w2 = Math.sin(NOW * 0.011 - 1.2) * 12, base = -58 - spd * 28;
+        const l = (S.scarfLong ? 5.5 : 4.2) * (S.scarfLen || 1), dr = S.scarfLen ? 22 : 0;
+        const a = add(n, dv(base + w1 - 8, l)), b = add(a, dv(base + w2 - 4 + dr, l)), c = add(b, dv(base + w2 * 1.3 + dr * 2, l * 0.8));
+        const sw = Math.sin(NOW * 0.007) * 1.5;
+        const pts = (S.scarfLong || S.scarfLen ? [n, a, b, c] : [n, a, b]).map((q, i) => pj([q[0], q[1], i * (2.2 + sw)]));
+        chain(pts, 3.3, 2.6, pc(S.scarf));
+      });
+    }
+    // 手臂、武器、盾
+    const dArmF = dOf(avg(sF, eF, hF)) + 0.4, dArmB = dOf(avg(sB, eB, hB)) + 0.4;
+    push3(L, dArmB, () => drawArm(pj(sB), pj(eB), pj(hB), S, back(dArmB), J.be));
+    push3(L, dArmF, () => drawArm(pj(sF), pj(eF), pj(hF), S, back(dArmF), J.fe));
+    const kxw = YS - tp * YC;
+    const wJ = Object.assign({}, J, { hF: pj(hF), hB: pj(hB), eF: pj(eF), eB: pj(eB) });
+    const withW = (kx, fn) => { DVP = (a, l = 1) => [Math.sin(a * RAD) * l * kx, Math.cos(a * RAD) * l]; try { return fn(); } finally { DVP = null; } };
+    let tip = null;
+    if (k !== 'bow') push3(L, (two ? Math.min(dArmF, dArmB) : dArmF) - 0.01, () => withW(kxw, () => { const J2 = Object.assign({}, wJ, { wd: dv(P.w) }); drawWeapon(J2, S, P); if (S.sparkle) tip = weaponTip(J2, S, P)[1]; }));
+    else push3(L, dArmB + 0.02, () => withW(YS + Math.tan(25 * YC * YC * RAD) * YC, () => { drawBow(Object.assign({}, wJ, { aim: J.aim }), S, P); if (S.sparkle) tip = wJ.hB; }));
+    if (S.wpn2) push3(L, dArmB - 0.01, () => withW(YS + tp * YC, () => { const w2a = P.w + 22; drawWeapon(Object.assign({}, wJ, { hF: wJ.hB, wd: dv(w2a), fe: J.be }), Object.assign({}, S, { wpn: S.wpn2 }), Object.assign({}, P, { w: w2a })); part(BF); disc(wJ.hB, 3, pc(S.glove || S.skin)); }));
+    const sh3 = [hB[0] + 3.5, hB[1] - 1, hB[2] - 1.4];
+    if (S.shield) push3(L, Math.max(dArmB, dOf(sh3)) + 0.03, () => drawShield3(sh3, S));
+    if (S.book) push3(L, dArmB + 0.03, () => drawBook3([hB[0] + 2, hB[1], hB[2] - 0.6], S));
+    // 闪光点缀
+    if (S.sparkle) push3(L, 1e6, () => {
+      if (!tip) return;
+      part(FLAT | SPK); const sc = pc('#ffffff');
+      for (let i = 0; i < 3; i++) {
+        const ph = (NOW * 0.002 + i * 0.37) % 1; if (ph > 0.5) continue;
+        const p = add(tip, [Math.sin(i * 7.3 + Math.floor(NOW * 0.002 + i * 0.37) * 2.1) * 6, Math.cos(i * 3.1 + Math.floor(NOW * 0.002 + i * 0.37)) * 6]);
+        dot(p, sc); if (ph > 0.15 && ph < 0.35) { dot(add(p, [1, 0]), sc); dot(add(p, [-1, 0]), sc); dot(add(p, [0, 1]), sc); dot(add(p, [0, -1]), sc); }
+      }
+    });
+    run3(L);
+    YS = 1; YC = 0; XOFF = 0;
+    return null;
+  }
+  // 怪物类（精灵图）：正面的 HD 地图精灵，旋转时左右压扁，背面改为镜像并压暗
+  function drawTurnSprite(g, u, S, P, opt) {
+    const hd = hdOn();
+    let spr = hd && typeof unitSpriteHD === 'function' ? unitSpriteHD(u) : null;
+    if (spr && S.tintM) spr = iceTint(spr, S.tintM);
+    if (!spr) spr = typeof unitSprite === 'function' ? unitSprite(u) : null;
+    if (!spr) return null;
+    const { x, feet, s } = opt, c = Math.cos(opt.yaw * RAD), sq = 0.24 + 0.76 * Math.abs(c), size = 16 * S.scale * s;
+    const hov = S.fly ? (-8 + Math.sin(opt.now * 0.004) * 2.5) * s : 0;
+    g.save(); g.globalAlpha *= P.al == null ? 1 : P.al;
+    g.translate(x, feet + hov); g.scale(c >= 0 ? sq : -sq, 1); g.imageSmoothingEnabled = hd;
+    g.drawImage(spr, -size / 2, -size * 15 / 16, size, size);
+    if (opt.sil) g.drawImage(whiteSprite(spr, opt.sil), -size / 2, -size * 15 / 16, size, size);
+    else if (c < 0.2) { g.globalAlpha *= clamp((0.2 - c) / 0.6, 0, 1) * 0.42; g.drawImage(whiteSprite(spr, '#1a1030'), -size / 2, -size * 15 / 16, size, size); }
+    g.restore();
+    return null;
+  }
+  // 旋转预览入口：yaw（度）0 = 正面、90 = 侧面、180 = 背面；HD 以外（像素画风）退回侧面像素绘制
+  function drawTurn(g, u, S, P, opt) {
+    const yaw = ((((opt.yaw || 0) + 180) % 360) + 360) % 360 - 180;
+    NOW = opt.now || 0; F = 1;
+    if (S.kind !== 'doll') return drawTurnSprite(g, u, S, P, Object.assign({}, opt, { yaw }));
+    if (!hdOn()) return draw(g, u, S, P, Object.assign({}, opt, { f: 1 }));
+    cur = 0;
+    drawHD(g, S, P, Object.assign({}, opt, { f: 1, yaw, prev: null }));
+    return null;
+  }
+  // 包围盒（美术座标，脚底为原点）：只录显示列表不绘制，供预览决定缩放与置中
+  function turnBox(u, S, P, yaw, now) {
+    if (S.kind !== 'doll') { const sz = 16 * S.scale; return [-sz / 2, -sz * 15 / 16 - (S.fly ? 10 : 0), sz / 2, sz / 16]; }
+    NOW = now || 0; F = 1; cur = 0;
+    REC = { parts: [] }; CUR_S = S;
+    try { turnDoll(S, P, { yaw }); } finally { YS = 1; YC = 0; XOFF = 0; }
+    const Rr = REC; REC = null;
+    let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (const pt of Rr.parts) if (pt) for (const p of pt.prims) { const b = p.bb; if (b[0] < x0) x0 = b[0]; if (b[1] < y0) y0 = b[1]; if (b[2] > x1) x1 = b[2]; if (b[3] > y1) y1 = b[3]; }
+    return [x0, y0, x1, y1];
+  }
+
 
   // ---------------- 动作编排 ----------------
   // 返回 { keys, dur, impact, release?, fly?, proj?, style }
@@ -2328,5 +3307,5 @@ const DFIG = (() => {
     return { keys: mkKeys([[0, {}], [70, { dx: -14, Y: -7, lean: -30, hd: -24, fa: -40, fe: -20, ba: -60, be: -40 }, 'out'], [200, { dx: -24, Y: -2, lean: -16, hd: -10, fa: -20, ba: -50 }], [330, Object.assign({ dx: -26 }, KN)], [520, Object.assign({ dx: -27, rot: -86, al: 0.8 }, KN), 'in'], [720, Object.assign({ dx: -27, rot: -86, al: 0 }, KN)]]), dur: 720, hold: 1 };
   }
 
-  return { specOf, stance, sample, proc, draw, plan, react, gap, mkKeys, FW, FH, OX, OY, TSTAT };
+  return { specOf, stance, sample, proc, draw, drawTurn, turnBox, plan, react, gap, mkKeys, FW, FH, OX, OY, TSTAT };
 })();

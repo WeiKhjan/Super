@@ -12,39 +12,94 @@ function silhouette(src, color) {
   x.globalCompositeOperation = 'source-atop'; x.fillStyle = color; x.fillRect(0, 0, c.width, c.height);
   return c;
 }
-// 职业造型预览：静态全身像（HD 用战斗画面的矢量纸娃娃，怪物类与像素模式用精灵）
+// 职业造型预览：全身像，HD 画风默认正面，可左右拖动旋转（正面 → 3/4 → 侧面 → 背面）；像素画风与 HD 失败时用精灵
+// 回传的元素可直接塞进卡片；在人物上拖动不会触发卡片的 data-pick 选择，单纯点一下仍会选择
 function classFigure(u, w, h) {
   const dpr = Math.min(3, window.devicePixelRatio || 1);
   const c = document.createElement('canvas'); c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
   c.style.width = w + 'px'; c.style.height = h + 'px'; c.className = 'cls-fig';
   const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
   const hd = typeof artHD === 'function' && artHD();
-  if (hd && typeof DFIG !== 'undefined') {
+  if (hd && typeof DFIG !== 'undefined' && DFIG.drawTurn) {
     try {
-      const sp = DFIG.specOf(u);
-      if (sp.kind === 'doll') {
-        // 先画在大画布上，量出实际轮廓（坐骑、翅膀、长柄武器大小不一），再等比缩放置中
-        const k = Math.max(2, h * dpr / 40), OW = Math.round(140 * k), OH = Math.round(130 * k);
-        const o = document.createElement('canvas'); o.width = OW; o.height = OH;
-        const og = o.getContext('2d');
-        const Q = DFIG.stance(sp); DFIG.proc(Q, sp, 0, 0.7);
-        DFIG.draw(og, u, sp, Q, { x: OW / 2, feet: OH * 0.9, s: k, f: 1, now: 0, dpr: 1, rim: { c: '#ffe6a8', a: 0.6, w: 1 } });
-        const px = og.getImageData(0, 0, OW, OH).data;
-        let x0 = OW, y0 = OH, x1 = -1, y1 = -1;
-        for (let y = 0; y < OH; y++) for (let x = 0; x < OW; x++) if (px[(y * OW + x) * 4 + 3] > 24) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
-        if (x1 >= 0) {
-          const bw = x1 - x0 + 1, bh = y1 - y0 + 1, f = Math.min(w * 0.94 / bw, h * 0.94 / bh);
-          g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
-          g.drawImage(o, x0, y0, bw, bh, (w - bw * f) / 2, h - bh * f - h * 0.02, bw * f, bh * f);
-          return c;
-        }
-      }
+      const sp = DFIG.specOf(u), Q = DFIG.stance(sp); DFIG.proc(Q, sp, 0, 0.7);
+      // 以各角度外框的联集决定缩放与脚底位置，旋转时人物不会忽大忽小
+      let x0 = 0, y0 = 0, x1 = 0, y1 = 0;
+      for (const yw of [0, 45, 90, 135, 180, -45, -90, -135]) { const b = DFIG.turnBox(u, sp, Q, yw, 0); x0 = Math.min(x0, b[0], -b[2]); x1 = Math.max(x1, b[2], -b[0]); y0 = Math.min(y0, b[1]); y1 = Math.max(y1, b[3]); }
+      const s = Math.min(w * 0.96 / (x1 - x0), h * 0.95 / (y1 - y0)), feet = h - h * 0.025 - y1 * s;
+      const fig = { yaw: 0, drawn: null };
+      const render = () => {
+        if (fig.drawn === fig.yaw) return;
+        fig.drawn = fig.yaw;
+        g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, c.width, c.height); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+        DFIG.drawTurn(g, u, sp, Q, { x: w / 2, feet, s, now: 0, dpr, yaw: fig.yaw, rim: { c: '#ffe6a8', a: 0.6, w: 1 } });
+      };
+      render();
+      return turnable(c, fig, render, w);
     } catch (e) { console.warn('职业造型预览', e); }
   }
   const spr = (hd && typeof unitSpriteHD === 'function' && unitSpriteHD(u)) || unitSprite(u), s = Math.min(w, h);
   g.imageSmoothingEnabled = hd; if (hd) g.imageSmoothingQuality = 'high';
   g.drawImage(spr, (w - s) / 2, h - s, s, s);
   return c;
+}
+// 拖动旋转：水平拖动改 yaw（约 1.1°/px），放手后带惯性，停下时轻轻吸附到最近的 45°；滑鼠停在上面时缓缓左右转
+function turnable(c, fig, render, w) {
+  const wrap = document.createElement('span'); wrap.className = 'cls-turn';
+  wrap.appendChild(c);
+  if (w >= 80) { const hint = document.createElement('i'); hint.className = 'turn-hint'; hint.setAttribute('aria-hidden', 'true'); wrap.appendChild(hint); }
+  let drag = null, anim = 0, vel = 0, hover = false, eatClick = false, last = 0;
+  const K = 1.1;
+  const frame = now => {
+    anim = 0;
+    if (!wrap.isConnected) return;
+    const dt = Math.min(50, now - (last || now)); last = now;
+    let more = false;
+    if (!drag) {
+      if (Math.abs(vel) > 0.02) { fig.yaw += vel * dt; vel *= Math.pow(0.9935, dt); more = true; }
+      else if (hover) { fig.t = (fig.t || 0) + dt; const tgt = fig.base + Math.sin(fig.t / 900) * 28; fig.yaw += (tgt - fig.yaw) * Math.min(1, dt / 160); more = true; }
+      else {
+        vel = 0;
+        const tgt = Math.round(fig.yaw / 45) * 45, d = tgt - fig.yaw;
+        if (Math.abs(d) > 0.3) { fig.yaw += d * Math.min(1, dt / 110); more = true; } else fig.yaw = tgt;
+      }
+    }
+    render();
+    if (more || drag) anim = requestAnimationFrame(frame);
+  };
+  const kick = () => { if (!anim) { last = 0; anim = requestAnimationFrame(frame); } };
+  wrap.addEventListener('pointerdown', e => {
+    if (e.button > 0) return;
+    drag = { id: e.pointerId, x: e.clientX, yaw: fig.yaw, moved: false, lx: e.clientX, lt: e.timeStamp };
+    vel = 0; eatClick = false;
+  });
+  wrap.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x;
+    if (!drag.moved && Math.abs(dx) > 6) { drag.moved = true; hover = false; wrap.classList.add('turning'); try { wrap.setPointerCapture(e.pointerId); } catch (er) { } }
+    if (!drag.moved) return;
+    fig.yaw = drag.yaw + dx * K;
+    const dtm = Math.max(1, e.timeStamp - drag.lt);
+    vel = vel * 0.6 + ((e.clientX - drag.lx) * K / dtm) * 0.4; drag.lx = e.clientX; drag.lt = e.timeStamp;
+    kick();
+    e.preventDefault();
+  });
+  const end = e => {
+    if (!drag || (e && e.pointerId !== drag.id)) return;
+    const moved = drag.moved;
+    if (moved && e && e.timeStamp - drag.lt > 90) vel = 0;
+    drag = null; wrap.classList.remove('turning');
+    if (moved) { eatClick = true; setTimeout(() => { eatClick = false; }, 400); vel = Math.max(-1.6, Math.min(1.6, vel)); kick(); }
+  };
+  wrap.addEventListener('pointerup', end);
+  wrap.addEventListener('pointercancel', end);
+  // 拖动结束后紧接着的 click 不往上冒泡（卡片的 data-pick 由 #modal 的委派处理）
+  wrap.addEventListener('click', e => { if (eatClick) { eatClick = false; e.stopPropagation(); e.preventDefault(); } });
+  wrap.addEventListener('pointerenter', e => { if (e.pointerType === 'mouse' && !drag) { hover = true; fig.base = Math.round(fig.yaw / 45) * 45; fig.t = 0; kick(); } });
+  wrap.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') { hover = false; kick(); } });
+  wrap.turnTo = yaw => { fig.yaw = yaw; vel = 0; render(); };
+  wrap.fig = fig;
+  return wrap;
 }
 function promoResize() {
   const w = Math.min(window.innerWidth, 560), h = Math.min(window.innerHeight, Math.round(w * 1.9));
@@ -334,6 +389,10 @@ function promoRenderHD(now) {
 
   // 角色：旧形象发光 → 新旧剪影越闪越快 → 新形象（放大落定）
   const bob = Math.sin(now / 260) * S * 0.02;
+  // 朝向：蓄力时正面轻晃 → 剪影闪烁时越转越快 → 登场时新造型转一圈落定在正面
+  const ease = k => 1 - Math.pow(1 - k, 3);
+  const yaw = !revealed ? (pr < 0.4 ? Math.sin(now / 700) * 14 : 720 * ((pr - 0.4) / 0.6) ** 2) : 360 * (1 - ease(Math.min(1, (t - R) / T(1600))));
+  const turn = !!DFIG.drawTurn;
   const fig = (F, alpha, scale, sil) => {
     if (!F || alpha <= 0) return;
     const sc = scale || 1;
@@ -342,10 +401,12 @@ function promoRenderHD(now) {
       const s = S / 36 * sc, feet = cy + S * 0.62 + bob;
       const Q = DFIG.stance(F.spec); DFIG.proc(Q, F.spec, now, 0.7);
       if (revealed && rp < 1) Q.lean += (1 - rp) * 8;
-      DFIG.draw(g, P.u, F.spec, Q, { x: cx, feet, s, f: 1, now, sil, dpr: P.dpr, rim: sil ? null : { c: '#ffe6a8', a: 0.75, w: 1.1 } });
+      const o = { x: cx, feet, s, f: 1, now, sil, dpr: P.dpr, rim: sil ? null : { c: '#ffe6a8', a: 0.75, w: 1.1 } };
+      if (turn) DFIG.drawTurn(g, P.u, F.spec, Q, Object.assign(o, { yaw })); else DFIG.draw(g, P.u, F.spec, Q, o);
     } else {
-      const s2 = S * 1.25 * sc;
-      g.drawImage(sil ? F.sil : F.spr, cx - s2 / 2, cy - s2 / 2 + bob, s2, s2);
+      const s2 = S * 1.25 * sc, k = Math.cos(yaw * Math.PI / 180), sq = 0.24 + 0.76 * Math.abs(k);
+      g.translate(cx, cy + bob); g.scale(k < 0 ? -sq : sq, 1);
+      g.drawImage(sil ? F.sil : F.spr, -s2 / 2, -s2 / 2, s2, s2);
     }
     g.restore();
   };
