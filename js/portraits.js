@@ -455,7 +455,7 @@ Pic.prototype = {
         let k = Math.floor(v); if ((v - k) * 16 > BAYER[(y & 3) * 4 + (x & 3)]) k++;
         col = bgp[Math.min(k, bgp.length - 1)];
       }
-      d[i * 4] = col[0]; d[i * 4 + 1] = col[1]; d[i * 4 + 2] = col[2]; d[i * 4 + 3] = 255;
+      d[i * 4] = col[0]; d[i * 4 + 1] = col[1]; d[i * 4 + 2] = col[2]; d[i * 4 + 3] = (NOBG && A === 0 && !(best > 0)) ? 0 : 255; // NOBG：剧情演出用的透明背景像素立绘
     }
     ctx.putImageData(img, 0, 0);
     return c;
@@ -676,10 +676,101 @@ const EYES = { // Q 版大眼：高瞳、大高光（dy = 相对 ey 的下移行
 };
 
 // =====================================================================
+// 剧情表情（scenes.js 用）：joy 喜 / anger 怒 / surprise 惊 / sad 哀 / resolve 坚定；默认 = 原样
+// 以参数调整五官（眼型、眉、嘴、腮红），再叠上汗滴、泪痕、怒筋等漫画符号。不传表情时完全不经过这里
+// =====================================================================
+EYES.wide = { // 惊：眼白放大、小瞳孔
+  near: ['..KKKKK.', '.KKKKKKK', 'KKWWWWWK', '..WWDDWK', '..WDHPIK', '..WDPPIK', '..WWIIWK', '..WWWWWK', '...kkkk.'],
+  far: ['KKKKK.', 'KKKKKK', 'KWWWWK', 'KWDDWK', 'KDHPIK', 'KDPPIK', 'KWIIWK', 'KWWWWK', '.kkkk.'] };
+EYES.sad = { // 哀：上眼睑垂下
+  near: ['........', '.KKKKKK.', 'KKKKKKKK', '..WDDDDK', '..WHHPIK', '..WDPPIK', '..WIILLK', '...LLLK.', '....kk..'],
+  far: ['......', 'KKKKK.', 'KKKKKK', 'KDDDDK', 'KHHPIK', 'KDPPIK', 'KILLIK', '.LLLK.', '..kk..'] };
+let EXPR = null; // buildAt 设置：{ e, enemy, used }
+const EXPR_KEYS = { joy: 1, anger: 1, surprise: 1, sad: 1, resolve: 1 };
+const EXPR_ALIAS = { 喜: 'joy', 笑: 'joy', 怒: 'anger', 惊: 'surprise', 哀: 'sad', 悲: 'sad', 坚定: 'resolve', 坚: 'resolve', 默认: null, default: null, neutral: null };
+function normExpr(e) { if (!e || typeof e !== 'string') return null; if (EXPR_KEYS[e]) return e; return EXPR_ALIAS[e] || null; }
+const BROWS_OK = ['normal', 'stern', 'angry', 'soft', 'raised', 'worried'];
+const BIG_EYES = { hero: 1, girl: 1, adult: 1, kind: 1 };
+function exprSpec(S, X) {
+  const o = Object.assign({}, S), e = X.e, ey = S.eyes || 'hero';
+  const eyesOk = ey !== 'none' && ey !== 'glow', big = !!BIG_EYES[ey];
+  const browOk = S.brow === undefined || BROWS_OK.includes(S.brow);
+  const mouthOk = S.mouth !== 'none' && S.mouth !== 'fang';
+  const set = (k, v, ok) => { if (ok) o[k] = v; };
+  if (e === 'joy') {
+    if (X.enemy) { set('brow', 'angry', browOk); set('mouth', 'grin', mouthOk); } // 反派：狞笑
+    else { set('eyes', 'closed', eyesOk); set('brow', 'soft', browOk); set('mouth', 'grin', mouthOk); if (S.blush !== false) o.blush = true; }
+  } else if (e === 'anger') { set('eyes', 'fierce', big); set('brow', 'angry', browOk); set('mouth', 'teeth', mouthOk); }
+  else if (e === 'surprise') { set('eyes', 'wide', eyesOk && ey !== 'closed'); set('brow', 'raised', browOk); set('mouth', 'open', mouthOk); }
+  else if (e === 'sad') { set('eyes', 'sad', ey === 'hero' || ey === 'girl'); set('brow', 'worried', browOk); set('mouth', 'frown', mouthOk); }
+  else if (e === 'resolve') { set('eyes', 'sharp', ey === 'hero' || ey === 'girl'); set('brow', 'stern', browOk); set('mouth', 'stern', mouthOk); }
+  X.eyes = o.eyes || 'hero'; X.noEyes = !eyesOk;
+  return o;
+}
+// 漫画符号：在最终画布上以 Canvas 2D 绘制（像素立绘用点阵，高清用平滑形状）
+const EXPR_PIX = {
+  anger: ['.R.R.', 'RR.RR', '.....', 'RR.RR', '.R.R.'],
+  sweat: ['.b.', '.b.', 'bwb', 'bwb', '.b.'],
+};
+function exprOverlay(cv, c, X) {
+  const e = X.e; if (e !== 'anger' && e !== 'surprise' && e !== 'sad' && e !== 'joy') return;
+  const g = cv.getContext('2d'), HT = c.HT, F = c.F;
+  const sx = x => HT[1] + (x - HT[1]) * HT[0], sy = y => HT[2] + (y - HT[2]) * HT[0];
+  const k = SC, u = HT[0];
+  const pix = (rows, x0, y0, pal) => { for (let r = 0; r < rows.length; r++) for (let q = 0; q < rows[r].length; q++) { const ch = rows[r][q]; if (pal[ch]) { g.fillStyle = pal[ch]; g.fillRect(Math.round(x0) + q, Math.round(y0) + r, 1, 1); } } };
+  const sweat = (x, y, r) => {
+    if (SC === 1) return pix(EXPR_PIX.sweat, x - 1, y - 3, { b: '#5a9ae0', w: '#e8f6ff' });
+    x *= k; y *= k; r *= k;
+    g.save(); g.beginPath(); g.moveTo(x, y - r * 2.6); g.bezierCurveTo(x + r * 0.5, y - r * 1.4, x + r * 1.05, y - r * 0.6, x + r, y);
+    g.arc(x, y, r, 0, Math.PI); g.bezierCurveTo(x - r * 1.05, y - r * 0.6, x - r * 0.5, y - r * 1.4, x, y - r * 2.6); g.closePath();
+    const gr = g.createLinearGradient(x, y - r * 2.6, x, y + r); gr.addColorStop(0, '#d4efff'); gr.addColorStop(1, '#5aa6ee');
+    g.fillStyle = gr; g.fill(); g.lineWidth = Math.max(1, k * 0.45); g.strokeStyle = '#1e4e96'; g.stroke();
+    g.fillStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.ellipse(x - r * 0.35, y - r * 0.25, r * 0.22, r * 0.42, -0.4, 0, Math.PI * 2); g.fill();
+    g.restore();
+  };
+  if (e === 'anger') { // 怒筋（额头右上）
+    const x = sx(41.5), y = sy(17.5);
+    if (SC === 1) pix(EXPR_PIX.anger, x - 2, y - 2, { R: '#e02828' });
+    else {
+      const cx = x * k, cy = y * k, r = 2.9 * k;
+      g.save(); g.lineCap = 'round';
+      for (const pass of [[r * 0.62, '#5a0a0a'], [r * 0.36, '#ff3a2a']]) {
+        g.lineWidth = pass[0]; g.strokeStyle = pass[1];
+        for (const [qx, qy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) { // 四段朝中心凹的弧
+          const ox = cx + qx * r * 1.05, oy = cy + qy * r * 1.05, a0 = Math.atan2(-qy, -qx);
+          g.beginPath(); g.arc(ox, oy, r * 0.78, a0 - 0.75, a0 + 0.75); g.stroke();
+        }
+      }
+      g.restore();
+    }
+  } else if (e === 'surprise') sweat(sx(44.8), sy(25), 1.7 * u);
+  else if (e === 'joy' && !X.enemy && !X.noEyes) { // 喜：小星光
+    const x = sx(43.5), y = sy(19);
+    if (SC === 1) pix(['.y.', 'yYy', '.y.'], x - 1, y - 1, { y: '#ffe680', Y: '#ffffff' });
+    else { const cx = x * k, cy = y * k, r = 2.6 * k; g.save(); g.fillStyle = '#fff6c0'; g.shadowColor = '#ffd040'; g.shadowBlur = k * 1.5; g.beginPath(); for (let i = 0; i < 8; i++) { const a = i * Math.PI / 4, rr = i % 2 ? r * 0.3 : r; g.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } g.closePath(); g.fill(); g.restore(); }
+  } else if (e === 'sad') {
+    if (X.enemy || X.noEyes) return sweat(sx(44.6), sy(25), 1.2 * u);
+    const ey = Math.round(sy(F.ey + (c.S.eyeDy || 0))), rows = (EYES[X.eyes] || EYES.hero).near.length;
+    const eyes = [[Math.round(sx(F.nx)) + 4.5, ey + rows - 0.5], [Math.round(sx(F.fx)) + 3, ey + rows - 1]];
+    if (SC === 1) { for (const [x, y] of eyes) { g.fillStyle = '#9ad4ff'; g.fillRect(Math.floor(x), Math.round(y), 1, 3); g.fillStyle = '#e8f8ff'; g.fillRect(Math.floor(x), Math.round(y) + 3, 1, 1); } return; }
+    g.save(); g.lineCap = 'round';
+    for (const [x, y] of eyes) {
+      const X0 = x * k, Y0 = y * k, L = 5.5 * k;
+      const gr = g.createLinearGradient(X0, Y0, X0, Y0 + L); gr.addColorStop(0, 'rgba(190,230,255,.95)'); gr.addColorStop(1, 'rgba(120,190,250,.55)');
+      g.strokeStyle = gr; g.lineWidth = 0.9 * k; g.beginPath(); g.moveTo(X0, Y0); g.quadraticCurveTo(X0 - 0.6 * k, Y0 + L * 0.5, X0 - 0.3 * k, Y0 + L); g.stroke();
+      g.fillStyle = 'rgba(200,238,255,.95)'; g.beginPath(); g.arc(X0 - 0.3 * k, Y0 + L + 0.4 * k, 0.75 * k, 0, Math.PI * 2); g.fill();
+      g.fillStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.arc(X0 - 0.55 * k, Y0 + L + 0.1 * k, 0.25 * k, 0, Math.PI * 2); g.fill();
+    }
+    g.restore();
+  }
+}
+
+// =====================================================================
 // 人物绘制
 // =====================================================================
 function drawHuman(S) {
   if (CUR_GEAR) { S = applyGear(S, CUR_GEAR); CUR_GEAR = null; } // 仅作用于本次英雄立绘
+  if (EXPR) { S = exprSpec(S, EXPR); EXPR.used = true; } // 剧情表情（喜怒惊哀坚定）
   const p = new Pic();
   const F = Object.assign({}, FACES[S.face] || FACES.m);
   const skin = SKIN[S.skin] || SKIN.fair;
@@ -742,6 +833,7 @@ function drawHuman(S) {
   for (const h of [].concat(S.head || [], S.acc || [])) fn(h)(c);
   TF = null;
   if (S.front) S.front(c);
+  if (EXPR) { const out = p.render(S.bg || BG); exprOverlay(out, c, EXPR); return out; }
   return p.render(S.bg || BG);
 }
 
@@ -4285,7 +4377,8 @@ function build(id, variant, tier, path) {
 // tier：职业阶（0 起）；未指定 = 角色当前默认外观。仅对我方英雄有效
 // path：'b' = 转职分支 B 路线（tier >= 该职业分支阶 at 时生效）；省略 / 'a' = 原路线
 // 快取键：涵盖会影响外观的一切状态（作品、职业、等级、装备……）
-function portKey(id, variant, tier, path) {
+const EXPR_NONE = new Set(); // 套用表情后五官没变的立绘（怪物等）：之后直接用原图
+function portKey(id, variant, tier, path, expr) {
   if (typeof id === 'string' && id.startsWith('enemy:')) { if (id === 'enemy:maskman' && tier >= 1 && !variant) variant = 'captain'; tier = null; }
   if (path !== 'b' || tier == null || !(tier >= (branchAt(id) == null ? Infinity : branchAt(id)))) path = null;
   let key = id + '|' + (variant || '') + (tier == null ? '' : '|' + tier) + (path ? '|b' : '');
@@ -4294,22 +4387,25 @@ function portKey(id, variant, tier, path) {
   if (G2_HEROES[id] && !HERO_SPECS[id]) { key += '|' + g2Cls(id); if (tier == null) { try { key += '|lv' + HEROES[id].lv; } catch (e) { /* 无 HEROES */ } } }
   const hg = typeof id === 'string' && !id.startsWith('enemy:') ? heroGear(id) : null;
   if (hg) key += '|' + hg.key; // 换装后重新绘制
-  return { key, variant, tier, path, hg };
+  const base = key; expr = normExpr(expr);
+  if (expr && !EXPR_NONE.has(base)) key += '|x:' + expr; else expr = null; // 剧情表情（没有五官可调的立绘沿用原图）
+  return { key, variant, tier, path, hg, expr, base };
 }
 // 以 sc 倍内部解析度建立立绘（sc = 1 为原版像素立绘）
 function buildAt(sc, id, k, nobg) {
   let c = null;
   setScale(sc); NOBG = !!nobg; CUR_GEAR = k.hg && k.hg.g;
+  EXPR = k.expr ? { e: k.expr, enemy: id.startsWith('enemy:'), used: false } : null;
   try { c = build(id, k.variant, k.tier, k.path); } catch (e) { if (G.console) console.warn('portrait', id, sc > 1 ? '(HD)' : '', e); c = null; }
-  finally { TF = null; CUR_GEAR = null; NOBG = false; setScale(1); }
+  finally { if (EXPR && !EXPR.used) EXPR_NONE.add(k.base); TF = null; CUR_GEAR = null; NOBG = false; EXPR = null; setScale(1); }
   return c;
 }
-function getPortrait(id, variant, tier, path) {
-  const k = portKey(id, variant, tier, path), key = k.key;
+function getPortrait(id, variant, tier, path, expr) {
+  const k = portKey(id, variant, tier, path, expr), key = k.key;
   if (CACHE[key]) return CACHE[key];
   let c = buildAt(1, id, k);
   if (!c) { c = CACHE['?'] || (CACHE['?'] = silhouette()); c.__pk = { key: '?' }; }
-  else { c.className = 'pix portrait'; c.__pk = { key, args: [id, variant, tier, path] }; }
+  else { c.className = 'pix portrait'; c.__pk = { key, args: k.expr ? [id, variant, tier, path, k.expr] : [id, variant, tier, path] }; }
   CACHE[key] = c;
   return c;
 }
@@ -4333,11 +4429,13 @@ function hdSilhouette(nobg) {
 }
 // getPortraitHD(id, variant, tier, path, { bg: false }) → 256×288 高清立绘（已快取；失败时回传 null）
 function getPortraitHD(id, variant, tier, path, opts) {
-  const nobg = !!(opts && opts.bg === false), k = portKey(id, variant, tier, path), hk = k.key + (nobg ? '|nb' : '');
+  const nobg = !!(opts && opts.bg === false), k = portKey(id, variant, tier, path, opts && opts.expr), hk = k.key + (nobg ? '|nb' : '');
   if (HCACHE.has(hk)) return HCACHE.get(hk);
   const big = buildAt(HD_SC, id, k, nobg);
   if (!big) return hdSilhouette(nobg);
-  return hdPut(hk, hdFinish(big));
+  const out = hdPut(hk, hdFinish(big));
+  if (k.expr && EXPR_NONE.has(k.base) && !HCACHE.has(k.base + (nobg ? '|nb' : ''))) hdPut(k.base + (nobg ? '|nb' : ''), out); // 表情不适用（怪物等）：与原图相同，一并快取
+  return out;
 }
 // 由 getPortrait 回传的像素立绘取得对应的高清立绘（hd_units.js 的 hdPortrait 会先走这里）
 function portraitHDOf(src, opts) {
@@ -4346,9 +4444,9 @@ function portraitHDOf(src, opts) {
   if (pk.key === '?') return hdSilhouette(nobg);
   const hk = pk.key + (nobg ? '|nb' : '');
   if (HCACHE.has(hk)) return HCACHE.get(hk);
-  const [id, variant, tier, path] = pk.args;
-  if (portKey(id, variant, tier, path).key !== pk.key) return null; // 状态已变（旧画布）：交给平滑重绘
-  return getPortraitHD(id, variant, tier, path, opts);
+  const [id, variant, tier, path, expr] = pk.args;
+  if (portKey(id, variant, tier, path, expr).key !== pk.key) return null; // 状态已变（旧画布）：交给平滑重绘
+  return getPortraitHD(id, variant, tier, path, expr ? Object.assign({}, opts, { expr }) : opts);
 }
 // 空闲时预先建好高清立绘：list = [[id, variant, tier, path], ...]
 let WARM = [];
@@ -4367,6 +4465,26 @@ function warmPortraitsHD(list) {
   };
   idle(step);
 }
+// 剧情演出（scenes.js）：o = { variant, tier, path, expr, hd, bg }；hd → 256×288 高清，否则 64×72 像素；bg: false = 透明背景
+const PXNB = new Map();
+function getPortraitScene(id, o) {
+  o = o || {};
+  if (o.cachedOnly) { // 只查快取、不绘制（scenes.js 用来避免点击时卡顿）
+    const k = portKey(id, o.variant, o.tier, o.path, o.expr);
+    if (o.hd) return HCACHE.get(k.key + (o.bg === false ? '|nb' : '')) || null;
+    return (o.bg === false ? PXNB.get(k.key) : CACHE[k.key]) || null;
+  }
+  if (o.hd) return getPortraitHD(id, o.variant, o.tier, o.path, { bg: o.bg, expr: o.expr });
+  if (o.bg !== false) return getPortrait(id, o.variant, o.tier, o.path, o.expr);
+  const k = portKey(id, o.variant, o.tier, o.path, o.expr);
+  if (PXNB.has(k.key)) return PXNB.get(k.key);
+  const c = buildAt(1, id, k, true) || null;
+  if (k.expr && EXPR_NONE.has(k.base) && !PXNB.has(k.base)) PXNB.set(k.base, c);
+  PXNB.set(k.key, c); if (PXNB.size > 120) PXNB.delete(PXNB.keys().next().value);
+  return c;
+}
+G.getPortraitScene = getPortraitScene;
+G.portraitExpr = normExpr;
 G.getPortraitHD = getPortraitHD;
 G.portraitHDOf = portraitHDOf;
 G.warmPortraitsHD = warmPortraitsHD;

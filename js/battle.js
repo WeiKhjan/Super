@@ -1386,6 +1386,7 @@ async function dialog(lines) {
 }
 function dialogPlain(lines) {
   if (AUTO || !lines || !lines.length) return Promise.resolve();
+  if (typeof SCN_dialog === 'function') { const sp = SCN_dialog(lines); if (sp) return sp; } // 剧情演出（js/scenes.js）；回传 null 时沿用下面的对话框
   return new Promise(res => {
     const box = $('#dialog'); let i = 0, typing = null, full = '';
     const showLine = () => {
