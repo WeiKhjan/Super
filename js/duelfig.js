@@ -701,7 +701,8 @@ const DFIG = (() => {
     const n = Math.max(CL ? CL.tiers.length : 1, alt && alt.tiers ? at + alt.tiers.length : 0), t = clamp(u.tier | 0, 0, n - 1);
     const isB = u.path === 'b' && at != null && t >= at;
     const wk = (typeof ITEMS !== 'undefined' && u.weapon && ITEMS[u.weapon] && ITEMS[u.weapon].kind) || '';
-    const key = [cls, t, team, u.hair || '', u.id || '', wk, u.element || '', u.color || '', isB ? 'b' : 'a', u.sex || '', u.weapon || '', u.armor || ''].join('|');
+    const look = lookOf(u, team);
+    const key = [cls, t, team, u.hair || '', u.id || '', wk, u.element || '', u.color || '', isB ? 'b' : 'a', u.sex || '', u.weapon || '', u.armor || ''].join('|') + (look ? '|@' + look.key : '');
     if (SPEC_CACHE[key]) return SPEC_CACHE[key];
     const fn = (isB && LINES_B[cls]) || LINES[cls] || (CL && LINES[CL.sprite]);
     let S;
@@ -733,8 +734,166 @@ const DFIG = (() => {
       if (u.id === 'mengqi' || cls === 'writer') { S.scarf = C.red; S.scarfLong = t >= 1; }
       if (S.hs === 'pony' && S.head && ['helm', 'kettle', 'hood', 'cowl', 'mask'].includes(S.head.t)) S.hs = 'long';
       finalize(S, base);
+      // 英雄的个人外观（只在 HD 绘制时套用，见 idSpec；像素画风维持原样）
+      if (look) S.look = look;
     }
     return (SPEC_CACHE[key] = S);
+  }
+
+  // ---------------- 英雄个人特征（portraits.js 的 heroLook）：HD 纸娃娃专用 ----------------
+  // 我方 / 友军的具名英雄才套用；敌方、一般单位、兽类维持职业造型
+  function lookOf(u, team) {
+    if (!u || typeof u.id !== 'string' || !u.id || (team !== 'player' && team !== 'ally') || typeof heroLook !== 'function') return null;
+    let L = null;
+    try { L = heroLook(u.id); } catch (e) { L = null; }
+    return L && L.kind === 'human' && L.key ? L : null;
+  }
+  const hexRGB = h => rgb(h);
+  const rgbHex = c => '#' + c.map(v => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0')).join('');
+  const mixH = (a, b, t) => { const A = hexRGB(a), B = hexRGB(b); return rgbHex([A[0] + (B[0] - A[0]) * t, A[1] + (B[1] - A[1]) * t, A[2] + (B[2] - A[2]) * t]); };
+  const darkH = (a, t) => mixH(a, '#180e22', t);
+  const hueSat = h => { const [r, g, b] = hexRGB(h), mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn; if (d < 1) return [0, 0]; let hu = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; return [(hu * 60 + 360) % 360, d / mx]; };
+  const nearHue = (a, b) => { const A = hueSat(a), B = hueSat(b); if (A[1] < 0.25 || B[1] < 0.25) return false; const d = Math.abs(A[0] - B[0]); return Math.min(d, 360 - d) < 28; };
+  const sameH = (a, b) => !!a && !!b && a.toLowerCase() === b.toLowerCase();
+  // 发型：基本轮廓（沿用原有的 short / long / pony / spiky / topknot / bald）+ 细分（hx）
+  const HS_BASE = { short: 'short', swept: 'short', messy: 'short', shaggy: 'short', spiky: 'spiky', wild: 'spiky', mane: 'long', long: 'long', wavy: 'long',
+    ponytail: 'pony', 'twin-tails': 'short', bob: 'short', tied: 'topknot', braid: 'short', bald: 'bald', sides: 'bald' };
+  const HS_X = { swept: 'swept', messy: 'messy', shaggy: 'shaggy', wild: 'wild', mane: 'mane', wavy: 'wavy', 'twin-tails': 'twin', bob: 'bob', braid: 'braid', bald: 'bald' };
+  // 头饰类型 → 决斗纸娃娃的头饰；null = 只画成小配件
+  const HEAVY_HEAD = new Set(['helm', 'kettle', 'mask', 'beakhelm', 'kabuto', 'hood', 'cowl', 'ninja', 'wizhat', 'mitre', 'crown', 'tricorne', 'cap', 'straw', 'feather', 'headdress', 'bandana', 'jester', 'veil', 'horns', 'fin', 'batears']);
+  const SOFT_HAT = new Set(['cap', 'straw', 'kettle', 'feather', 'tricorne']);
+  // 套用头饰：回传新的 head（或原 head），配件写进 K
+  function idHead(S, L, K) {
+    const hd = S.head && S.head.t ? S.head : null, ct = hd ? hd.t : '', H = L.head;
+    // 兜帽（立绘有兜帽）：没头饰 / 只有头带额环时换成个人兜帽；本来就是兜帽则改颜色
+    if (L.hood) {
+      if (!hd || ct === 'band' || ct === 'circlet') { if (H && H.gem) K.gem = H.gem; return { t: 'hood', c: L.hood }; }
+      if (ct === 'hood' || ct === 'cowl') return Object.assign({}, hd, { c: L.hood });
+    }
+    if (!H) return hd;
+    const ty = H.type, col = H.color, col2 = H.color2;
+    if (ty === 'halo') { if (!S.halo) S.halo = 'ring'; return hd; }
+    // 只画成配件的头饰
+    if (ty === 'flower') { K.flower = col; return hd; }
+    if (ty === 'ribbon') { K.bow = col; K.tie = K.tie || col; return hd; }
+    if (ty === 'goggles') { K.goggles = { c: col, gem: H.gem || '#60c0e0' }; return hd || { t: 'band', c: col }; }
+    if (ty === 'leaves') { K.leaves = [col, col2 || null]; return hd || { t: 'band', c: darkH(col, 0.3) }; }
+    // 对应到纸娃娃头饰
+    const mapped = ty === 'headband' ? { t: 'band', c: col, tail: 1 } : ty === 'bandana' ? { t: 'bandana', c: col } : ty === 'turban' ? { t: 'bandana', c: col, notail: 1 }
+      : ty === 'tiara' ? { t: 'circlet', c: col, gem: H.gem || null } : ty === 'crown' ? { t: 'crown', c: col, gem: H.gem || null } : ty === 'mitre' ? { t: 'mitre', c: col, c2: col2 || col }
+      : ty === 'hat' ? (H.shape === 'tricorne' ? { t: 'tricorne', c: col, c2: col2 || darkH(col, 0.3) } : H.shape === 'witch' ? { t: 'wizhat', c: col, band: col2 || null } : { t: 'cap', c: col, plume: col2 || null })
+      : ty === 'helmet' ? { t: 'helm', c: col, plume: col2 || null, nasal: 1 } : ty === 'feathers' ? { t: 'headdress', c: col2 || col, c2: col }
+      : ty === 'horns' ? { t: 'horns', c: col } : ty === 'veil' ? { t: 'veil', c: col, c2: '#e0aa30', gem: H.gem || null } : ty === 'fins' ? { t: 'fin', c: col } : null;
+    if (!mapped) return hd;
+    const gemOf = () => { if (H.gem) K.gem = H.gem; if (H.feather) K.feather = H.feather; };
+    if (!hd) { if (mapped.t === 'band') gemOf(); return mapped; }
+    // 同类：保留职业造型、改成个人颜色
+    if (ct === mapped.t || (ct === 'band' && mapped.t === 'bandana') || (ct === 'circlet' && mapped.t === 'crown')) {
+      const o = Object.assign({}, hd, { c: col });
+      if (mapped.c2 && ct !== 'veil') o.c2 = mapped.c2;
+      if (ct === 'circlet' || ct === 'crown' || ct === 'veil' || ct === 'horns') { if (H.gem) o.gem = H.gem; }
+      if (ct === 'helm' && col2) o.plume = col2;
+      if (ct === 'helm') o.c = hd.c; // 头盔的金属色属于职阶造型，只换缨饰
+      if (ct === 'band') { o.tail = 1; gemOf(); }
+      if (ct === 'wizhat' && col2) o.band = col2;
+      if (ct === 'cap' && col2) o.plume = col2;
+      return o;
+    }
+    // 职业头带 / 额环 / 头巾 + 立绘的头带：换成个人头带（狂野发型露出来）
+    if ((ct === 'bandana' || ct === 'band') && mapped.t === 'band') { gemOf(); return Object.assign({}, mapped); }
+    if (!HEAVY_HEAD.has(ct)) { if (mapped.t === 'band') gemOf(); return mapped; }
+    // 职业戴帽子 / 头盔：个人头饰低调地融进去
+    if (SOFT_HAT.has(ct) && (mapped.t === 'tricorne' || mapped.t === 'cap' || mapped.t === 'wizhat')) return ct === 'feather' && mapped.t === 'cap' ? Object.assign({}, hd, { c: col, plume: col2 || hd.plume }) : mapped;
+    if (ct === 'headdress' && mapped.t === 'band') { if (H.gem) K.gem = H.gem; return Object.assign({}, hd, { c: col }); }
+    if (mapped.t === 'band' || mapped.t === 'bandana') { K.tails = col; if (H.gem) K.gem = H.gem; if (H.feather) K.feather = H.feather; return hd; }
+    if (mapped.t === 'circlet' || mapped.t === 'crown') {
+      if (ct === 'wizhat') return Object.assign({}, hd, { band: col, gem: H.gem || hd.gem });
+      if (ct === 'horns' || ct === 'crown') return Object.assign({}, hd, H.gem ? { gem: H.gem } : {});
+      if (H.gem) K.gem = H.gem; return hd;
+    }
+    if (mapped.t === 'headdress') { K.feather = col2 || col; return hd; }
+    if (mapped.t === 'helm' && col2 && (ct === 'kettle' || ct === 'kabuto')) { K.feather = col2; return hd; }
+    return hd;
+  }
+  // 个人服色：身上最大片的非阵营布料 → 个人服色，次大片 → 饰边色（阵营色、金属、肤色不动）
+  function idCloth(S2, L) {
+    const p = S2.p, q = S2.q;
+    const skip = h => !h || sameH(h, p) || sameH(h, q) || METAL_HEX.has(h) || SKIN_HEX.has(h) || sameH(h, S2.skin);
+    const w = {}, addW = (h, n) => { if (!skip(h)) w[h] = (w[h] || 0) + n; };
+    const a = S2.armor, clothArmor = a && ['coat', 'tunic', 'vest', 'leather', 'do', 'diamond'].includes(a.t);
+    if (S2.robe) { addW(S2.robe.c, 6); addW(S2.robe.c2, 4); }
+    if (clothArmor) addW(a.c, 5);
+    addW(S2.shirt, 3);
+    if (S2.skirt && S2.skirt.t !== 'tassets') addW(S2.skirt.c, 2);
+    if (S2.mantle && !S2.mantle.fur) addW(S2.mantle.c, 2);
+    if (S2.cape && !L.cape) addW(S2.cape.c, 3);
+    addW(S2.pants, 2);
+    const order = Object.keys(w).sort((x, y) => w[y] - w[x]);
+    let cloth = L.cloth, trim = L.trim;
+    if (cloth && nearHue(cloth, p)) cloth = trim && !nearHue(trim, p) ? trim : null;
+    if (trim && nearHue(trim, p)) trim = null;
+    if (trim && sameH(trim, cloth)) trim = null;
+    const map = {};
+    if (order[0] && cloth) map[order[0].toLowerCase()] = mixH(order[0], cloth, 0.75);
+    if (order[1] && trim) map[order[1].toLowerCase()] = mixH(order[1], trim, 0.75);
+    else if (!order[1] && order[0] && !cloth && trim) map[order[0].toLowerCase()] = mixH(order[0], trim, 0.75);
+    // 主要衣物全是阵营色（法师袍等）：只在袍子下摆与腰带缀上个人色，阵营色仍是主色
+    const accent = cloth || trim;
+    if (accent && S2.robe && sameH(S2.robe.c, p) && !Object.keys(map).some(k => w[Object.keys(w).find(x => x.toLowerCase() === k)] >= 4)) {
+      S2.robe = Object.assign({}, S2.robe, { c2: mixH(S2.robe.c2 && !sameH(S2.robe.c2, p) ? S2.robe.c2 : p, accent, 0.5), sash: S2.robe.sash || accent });
+      if (trim && cloth) S2.belt = trim;
+    }
+    const re = h => (typeof h === 'string' && map[h.toLowerCase()]) || h;
+    for (const f of ['shirt', 'sleeve', 'pants', 'bracer', 'collar', 'tabard']) if (S2[f]) S2[f] = re(S2[f]);
+    if (S2.robe) S2.robe = Object.assign({}, S2.robe, { c: re(S2.robe.c), c2: re(S2.robe.c2), sash: re(S2.robe.sash) });
+    if (clothArmor) S2.armor = Object.assign({}, a, { c: re(a.c), c2: re(a.c2) });
+    if (S2.skirt && S2.skirt.t !== 'tassets') S2.skirt = Object.assign({}, S2.skirt, { c: re(S2.skirt.c), c2: re(S2.skirt.c2) });
+    if (S2.mantle) S2.mantle = Object.assign({}, S2.mantle, { c: re(S2.mantle.c) });
+    if (S2.cape && !L.cape) S2.cape = Object.assign({}, S2.cape, { c: re(S2.cape.c), c2: S2.cape.c2 && map[S2.cape.c.toLowerCase()] && !sameH(S2.cape.c2, p) && !sameH(S2.cape.c2, q) ? darkH(re(S2.cape.c), 0.35) : S2.cape.c2 });
+  }
+  // 由职业造型 S 推出套上个人特征的 HD 规格（每个 S 只算一次；贴图快取跟着这个物件走）
+  function idSpec(S) {
+    const L = S.look; if (!L) return S;
+    if (S.__id) return S.__id;
+    const S2 = Object.assign({}, S); delete S2.look;
+    if (!S.beast) {
+      // 个人肤色：蓝色通道微调成专用色号再登记为皮肤材质（不影响其他刚好同色的布料 / 装备）
+      const sc = hexRGB(L.skin), skin = rgbHex([sc[0], sc[1], sc[2] + (sc[2] < 255 ? 1 : -1)]);
+      SKIN_HEX.add(skin);
+      S2.skin = skin; if (S.glove === S.skin) S2.glove = skin; if (S.sleeve === S.skin) S2.sleeve = skin;
+      if (L.iris) S2.eyeC = L.iris;
+      const K = { hx: HS_X[L.hairStyle] || '', beard: L.beard || '', face: L.faceAcc || '', scar: !!L.scar, paint: L.paint || '', earring: !!L.earring, tie: null };
+      S2.hs = HS_BASE[L.hairStyle] || S.hs;
+      S2.beard = L.beard === 'full' || L.beard === 'long';
+      if (L.ears === 'elf') S2.elf = 1;
+      S2.head = idHead(S2, L, K);
+      if (S2.head === null) delete S2.head;
+      // 具名英雄的全罩盔掀开面甲（地图小人与立绘都看得到脸）；盔缨换成个人色
+      if (S2.head && S2.head.t === 'helm') {
+        const h2 = Object.assign({}, S2.head);
+        if (h2.visor) { h2.visor = 0; h2.nasal = 1; }
+        const own = L.head && L.head.type === 'helmet' && L.head.color2;
+        const pc2 = [L.cape, L.cloth, L.trim].find(c => c && hueSat(c)[1] >= 0.3);
+        if (h2.plume && !own && pc2) h2.plume = pc2;
+        S2.head = h2;
+      }
+      // 暗影兜帽（只露发光的眼）改成露脸的兜帽：立绘与地图小人都看得到英雄的脸
+      if (S2.head && S2.head.t === 'cowl') { S2.head = Object.assign({}, S2.head, { t: 'hood' }); delete S2.head.eyes; }
+      const ht = S2.head && S2.head.t;
+      if (S2.hs === 'pony' && (ht === 'hood' || ht === 'cowl')) S2.hs = 'long';
+      if (K.hx === 'twin' && (ht === 'hood' || ht === 'cowl' || ht === 'ninja')) K.hx = '';
+      if (S2.hs === 'pony' || K.hx === 'twin' || K.hx === 'braid') K.tie = K.tie || (L.trim && !sameH(L.trim, S.hair) ? L.trim : darkH(S.hair, 0.45));
+      if (L.scarf) { S2.scarf = L.scarf; S2.scarfLong = 1; }
+      S2.idk = K;
+    }
+    idCloth(S2, L);
+    if (L.cape) {
+      const cp = S.cape;
+      S2.cape = cp ? Object.assign({}, cp, { c: L.cape, c2: sameH(cp.c, S.p) ? S.p : darkH(L.cape, 0.38) }) : { c: L.cape, c2: darkH(L.cape, 0.4), trim: L.trim || null, len: 26 };
+      if (!S2.cape.trim) delete S2.cape.trim;
+    }
+    Object.defineProperty(S, '__id', { value: S2 });
+    return S2;
   }
 
   // ---------------- 姿势 ----------------
@@ -1079,6 +1238,88 @@ const DFIG = (() => {
     const pts = m.collar ? [TP(-6, 19.5), TP(-2, 18.5), TP(5.8, 16), TP(6.4, 9.5), TP(2, 8), TP(-6.4, 9)] : [TP(-5.8, 16), TP(5.6, 15.2), TP(6.4, 9.6), TP(1, 8.6), TP(-6.4, 9.4)];
     poly(pts, (px, py) => { const u = TLoc(J, px, py, 1.1)[1]; if (m.fur) return u < 10.6 ? tr : ((Math.floor(px * 1.3) + Math.floor(py)) % 3 ? c1 : pc('#5a3a1a')); return u < 10.6 ? tr : c1; });
   }
+  // ---------- 英雄个人特征：发型细节与小配件（头部局部座标 x 前、y 下、z 右；侧面决斗与 3D 预览共用） ----------
+  // X = { side, P(x, y, z) → 美术座标, D(x, z) → 深度（> 0 = 朝观者）, hair / gear(d, fn) 依深度登记, hp() 新的头发部件, sh(q) 头发明暗 }
+  const SPIKE_COVER = ['helm', 'kettle', 'hood', 'kabuto', 'mask', 'cowl', 'crown', 'mitre', 'wizhat', 'bandana', 'feather', 'cap', 'straw', 'headdress', 'ninja', 'beakhelm'];
+  // 发束：[根, 梢, 根半径, 梢半径]
+  const TUFTS = {
+    swept: [[[0.6, -6.4, 0.6], [5.4, -9.0, 1.2], 2.6, 0.5], [[2.8, -5.2, 2.6], [6.8, -6.8, 3.6], 2.0, 0.45], [[2.8, -5.2, -2.6], [6.6, -7.0, -3.4], 2.0, 0.45], [[-5.0, -3.8, 0], [-9.4, -4.8, 0.4], 2.0, 0.4]],
+    messy: [[[0.4, -5.8, 0], [1.6, -9.2, 0.8], 2.0, 0.4], [[-2.6, -5.0, 2.8], [-4.6, -8.2, 4.8], 1.9, 0.4], [[-2.6, -5.0, -2.8], [-5.0, -7.9, -4.6], 1.9, 0.4],
+      [[-4.8, -2.4, 0], [-8.4, -3.4, 0.6], 1.9, 0.4], [[2.6, -4.8, 2.6], [4.8, -7.4, 4.0], 1.6, 0.35], [[2.6, -4.8, -2.6], [4.4, -7.6, -3.8], 1.6, 0.35], [[-4.2, 0.4, 4.6], [-6.6, 2.4, 6.4], 1.6, 0.35]],
+    shaggy: [[[-4.6, 1.0, 3.6], [-6.2, 6.0, 4.4], 2.0, 0.5], [[-4.6, 1.0, -3.6], [-6.0, 6.0, -4.4], 2.0, 0.5], [[-5.6, 0.6, 0], [-7.8, 5.6, 0], 2.2, 0.5], [[-1.2, 0.8, 6.2], [-1.6, 4.8, 6.9], 1.5, 0.4], [[-1.2, 0.8, -6.2], [-1.6, 4.8, -6.9], 1.5, 0.4],
+      [[0.4, -5.8, 0], [1.4, -8.6, 0.6], 1.9, 0.4], [[-3.0, -4.8, 2.8], [-5.0, -7.4, 4.6], 1.8, 0.4], [[-3.0, -4.8, -2.8], [-5.2, -7.2, -4.4], 1.8, 0.4]],
+    wild: [[[0.5, -5.4, 0], [-1.6, -12.2, 0.3], 2.9, 0.4], [[-2, -4.8, 3], [-6.6, -10.2, 6.6], 2.8, 0.4], [[-2, -4.8, -3], [-6.6, -10.2, -6.6], 2.8, 0.4], [[-4, -1.8, 4.4], [-9.8, -3.4, 8.8], 2.6, 0.4], [[-4, -1.8, -4.4], [-9.8, -3.4, -8.8], 2.6, 0.4],
+      [[2.6, -4.6, 2.8], [5.6, -9.2, 5.4], 2.3, 0.4], [[2.6, -4.6, -2.8], [5.6, -9.2, -5.4], 2.3, 0.4], [[-4.8, -4.4, 0], [-11, -8.2, 0], 2.8, 0.4], [[-5.6, 0.2, 0], [-11.2, 1.6, 0], 2.7, 0.4]],
+  };
+  function idHairX(X, S, P) {
+    const K = S.idk; if (!K) return;
+    const hx = K.hx, t = (S.head && S.head.t) || '', hair = pc(S.hair), sw = Math.sin(NOW * 0.006) * 1.5 - (P.ra || 0) * 3;
+    const set = TUFTS[hx === 'mane' ? 'wild' : hx];
+    if (set && !SPIKE_COVER.includes(t)) {
+      const ws = Math.sin(NOW * 0.005) * 0.5;
+      const one = ([a, b, r0, r1]) => X.sh(capK(X.P(a[0], a[1], a[2]), X.P(b[0], b[1] + (b[1] < -6 ? ws : 0), b[2]), r0, r1, hair));
+      // 侧面：远 / 近两组各并成一个部件（一次描边）；3D 逐束依深度排序
+      if (X.side) for (const sg of [-1, 1]) { const grp = set.filter(q => (q[1][2] < 0 ? -1 : 1) === sg); if (grp.length) X.hair(sg * 0.01, () => { X.hp(); grp.forEach(one); }); }
+      else for (const q of set) X.hair(X.D(q[1][0], q[1][2]) * 0.3 - 0.05, () => { X.hp(); one(q); });
+    }
+    // 双马尾：从头顶两侧垂到肩后
+    if (hx === 'twin') for (const sd of [1, -1]) {
+      const r = [-3.0 - (sd < 0 ? 0.6 : 0), -4.8, sd * 5.2], m = [-5.2 - (sd < 0 ? 0.6 : 0), 1.2 + sw * 0.2, sd * 7.8], e = [-5.0 + sw * 0.5, 7.8, sd * 7.2], tip = [-3.8 + sw * 0.7, 9.6, sd * 6.6];
+      X.hair(X.D(-4.4, sd * 7.2) * 0.3, () => {
+        part(NF); chainK([X.P(...r), X.P(...m), X.P(...e), X.P(...tip)], 2.1, 0.8, hair);
+        if (K.tie) { part(NF); discK(X.P(r[0] - 0.3, r[1] + 0.4, r[2] + sd * 0.4), 1.05, pc(K.tie)); }
+      });
+    }
+    // 马尾的发圈
+    if (S.hs === 'pony' && K.tie && t !== 'cowl') X.hair(X.D(-7.5, 0) * 0.3 + 0.01, () => { part(NF); discK(X.P(-6.3, -3.1, 0), 1.0, pc(K.tie)); });
+    if (hx === 'braid' && X.side) X.hair(-0.2, () => drawBraid(X, S, P));
+  }
+  // 辫子：从后颈垂到背中（3D 预览由 turnDoll 依身体深度另外排序）
+  function drawBraid(X, S, P) {
+    const K = S.idk, hair = pc(S.hair), sw = Math.sin(NOW * 0.005) * 0.6 - (P.ra || 0) * 1.5;
+    part(NF);
+    const pts = [[-5.6, 0.6], [-6.4, 2.8], [-6.8, 5.0], [-7.0 + sw * 0.3, 7.2], [-6.9 + sw * 0.6, 9.3], [-6.7 + sw, 11.2]];
+    pts.forEach(([x, y], i) => discK(X.P(x + (i % 2 ? 0.4 : -0.4), y, 0), 1.6 - i * 0.1, hair));
+    part(NF); discK(X.P(-6.7 + sw, 11.6, 0), 0.85, pc(K.tie || darkH(S.hair, 0.45)));
+    part(NF); capK(X.P(-6.7 + sw, 12.0, 0), X.P(-6.4 + sw * 1.4, 14.2, 0), 1.25, 0.45, hair);
+  }
+  function idGearX(X, S, P) {
+    const K = S.idk; if (!K) return;
+    const t = (S.head && S.head.t) || '', s = Math.sin(NOW * 0.012) - (P.ra || 0) * 1.2;
+    // 头盔 / 帽子下露出的个人头带：脑后的结与飘带
+    if (K.tails) { const c1 = pc(K.tails), c2 = pc(darkH(K.tails, 0.3)); X.gear(X.D(-7, 0), () => { part(NF); capK(X.P(-6.9, -3.0, 0), X.P(-11.4, -1.6 + s * 1.5, 1.4), 1.2, 0.7, c1); capK(X.P(-6.9, -3.0, 0), X.P(-10.4, 1.4 + s * 1.5, -1.2), 1.05, 0.6, c2); part(NF); discK(X.P(-7.0, -3.0, 0), 1.0, c1); }); }
+    // 额前宝石（头带 / 兜帽 / 头盔正面）
+    if (K.gem) {
+      const R = !t || t === 'band' ? 7.5 : t === 'hood' || t === 'cowl' ? 8.1 : t === 'helm' || t === 'kettle' || t === 'ninja' || t === 'kabuto' ? 7.75 : 7.55, gy = !t || t === 'band' ? -3.0 : -4.2, gx = Math.sqrt(R * R - gy * gy);
+      X.gear(X.D(gx, 0) + 0.02, () => { part(NF); discK(X.P(gx, gy, 0), 0.62, pc('#e0aa30')); part(FLAT); discK(X.P(gx + 0.12, gy, 0), 0.4, pc(K.gem)); });
+    }
+    if (K.feather) X.gear(X.D(-3, 6.6), () => {
+      const fc = pc(K.feather), sw2 = Math.sin(NOW * 0.008);
+      const f0 = X.P(-1.6, -5.2, 6.0), f1 = X.P(-5.0, -8.6 + sw2 * 0.4, 6.8), f2 = X.P(-10.6, -7.8 + sw2 * 1.3, 6.9);
+      part(NF); capK(f0, f1, 0.7, 1.9, fc); capK(f1, f2, 1.9, 0.45, fc);
+      part(FLAT); const qc = pc(darkH(K.feather, 0.45)); capK(X.P(-2.2, -5.8, 6.2), X.P(-5.0, -8.5 + sw2 * 0.4, 6.8), 0.17, 0.15, qc); capK(X.P(-5.0, -8.5 + sw2 * 0.4, 6.8), X.P(-8.3, -8.9 + sw2, 6.9), 0.15, 0.1, qc);
+    });
+    if (K.flower) { const c0 = [0.6, -5.3, 5.7]; X.gear(X.D(c0[0], c0[2]) + 0.05, () => { const fc = pc(K.flower); part(NF); for (let i = 0; i < 5; i++) { const a = (i * 72 - 90) * RAD; discK(X.P(c0[0] + Math.cos(a) * 0.95, c0[1] + Math.sin(a) * 1.2, c0[2] + Math.cos(a) * 0.7), 1.0, fc); } part(FLAT); discK(X.P(c0[0] + 0.2, c0[1], c0[2] + 0.2), 0.55, pc('#fff0a0')); }); }
+    if (K.bow) { const c0 = [-3.2, -6.0, 4.6]; X.gear(X.D(c0[0], c0[2]) + 0.05, () => {
+      const bc = pc(K.bow), bd = pc(darkH(K.bow, 0.3)), Q = (dx, dy, dz) => X.P(c0[0] + dx, c0[1] + dy, c0[2] + dz);
+      part(NF); capK(Q(0, 0, 0), Q(-1.4, 2.6 + s * 0.4, 0.8), 0.55, 0.45, bd); capK(Q(0, 0, 0), Q(0.8, 2.8 + s * 0.4, 0.2), 0.55, 0.45, bd);
+      part(NF); capK(Q(0, 0, 0), Q(-1.7, -1.9, 1.2), 0.6, 1.55, bc); capK(Q(0, 0, 0), Q(1.7, -1.7, -0.6), 0.6, 1.55, bc);
+      part(NF); discK(Q(0, 0, 0), 0.7, bc);
+    }); }
+    if (K.leaves) {
+      const lc = pc(K.leaves[0]), lc2 = pc(K.leaves[1] || darkH(K.leaves[0], 0.25));
+      for (let i = -3; i <= 3; i++) { const a = i * 26 * RAD, b = [Math.cos(a) * 7.4, -3.3, Math.sin(a) * 7.4], d = X.D(b[0], b[2]); X.gear(d > 0 ? 0.04 + d * 0.01 : -1 + d * 0.01, () => { part(NF); capK(X.P(...b), X.P(b[0] * 1.1 - 0.4, b[1] - 2.1, b[2] * 1.16), 1.05, 0.3, i % 2 ? lc2 : lc); }); }
+    }
+    if (K.goggles) {
+      const G = K.goggles, fr = pc(darkH(G.c, 0.25)), le = pc(G.gem), gy = t === 'cap' || t === 'helm' || t === 'kettle' ? -4.6 : -3.7, R = t === 'cap' ? 7.7 : 7.5, xr = Math.sqrt(R * R - gy * gy);
+      for (const sd of [1, -1]) { const a = sd * 25 * RAD, b = [Math.cos(a) * xr + 0.3, gy, Math.sin(a) * xr], d = X.D(b[0], b[2]); X.gear(d > 0 ? 0.06 + d * 0.01 : -1 + d * 0.01, () => { part(NF); discK(X.P(...b), 1.45, fr); part(FLAT); discK(X.P(b[0] + 0.2, b[1], b[2]), 0.95, le); discK(X.P(b[0] + 0.25, b[1] - 0.4, b[2] - 0.3 * sd), 0.3, pc('#ffffff')); }); }
+    }
+    if (K.earring) for (const sd of [1, -1]) {
+      const d = X.side ? sd : X.D(0, sd); if (d < -0.3) continue;
+      const b = [X.side ? -0.7 : 0.1, 2.7, sd * 7.1];
+      X.gear(d > 0.05 ? 0.6 + d : -9, () => { part(NF); const gc = pc('#f0c840'); discK(X.P(...b), 0.42, gc); part(NF); discK(X.P(b[0], b[1] + 1.0, b[2]), 0.38, gc); });
+    }
+  }
   function drawHead(J, S, P) { return inFrame({ x: J.hc[0], y: J.hc[1], a: J.ha, id: 'h' }, () => drawHead0(J, S, P)); }
   function drawHead0(J, S, P) {
     const hc = J.hc, hd = S.head || {}, r = 6.3, mx = J.mx || 1; // mx = -1：旋转预览中朝左的侧脸（镜像）
@@ -1086,21 +1327,36 @@ const DFIG = (() => {
     const L = (px, py) => { const x = (px - hc[0]) / HK, y = (py - hc[1]) / HK; return [(x * ca + y * sa) * mx, -x * sa + y * ca]; };
     const W = (x, y) => [hc[0] + (x * mx * ca - y * sa) * HK, hc[1] + (x * mx * sa + y * ca) * HK];
     const hair = pc(S.hair), skin = pc(S.skin), eye = pc(C.eye);
-    const hs = S.hs;
+    const hs = S.hs, IK = REC && !S.beast && S.idk, hx = IK ? IK.hx : '';
     // 后发（长发 / 马尾）
-    if (!S.beast && (hs === 'long' || hs === 'pony') && hd.t !== 'cowl') {
+    if (!S.beast && (hs === 'long' || hs === 'pony' || hx === 'bob' || hx === 'shaggy') && hd.t !== 'cowl') {
       part(NF);
-      if (hs === 'long') poly([W(-6.5, -3), W(-1, -5), W(-2.5, 8 + Math.sin(NOW * 0.004)), W(-6.8, 10)], hair);
+      const wv = Math.sin(NOW * 0.004);
+      if (hx === 'bob') poly([W(-6.6, -3), W(-1, -5), W(-1.0, 4.2), W(-3.0, 5.0 + wv * 0.3), W(-5.2, 4.6), W(-7.0, 3.6)], hair);
+      else if (hx === 'shaggy') poly([W(-6.4, -2.6), W(-2.6, -2.4), W(-2.6, 4.8), W(-4.0, 6.4 + wv * 0.3), W(-5.4, 5.6), W(-6.8, 6.2), W(-7.2, 3)], hair);
+      else if (hx === 'wavy') poly([W(-6.8, -3), W(-1, -5), W(-2.0, 7), W(-1.4, 9.4 + wv), W(-3.0, 11.2 + wv), W(-4.6, 10.2 + wv), W(-6.0, 11.8 + wv), W(-7.6, 10.4), W(-7.9, 6.4), W(-7.2, 2)], hair);
+      else if (hx === 'mane') poly([W(-7, -3.5), W(-1, -5), W(-2.0, 8.2 + wv), W(-3.6, 10.6 + wv), W(-5.0, 9.4), W(-6.6, 11.4 + wv), W(-7.6, 9.2), W(-9.4, 9.6), W(-8.6, 5), W(-9.6, 2.2)], hair);
+      else if (hs === 'long') poly([W(-6.5, -3), W(-1, -5), W(-2.5, 8 + wv), W(-6.8, 10)], hair);
       else { const sw = Math.sin(NOW * 0.006) * 1.5 - (P.ra || 0) * 3; chainK([W(-5.5, -3.5), W(-8.5, 0 + sw * 0.3), W(-9 + sw, 5.5)], 1.8, 1.1, hair); }
     }
+    // 个人特征（发束、双马尾、辫子、头饰配件）：远侧先画、近侧画在头上
+    let nidR = 0;
+    const XP = [], XH = [], XG = [];
+    if (IK) {
+      const reg = g => (d, fn) => (d < 0 ? XP : g).push(fn);
+      const X = { side: 1, P: (x, y) => W(x, y), D: (x, z) => z, hair: reg(XH), gear: reg(XG), hp: () => (nidR ? part(NF, nidR) : part(NF)), sh: () => {} };
+      idHairX(X, S, P);
+      if (!NOGEAR) idGearX(X, S, P);
+      for (const fn of XP) fn();
+    }
     // 颈
-    const nid = part(NF);
+    const nid = part(NF); nidR = nid;
     capK(J.neck, add(hc, [0, 2]), 2.1, 2.1, pc(S.beast === 'hawk' ? S.hair : S.beast === 'wolf' ? S.fur : S.skin));
     if (S.beast === 'wolf') { drawWolfHead(J, S, P, W, L, nid); return; }
     if (S.beast === 'hawk') { drawHawkHead(J, S, P, W, L, nid); return; }
     // 头：Q 版大眼（近眼 + 远眼、高光、小嘴、腮红），蓬松头发
     const covered = ['helm', 'kettle', 'hood', 'cowl', 'mask', 'kabuto', 'bandana', 'cap', 'beakhelm'].includes(hd.t);
-    if (!covered && hs !== 'bald') {
+    if (!covered && hs !== 'bald' && hx !== 'bald') {
       part(NF, nid); ell(W(-1.7, -1.2), (r + 0.5) * HK * 1.08, (r + 0.6) * HK, J.ha, hair);
       for (const [x, y, rr] of [[-5.8, -3.8, 2.4], [-2.4, -6.4, 2.5], [1.4, -6.5, 2.1], [-7, 0.6, 2]]) discK(W(x, y), rr, hair);
     }
@@ -1110,7 +1366,7 @@ const DFIG = (() => {
     const bangs = x => -1.1 - ((Math.floor((x + 8) * 1.25) % 3) === 0 ? 0.9 : 0);
     // HD：Q 版脸改用矢量绘制（大眼、刘海、腮红），斗篷暗脸 / 骷髅仍走通用贴图
     // HD：侧脸（单眼、鼻梁、嘴、下巴轮廓与耳朵；外形见 PROF），骷髅也画成侧面
-    if (REC && !shadowFace) { const rx = r * HK * 1.1, R = 8.2 * HK; rec('face', { x: hc[0], y: hc[1], rx, ry: r * HK * 0.96, a: J.ha, mx, S, hs, covered, hd: hd.t || '', mo: P.mo || 0, fx: (P.hd || 0) < -8 ? 1 : P.lean > 22 ? 2 : 0, backHair: !covered && hs !== 'bald' && !S.skull }, hc[0] - R, hc[1] - R, hc[0] + R, hc[1] + R, null, skin); }
+    if (REC && !shadowFace) { const rx = r * HK * 1.1, R = 8.2 * HK; rec('face', { x: hc[0], y: hc[1], rx, ry: r * HK * 0.96, a: J.ha, mx, S, hs, hx, covered, hd: hd.t || '', mo: P.mo || 0, fx: (P.hd || 0) < -8 ? 1 : P.lean > 22 ? 2 : 0, backHair: !covered && hs !== 'bald' && hx !== 'bald' && !S.skull }, hc[0] - R, hc[1] - R, hc[0] + R, hc[1] + R, null, skin); }
     else ell(hc, r * HK * 1.1, r * HK * 0.96, J.ha, (px, py) => {
       const [x, y] = L(px, py);
       if (shadowFace) return (REC ? (x > 3.6 && x < 5.6 && y > -1.3 && y < 0.5 && y > -1.3 + (5.6 - x) * 0.25) : ((x > 0.9 && x < 2.5 && y > -1.4 && y < 0.6) || (x > 3.7 && x < 4.7 && y > -1.4 && y < 0.6))) ? eyesCol : pc('#120a18');
@@ -1130,14 +1386,17 @@ const DFIG = (() => {
       if (y >= 1.7 && y < 2.4 && x >= 0.3 && x < 2.4) return blush;
       return skin;
     });
-    if (hs === 'spiky' && !['helm', 'kettle', 'hood', 'kabuto', 'mask', 'cowl', 'crown', 'mitre', 'wizhat', 'bandana', 'feather', 'cap', 'straw', 'headdress'].includes(hd.t)) {
+    if (hs === 'spiky' && hx !== 'wild' && !['helm', 'kettle', 'hood', 'kabuto', 'mask', 'cowl', 'crown', 'mitre', 'wizhat', 'bandana', 'feather', 'cap', 'straw', 'headdress'].includes(hd.t)) {
       part(NF, nid); const sw = Math.sin(NOW * 0.005) * 0.5;
       capK(W(-2, -5), W(-7, -8.5 + sw), 1.6, 0.5, hair); capK(W(1, -6), W(-1.5, -10.5), 1.6, 0.5, hair); capK(W(-4.5, -2), W(-9.5, -3.5 + sw), 1.5, 0.5, hair); capK(W(3, -5), W(5.5, -8), 1.2, 0.4, hair);
     }
     if (hs === 'topknot' && !['kabuto', 'helm'].includes(hd.t)) { part(NF, nid); discK(W(-1.5, -7), 2.2, hair); }
-    if (S.beard) { part(NF, nid); poly(REC ? [W(0.9, 1.2), W(3.2, 2.9), W(5.4, 2.5), W(6.9, 2.6), W(6.7, 4.4), W(6.2, 6.6), W(4.2, 8.6), W(1.4, 7.6), W(-0.4, 4.6)] : [W(1, 2), W(5.6, 2), W(4.5, 6.5), W(1.5, 8.5), W(-1.5, 4)], hair); }
+    for (const fn of XH) fn();
+    if (S.beard) { part(NF, nid); poly(REC ? (IK && IK.beard === 'long' ? [W(0.9, 1.2), W(3.2, 2.9), W(5.4, 2.5), W(6.9, 2.6), W(6.7, 4.4), W(6.4, 7.2), W(5.0, 10.4), W(3.4, 12.6), W(2.6, 10.4), W(1.4, 8.4), W(-0.4, 4.6)] : [W(0.9, 1.2), W(3.2, 2.9), W(5.4, 2.5), W(6.9, 2.6), W(6.7, 4.4), W(6.2, 6.6), W(4.2, 8.6), W(1.4, 7.6), W(-0.4, 4.6)]) : [W(1, 2), W(5.6, 2), W(4.5, 6.5), W(1.5, 8.5), W(-1.5, 4)], hair); }
+    else if (IK && IK.beard === 'goatee') { part(NF, nid); poly([W(4.2, 4.5), W(5.6, 4.4), W(6.0, 5.4), W(5.6, 7.2), W(4.7, 7.6), W(4.0, 6.0)], hair); }
     if (S.elf) { part(NF, nid); poly(REC ? [W(-0.2, -0.2), W(-6.8, -5.6), W(-1.2, 2.2)] : [W(-2.6, -0.6), W(-9.5, -5.5), W(-2.2, 2)], skin); }
     if (!NOGEAR) drawHeadgear(J, S, P, W, L, hc, r);
+    for (const fn of XG) fn();
   }
   let NOGEAR = false; // 旋转预览的侧脸只借用侧面的脸与头发，头饰改由 3D 版本绘制
   function drawHeadgear(J, S, P, W, L, hc, r) {
@@ -1895,7 +2154,7 @@ const DFIG = (() => {
   }
   const ID_TF = (u, v) => [u, v];
   // 发际线（侧面）：前刘海成束垂到眉上、鬓角垂在耳前、绕过耳朵到后颈；长发则整片盖住耳朵
-  function hairCapPath(g, hs) {
+  function hairCapPath(g, hs, hx) {
     g.moveTo(-9, -9); g.lineTo(9, -9); g.lineTo(9, -2.4);
     g.quadraticCurveTo(7.4, -2.5, 6.95, -1.85);
     g.quadraticCurveTo(6.6, -1.2, 6.15, -0.75);         // 刘海尖（眉骨前）
@@ -1905,6 +2164,10 @@ const DFIG = (() => {
     if (hs === 'long') {
       g.quadraticCurveTo(2.75, 0.6, 2.75, 3.4); g.quadraticCurveTo(2.6, 5.2, 1.6, 6.6);    // 侧发垂过耳朵
       g.lineTo(-9, 6.6); g.closePath(); return;
+    }
+    if (hx === 'bob') {                                  // 鲍伯头：侧发盖住耳朵、齐到下颚
+      g.quadraticCurveTo(2.8, 0.6, 2.75, 2.8); g.quadraticCurveTo(2.6, 4.3, 1.7, 4.7);
+      g.lineTo(-9, 4.9); g.closePath(); return;
     }
     g.quadraticCurveTo(2.45, 0.2, 2.15, 2.35);          // 鬓角
     g.quadraticCurveTo(1.55, 0.8, 1.05, -0.35);
@@ -1943,7 +2206,7 @@ const DFIG = (() => {
     let bg = g.createRadialGradient(3.55, 2.2, 0, 3.55, 2.2, 1.35); bg.addColorStop(0, 'rgba(255,110,125,0.5)'); bg.addColorStop(1, 'rgba(255,110,125,0)');
     g.fillStyle = bg; g.fillRect(2, 0.8, 3.2, 2.9);
     // 耳朵（长发盖住；头盔盖住的部分由头盔自己画在上层）
-    const ear = hs !== 'long';
+    const ear = hs !== 'long' && q.hx !== 'bob', IK = S.idk;
     const drawEar = () => {
       g.beginPath(); g.moveTo(-0.15, 0.05); g.bezierCurveTo(-1.0, -0.35, -1.75, 0.3, -1.7, 1.2); g.bezierCurveTo(-1.65, 2.1, -1.0, 2.55, -0.25, 2.25); g.closePath();
       gr = g.createLinearGradient(-1.7, 0, 0, 0); gr.addColorStop(0, K(-0.3)); gr.addColorStop(1, K(0.1)); g.fillStyle = gr; g.fill();
@@ -1999,8 +2262,8 @@ const DFIG = (() => {
     gr = g.createRadialGradient(hcx + lx * 0.42 * hR, hcy + ly * 0.42 * hR, 0, hcx, hcy, hR * 1.12);
     for (const [pos, k] of RAMP.cloth) gr.addColorStop(pos, hr.css[kIdx(k, dim)]);
     g.fillStyle = gr; g.beginPath();
-    if (hs === 'bald') { g.moveTo(-8, -3.2); g.lineTo(-2.2, -3.2); g.quadraticCurveTo(-1.6, 0.4, -2.1, 3.2); g.lineTo(-8, 3.4); g.closePath(); }
-    else hairCapPath(g, hs);
+    if (hs === 'bald') { if (q.hx !== 'bald') { g.moveTo(-8, -3.2); g.lineTo(-2.2, -3.2); g.quadraticCurveTo(-1.6, 0.4, -2.1, 3.2); g.lineTo(-8, 3.4); g.closePath(); } }
+    else hairCapPath(g, hs, q.hx);
     g.fill();
     if (hs !== 'bald') {
       // 发丝高光弧 + 几道朝后的发流线
@@ -2017,11 +2280,40 @@ const DFIG = (() => {
       g.beginPath(); g.moveTo(3.85, fierce ? -2.15 : -2.3); g.quadraticCurveTo(4.9, fierce ? -2.05 : -2.45, 5.85, fierce ? -1.55 : -2.05); g.stroke(); g.globalAlpha = 1;
     }
     if (S.beard) { g.fillStyle = hr.css[kIdx(-0.1, dim)]; g.beginPath(); g.moveTo(0.9, 1.0); g.quadraticCurveTo(3, 2.9, 5.4, 2.45); g.quadraticCurveTo(6.4, 2.2, 7.2, 2.6); g.lineTo(7.2, 8); g.lineTo(-0.6, 8); g.lineTo(-0.4, 4.6); g.closePath(); g.fill(); }
+    if (IK) idFaceSide(g, q, S, IK, sk, hr, dim);
     if (S.clown) {
       gr = g.createRadialGradient(7.0, 1.15, 0.1, 7.25, 1.4, 1.05); gr.addColorStop(0, '#ffb0a0'); gr.addColorStop(0.4, '#e83a3a'); gr.addColorStop(1, '#8a1020');
       g.fillStyle = gr; g.beginPath(); g.arc(7.25, 1.4, 1.0, 0, TAU); g.fill();
     }
     g.restore(); g.restore();
+  }
+  // 侧脸的个人特征（侧脸局部座标，与 paintFace 相同）：胡子样式、战纹、伤疤、眼镜 / 面具 / 眼罩
+  function idFaceSide(g, q, S, K, sk, hr, dim) {
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    if (K.beard === 'stubble') {
+      g.save(); g.globalAlpha = 0.3; g.fillStyle = hr.css[kIdx(-0.3, dim)];
+      g.beginPath(); g.moveTo(0.4, 1.6); g.quadraticCurveTo(3, 3.1, 5.2, 2.6); g.quadraticCurveTo(6.4, 2.4, 6.6, 3.3); g.lineTo(6.6, 8); g.lineTo(-0.6, 8); g.closePath(); g.fill(); g.restore();
+    }
+    if (K.beard === 'mustache' || (K.beard === 'goatee')) {
+      g.fillStyle = hr.css[kIdx(-0.2, dim)]; g.beginPath(); g.moveTo(6.75, 2.1); g.quadraticCurveTo(7.15, 2.55, 6.5, 2.85); g.quadraticCurveTo(5.6, 3.05, 4.7, 3.35); g.quadraticCurveTo(4.6, 2.95, 5.3, 2.55); g.quadraticCurveTo(6.0, 2.2, 6.75, 2.1); g.fill();
+    }
+    if (K.paint) { g.strokeStyle = K.paint; g.lineWidth = 0.36; g.globalAlpha = 0.9; g.beginPath(); g.moveTo(1.9, 1.75); g.lineTo(4.0, 2.0); g.moveTo(1.9, 2.55); g.lineTo(4.0, 2.8); g.stroke(); g.globalAlpha = 1; }
+    if (K.scar) { g.strokeStyle = 'rgba(140,50,56,0.75)'; g.lineWidth = 0.24; g.beginPath(); g.moveTo(3.5, 0.9); g.lineTo(2.5, 3.0); g.moveTo(2.75, 1.6); g.lineTo(3.45, 1.85); g.moveTo(2.55, 2.3); g.lineTo(3.2, 2.5); g.stroke(); }
+    if (K.face === 'mask') {
+      g.fillStyle = '#c4c8d6'; g.beginPath(); g.moveTo(2.9, -1.3); g.quadraticCurveTo(5, -1.9, 6.75, -1.4); g.lineTo(6.6, 0.9); g.quadraticCurveTo(5, 1.6, 3.0, 1.4); g.closePath();
+      g.ellipse(4.65, 0.2, 0.95, 0.9, 0, 0, TAU); g.fill('evenodd');
+      g.strokeStyle = 'rgba(30,20,40,0.6)'; g.lineWidth = 0.18; g.stroke();
+      g.strokeStyle = '#2a2232'; g.lineWidth = 0.26; g.beginPath(); g.moveTo(2.9, -0.2); g.lineTo(-1.2, -0.6); g.stroke();
+    }
+    if (K.face === 'eyepatch') {
+      g.strokeStyle = '#141018'; g.lineWidth = 0.3; g.beginPath(); g.moveTo(5.4, -0.9); g.quadraticCurveTo(2.2, -3.4, -2.6, -3.6); g.stroke();
+      g.fillStyle = '#18141e'; g.beginPath(); g.ellipse(4.7, 0.2, 1.2, 1.15, 0, 0, TAU); g.fill();
+    }
+    if (K.face === 'glasses') {
+      g.strokeStyle = '#3a2430'; g.lineWidth = 0.26;
+      g.beginPath(); g.ellipse(4.65, 0.18, 1.35, 1.22, 0, 0, TAU); g.moveTo(5.95, -0.15); g.lineTo(6.55, -0.4); g.moveTo(3.3, -0.1); g.quadraticCurveTo(1.4, -0.4, -0.4, 0.1); g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,0.75)'; g.lineWidth = 0.16; g.beginPath(); g.arc(4.65, 0.18, 0.95, Math.PI * 1.1, Math.PI * 1.45); g.stroke();
+    }
   }
   // 粗略探测图案函数是否在外形内留空（头盔下缘、兜帽开口等）：这类图元不用矢量描边，改由贴图外扩描边
   function hasHole(p) {
@@ -2218,7 +2510,7 @@ const DFIG = (() => {
       const top = feet + hov + P.Y * s - size * 0.8 * sqy;
       return { tip: [x + f * size * 0.42, feet + hov - size * 0.5], hand: [x + f * size * 0.35, feet + hov - size * 0.5], shot: [x + f * size * 0.42, feet + hov - size * 0.55], head: [x + f * size * 0.25, top + size * 0.15], chest: [x, feet + hov - size * 0.45], top: [x, top] };
     }
-    if (hd) { cur = 0; return anchors(drawHD(g, S, P, opt), S, P, x, feet, s, f); }
+    if (hd) { cur = 0; S = idSpec(S); return anchors(drawHD(g, S, P, opt), S, P, x, feet, s, f); }
     clear();
     const J = drawDoll(S, P, prev, crit);
     finish(flash, sil);
@@ -2505,8 +2797,9 @@ const DFIG = (() => {
   const skullRing = y => { const t = clamp((y + 0.25) / 6.0, -1, 1), k = Math.sqrt(Math.max(0, 1 - t * t)), j = t > 0.15 ? Math.pow((t - 0.15) / 0.85, 1.4) : 0; return [7.15 * k * (1 - 0.22 * j), 6.95 * k * (1 - 0.1 * j), 0.25 + 0.55 * j]; };
   const sphRing = (R, cy, cx, ka) => y => { const t = clamp((y - (cy || 0)) / R, -1, 1), k = Math.sqrt(Math.max(0, 1 - t * t)); return [R * k * (ka || 1.03), R * k, cx == null ? 0.2 : cx]; };
   // 头发分布：al = 方位角（0 正前、±90 两侧、180 后脑），y = 高度（头部单位）
-  function hairAt(hs, al, y) {
+  function hairAt(hs, al, y, hx) {
     const aa = Math.abs(al);
+    if (hx === 'bald') return false;
     if (hs === 'bald') return aa > 100 && y > -3.6 && y < 3.2;
     if (y < -5.3) return true;
     if (aa < 60) {
@@ -2514,6 +2807,8 @@ const DFIG = (() => {
       return y < -0.55 - 2.15 * Math.pow(Math.min(1, dm / 14), 0.75) - (aa > 48 ? (aa - 48) * 0.06 : 0);
     }
     if (hs === 'long') return y < 6;
+    if (hx === 'bob') return y < 4.2;
+    if (hx === 'shaggy' && aa >= 100) return y < 5.6;
     if (aa < 76) return y < 2.5;
     if (aa < 108) return y < -0.4;
     return y < 4.9 - (aa < 125 ? (125 - aa) * 0.12 : 0);
@@ -2538,6 +2833,8 @@ const DFIG = (() => {
         const kx = Math.pow(c, 0.7);
         g.save(); g.shadowColor = q.shadow; g.shadowBlur = 1.2; g.fillStyle = q.shadow; g.beginPath(); g.ellipse(ex, ey, 0.95 * kx, 0.42, 0, 0, TAU); g.fill(); g.restore();
         g.fillStyle = '#ffffff'; g.globalAlpha = 0.7; g.beginPath(); g.ellipse(ex, ey - 0.05, 0.4 * kx, 0.16, 0, 0, TAU); g.fill(); g.globalAlpha = 1;
+        // 兜帽阴影里的眼镜：镜框反光
+        if (S.idk && S.idk.face === 'glasses') { g.strokeStyle = 'rgba(220,210,190,0.85)'; g.lineWidth = 0.22; g.beginPath(); g.ellipse(ex, ey, 1.3 * kx + 0.2, 1.2, 0, 0, TAU); g.stroke(); g.strokeStyle = 'rgba(255,255,255,0.8)'; g.beginPath(); g.ellipse(ex, ey, (1.3 * kx + 0.2) * 0.7, 0.85, 0, Math.PI * 1.1, Math.PI * 1.45); g.stroke(); }
       }
       g.restore(); return;
     }
@@ -2565,8 +2862,11 @@ const DFIG = (() => {
       bg.addColorStop(0, 'rgba(255,110,125,0.5)'); bg.addColorStop(1, 'rgba(255,110,125,0)');
       g.save(); g.translate(bx, by); g.scale(rx / 1.15, 0.7); g.translate(-bx, -by); g.fillStyle = bg; g.fillRect(bx - 1.2, by - 1.2, 2.4, 2.4); g.restore();
     }
+    const K = S.idk;
+    if (K) idFace3Pre(g, SP, K, q, hr, dim);
     // 眼睛：白眼 + 大虹膜（深色上缘 → 虹膜色 → 亮色下缘）+ 瞳孔 + 粗上睫毛（外眼角上挑）+ 两点高光
     for (const sd of [1, -1]) {
+      if (K && K.face === 'eyepatch' && sd < 0) continue;
       const al = 27 * sd, [ex, ey, c] = SP(al, 0.25); if (c < 0.1) continue;
       const kx = Math.pow(c, 0.8), ew = 1.18 * kx, eh = 1.55;
       // 外眼角方向（屏幕）：方位角往外增加时屏幕 x 的变化方向
@@ -2607,15 +2907,51 @@ const DFIG = (() => {
       g.strokeStyle = '#8a3a3c'; g.lineWidth = 0.3;
       g.beginPath(); g.moveTo(mx2 - mw, my2 - 0.12); g.quadraticCurveTo(mx2, my2 + 0.32, mx2 + mw, my2 - 0.12); g.stroke();
     }
+    if (K) idFace3Post(g, SP, K, q, hr, dim);
     if (S.clown) {
       const [cx2, cy2, cc] = SP(28, 2.3); if (cc > 0.2) { g.fillStyle = '#3a6ab8'; g.beginPath(); g.moveTo(cx2, cy2 - 0.55); g.lineTo(cx2 + 0.45 * cc, cy2); g.lineTo(cx2, cy2 + 0.55); g.lineTo(cx2 - 0.45 * cc, cy2); g.closePath(); g.fill(); }
       const [rx2, ry2, rc] = SP(0, 1.5, 7.6); if (rc > -0.2) { const gr = g.createRadialGradient(rx2 - 0.3, ry2 - 0.3, 0.1, rx2, ry2, 1.0); gr.addColorStop(0, '#ffb0a0'); gr.addColorStop(0.4, '#e83a3a'); gr.addColorStop(1, '#8a1020'); g.fillStyle = gr; g.beginPath(); g.arc(rx2, ry2, 1.0, 0, TAU); g.fill(); }
     }
     g.restore();
   }
+  // 3D 脸的个人特征：战纹 / 伤疤 / 面具（眼睛之前），眼罩 / 眼镜 / 胡子（之后）
+  function idFace3Pre(g, SP, K, q, hr, dim) {
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    const seg = (a, b, w) => { if (a[2] < 0.05 && b[2] < 0.05) return; g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); };
+    if (K.paint) { g.strokeStyle = K.paint; g.globalAlpha = 0.9; g.lineWidth = 0.36; g.beginPath(); for (const sd of [1, -1]) { seg(SP(sd * 31, 1.8), SP(sd * 52, 2.1)); seg(SP(sd * 31, 2.6), SP(sd * 52, 2.9)); } g.stroke(); g.globalAlpha = 1; }
+    if (K.scar) { const a = SP(-25, 1.0), b = SP(-41, 3.1); if (a[2] > 0.05) { g.strokeStyle = 'rgba(140,50,56,0.75)'; g.lineWidth = 0.24; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); const m1 = SP(-30, 1.7), m2 = SP(-36, 2.4); g.moveTo(m1[0] - 0.35, m1[1] - 0.15); g.lineTo(m1[0] + 0.35, m1[1] + 0.1); g.moveTo(m2[0] - 0.35, m2[1] - 0.15); g.lineTo(m2[0] + 0.35, m2[1] + 0.1); g.stroke(); } }
+    if (K.face === 'mask' && Math.cos(q.phi * RAD) > 0) {
+      g.beginPath(); for (let a = -64; a <= 64; a += 8) { const p = SP(a, -1.75 + Math.abs(a) * 0.006); g[a === -64 ? 'moveTo' : 'lineTo'](p[0], p[1]); }
+      for (let a = 64; a >= -64; a -= 8) { const p = SP(a, 1.75 - (Math.abs(a) < 12 ? 0.45 : 0)); g.lineTo(p[0], p[1]); }
+      g.closePath(); g.fillStyle = '#c4c8d6'; g.fill(); g.strokeStyle = 'rgba(30,20,40,0.55)'; g.lineWidth = 0.18; g.stroke();
+    }
+  }
+  function idFace3Post(g, SP, K, q, hr, dim) {
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    if (K.face === 'eyepatch') {
+      const pts = [SP(-80, 0.9), SP(-27, 0.0), SP(8, -2.4), SP(50, -3.6), SP(85, -3.2)];
+      g.strokeStyle = '#141018'; g.lineWidth = 0.32; g.beginPath(); let on = false; for (const p of pts) { if (p[2] < -0.05) { on = false; continue; } g[on ? 'lineTo' : 'moveTo'](p[0], p[1]); on = true; } g.stroke();
+      const [ex, ey, c] = SP(-27, 0.25); if (c > 0.1) { g.fillStyle = '#18141e'; g.beginPath(); g.ellipse(ex, ey, 1.4 * Math.pow(c, 0.8), 1.55, 0, 0, TAU); g.fill(); }
+    }
+    if (K.face === 'glasses') {
+      g.strokeStyle = '#3a2430'; g.lineWidth = 0.26;
+      const E = [1, -1].map(sd => { const r = SP(27 * sd, 0.3); return { sd, x: r[0], y: r[1], c: r[2] }; });
+      for (const e of E) { if (e.c < 0.1) continue; const kx = Math.pow(e.c, 0.8); g.beginPath(); g.ellipse(e.x, e.y + 0.05, 1.25 * kx + 0.22, 1.6, 0, 0, TAU); g.stroke();
+        const t0 = SP(27 * e.sd + 26, 0.0), t1 = SP(27 * e.sd + 62, 0.4); if (t1[2] > -0.4) { g.beginPath(); g.moveTo(t0[0], t0[1]); g.lineTo(t1[0], t1[1]); g.stroke(); }
+        g.save(); g.strokeStyle = 'rgba(255,255,255,0.7)'; g.lineWidth = 0.16; g.beginPath(); g.ellipse(e.x, e.y + 0.05, (1.25 * kx + 0.22) * 0.72, 1.15, 0, Math.PI * 1.1, Math.PI * 1.45); g.stroke(); g.restore(); }
+      const b0 = SP(11, -0.15), b1 = SP(-11, -0.15), bm = SP(0, -0.45, 7.3); if (bm[2] > 0.1) { g.beginPath(); g.moveTo(b0[0], b0[1]); g.quadraticCurveTo(bm[0], bm[1], b1[0], b1[1]); g.stroke(); }
+    }
+    const bc = hr.css[kIdx(-0.25, dim)];
+    if (K.beard === 'mustache' || K.beard === 'goatee') {
+      const [mx, my, mc] = SP(0, 2.5, 7.25); if (mc > 0.1) { const w = 1.55 * Math.pow(mc, 0.7); g.fillStyle = bc; g.beginPath(); g.moveTo(mx, my - 0.25); g.quadraticCurveTo(mx - w * 0.6, my - 0.4, mx - w, my + 0.5); g.quadraticCurveTo(mx - w * 0.45, my + 0.2, mx, my + 0.22); g.quadraticCurveTo(mx + w * 0.45, my + 0.2, mx + w, my + 0.5); g.quadraticCurveTo(mx + w * 0.6, my - 0.4, mx, my - 0.25); g.fill(); }
+    }
+    if (K.beard === 'stubble') {
+      const [sx, sy, c] = SP(0, 4.1, 7.0); if (c > -0.3) { const top = SP(0, 2.1)[1]; g.save(); g.beginPath(); g.rect(sx - 9, top, 18, 9); g.clip(); const gr = g.createRadialGradient(sx, sy, 0.5, sx, sy, 5); gr.addColorStop(0, bc); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.globalAlpha = 0.34; g.fillStyle = gr; g.fillRect(sx - 9, top, 18, 9); g.restore(); }
+    }
+  }
   // 头部 3D：jh = 头心（美术座标 X, Y, Z）、neck、phi = 头的方位角（度）
   function head3(J, S, P, hc3, neck3, phi, prof) {
-    const hd = S.head || {}, t = hd.t || '', hs = S.hs;
+    const hd = S.head || {}, t = hd.t || '', hs = S.hs, IK = !S.beast && S.idk, hx = IK ? IK.hx : '';
     const hcS = pj(hc3), hy = hc3[1];
     // 颈
     part(NF); capK(pj(neck3), add(hcS, [0, 2]), 2.1, 2.1, pc(S.beast === 'hawk' ? S.hair : S.beast === 'wolf' ? S.fur : S.skin));
@@ -2638,19 +2974,20 @@ const DFIG = (() => {
       else if (S.beast === 'hawk') beastHawk3(LH, S, P, H, Hh, Dh, shell);
       else {
         // 脑后发量（比头骨略大、偏上偏后）+ 几团蓬松发团
-        if (!covered && hs !== 'bald') push3(LH, Dh(-1.1, 0) * 0.3, () => {
+        if (!covered && hs !== 'bald' && hx !== 'bald') push3(LH, Dh(-1.1, 0) * 0.3, () => {
           hairPart();
           const m = ellip([-1.1 * HK, hy - 1.25 * HK, 0], [7.25 * HK, 6.95 * HK, 7.35 * HK], hair); if (m) m.shadeBy = headSph;
           for (const [x, y, z, rr] of [[-5.8, -3.8, 0, 2.4], [-2.4, -6.4, 0, 2.5], [1.4, -6.5, 0, 2.1], [-7, 0.6, 0, 2], [-2.4, -5.6, 4.0, 2.2], [-2.4, -5.6, -4.0, 2.2], [-5.6, -1.6, 3.4, 2.0], [-5.6, -1.6, -3.4, 2.0], [2.0, -5.6, 2.8, 1.9], [2.0, -5.6, -2.8, 1.9]]) { const q = disc(H(x, y, z), rr * HK, hair); if (q) q.shadeBy = headSph; }
         });
         // 长发帘 / 马尾
-        if ((hs === 'long' || hs === 'pony') && t !== 'cowl') {
-          if (hs === 'long') push3(LH, Dh(-4, 0) * 0.5 - 0.2, () => {
+        if ((hs === 'long' || hs === 'pony' || hx === 'bob') && t !== 'cowl') {
+          if (hs === 'long' || hx === 'bob') push3(LH, Dh(-4, 0) * 0.5 - 0.2, () => {
             part(NF);
-            // 从头顶罩下、到肩背的发帘：上半是贴着发量的圆顶，下摆收窄并剪成几绺
-            const hem = 6.6 + Math.sin(NOW * 0.004) * 0.3;
-            shell(y => { if (y < -1.25) { const tt = (y + 1.25) / 6.3, k = Math.sqrt(Math.max(0, 1 - tt * tt)); return [7.45 * k, 7.15 * k, -1.0]; } const k = clamp((y + 1.25) / 8, 0, 1), e = sstep(0.55, 1, k); return [lerp(7.45, 6.4, k) * (1 - 0.3 * e), lerp(7.15, 5.4, k) * (1 - 0.25 * e), lerp(-1.0, -2.1, k)]; }, -7.55, hem, 16,
-              m => (Math.abs(m.ang) < 62 || m.u > hem - 1.5 * (0.5 + 0.5 * Math.cos(m.ang * RAD * 7)) ? 0 : hair));
+            // 从头顶罩下、到肩背的发帘：上半是贴着发量的圆顶，下摆收窄并剪成几绺（波浪长发更长更蓬、鬃发参差、鲍伯头齐到下颚）
+            const hem = (hx === 'bob' ? (covered ? 6.0 : 3.9) : hx === 'wavy' ? 8.2 : hx === 'mane' ? 7.6 : 6.6) + Math.sin(NOW * 0.004) * 0.3;
+            const wk = hx === 'wavy' || hx === 'mane' ? 1.08 : hx === 'bob' ? 1.04 : 1, jag = hx === 'wavy' ? 2.4 : hx === 'mane' ? 3.0 : hx === 'bob' ? 0.6 : 1.5, fq = hx === 'wavy' ? 5 : hx === 'mane' ? 9 : 7, op = hx === 'bob' ? 58 : 62;
+            shell(y => { if (y < -1.25) { const tt = (y + 1.25) / 6.3, k = Math.sqrt(Math.max(0, 1 - tt * tt)); return [7.45 * k * wk, 7.15 * k * wk, -1.0]; } const k = clamp((y + 1.25) / 8, 0, 1), e = hx === 'bob' ? 0 : sstep(0.55, 1, k); return [lerp(7.45, 6.4, k) * (1 - 0.3 * e) * wk, lerp(7.15, 5.4, k) * (1 - 0.25 * e) * wk, lerp(-1.0, -2.1, k)]; }, -7.55, hem, 16,
+              m => (Math.abs(m.ang) < op || m.u > hem - jag * (0.5 + 0.5 * Math.cos(m.ang * RAD * fq)) ? 0 : hair));
           });
           else { const sw = Math.sin(NOW * 0.006) * 1.5 - (P.ra || 0) * 3; push3(LH, Dh(-7.5, 0), () => { part(NF); chainK([H(-6.2, -3.4, 0), H(-9.2, 0 + sw * 0.3, 0.4), H(-9.6 + sw, 5.5, 0.8)], 1.8, 1.1, hair); }); }
         }
@@ -2664,7 +3001,8 @@ const DFIG = (() => {
             if (fx && aa < (t === 'ninja' ? 70 : 52) && y > -3.2 && y < 4.6) return fx;
             if (S.skull) return bone;
             if (S.beard && aa < 85 && y > 1.7) return hair;
-            return hairAt(hs, m.ang, y) ? hair : skin;
+            if (IK && IK.beard === 'goatee' && aa < 18 && y > 4.0) return hair;
+            return hairAt(hs, m.ang, y, hx) ? hair : skin;
           });
         });
         push3(LH, 0.001, () => {
@@ -2680,7 +3018,7 @@ const DFIG = (() => {
           }
         });
         // 耳朵
-        if (hs !== 'long' && !covered && !S.skull) for (const sd of [1, -1]) {
+        if (hs !== 'long' && hx !== 'bob' && !covered && !S.skull) for (const sd of [1, -1]) {
           const al = 90 * sd, c = Math.cos((al - phi) * RAD); if (c < -0.3) continue;
           const x = Math.cos(al * RAD) * 7.0 + 0.1, z = sd * 7.2, ec = H(x, 1.0, z), w = (0.32 + 0.62 * Math.abs(c)) * HK;
           push3(LH, c > 0.08 ? 0.5 + c : -10 + c, () => {
@@ -2690,14 +3028,19 @@ const DFIG = (() => {
             if (c > 0.35) { part(FLAT); ell([ec[0] + (H(x - 1, 1, z)[0] - ec[0]) * 0.25, ec[1] + 0.15 * HK], w * 0.42, 0.7 * HK, 0, pc('#d89a7a')); }
           });
         }
-        if (hs === 'spiky' && !['helm', 'kettle', 'hood', 'kabuto', 'mask', 'cowl', 'crown', 'mitre', 'wizhat', 'bandana', 'feather', 'cap', 'straw', 'headdress', 'ninja'].includes(t)) {
+        if (hs === 'spiky' && hx !== 'wild' && !['helm', 'kettle', 'hood', 'kabuto', 'mask', 'cowl', 'crown', 'mitre', 'wizhat', 'bandana', 'feather', 'cap', 'straw', 'headdress', 'ninja'].includes(t)) {
           const sw = Math.sin(NOW * 0.005) * 0.5;
           for (const [a, b, r0] of [[[0.5, -5.2, 0], [-1.2, -10.2, 0.2], 2.6], [[-2, -4.6, 2.8], [-5.6, -8.4 + sw, 5.6], 2.5], [[-2, -4.6, -2.8], [-5.6, -8.4 + sw, -5.6], 2.5], [[-4, -1.6, 4.2], [-8.2, -3.2 + sw, 7.6], 2.3], [[-4, -1.6, -4.2], [-8.2, -3.2 + sw, -7.6], 2.3], [[2.6, -4.4, 2.6], [4.6, -8, 4.6], 2.1], [[2.6, -4.4, -2.6], [4.6, -8, -4.6], 2.1], [[-4.6, -4.2, 0], [-9, -7, 0], 2.5]])
             push3(LH, Dh(b[0], b[2]) * 0.3 - 0.05, () => { hairPart(); const q = capK(H(...a), H(...b), r0, 0.35, hair); if (q) q.shadeBy = headSph; });
         }
         if (hs === 'topknot' && !['kabuto', 'helm'].includes(t)) push3(LH, Dh(-1.5, 0) * 0.3 + 0.002, () => { hairPart(); disc(H(-1.5, -7, 0), 2.2 * HK, hair); });
+        if (IK) {
+          idHairX({ side: 0, P: H, D: Dh, hair: (d, fn) => push3(LH, d, fn), gear: () => {}, hp: hairPart, sh: q => { if (q) q.shadeBy = headSph; } }, S, P);
+          if (IK.beard === 'long') push3(LH, Dh(5, 0) > 0 ? 0.3 : -0.6, () => { part(NF); capK(H(4.4, 3.6, 0), H(3.6, 9.8, 0), 3.7, 1.5, hair); capK(H(3.6, 9.8, 0), H(2.6, 12.0, 0), 1.5, 0.6, hair); });
+        }
       }
       if (!S.beast || S.head) gear3(LH, S, P, hd, H, Hh, Dh, shell, phi, S.beast === 'wolf' ? 0.86 : S.beast === 'hawk' ? 0.9 : 1);
+      if (IK) idGearX({ side: 0, P: H, D: Dh, hair: () => {}, gear: (d, fn) => push3(LH, d > 0 ? 51 + d * 0.01 : d * 0.5 - 1, fn), hp: () => part(NF), sh: () => {} }, S, P);
       run3(LH);
     });
   }
@@ -3125,6 +3468,11 @@ const DFIG = (() => {
     // 头、围巾
     const phiAbs = Math.abs(opt.yaw), prof = phiAbs >= 70 && phiAbs <= 110;
     push3(L, headD, () => head3(J, S, P, hc3, neck3, prof ? (opt.yaw < 0 ? -90 : 90) : opt.yaw, prof));
+    // 辫子垂在背上：依身体深度排序（正面藏在身后、背面画在披风上）
+    if (!prof && !S.beast && S.idk && S.idk.hx === 'braid') push3(L, baseD - 4 * YC + (YC < 0 ? 0.1 : 0), () => {
+      const hx0 = pj(hc3)[0], hy = hc3[1];
+      withYaw(opt.yaw, hx0, () => drawBraid({ P: (x, y, z) => [x * HK * YS - z * HK * YC + XOFF, hy + y * HK] }, S, P));
+    });
     if (S.scarf) {
       push3(L, headD - 0.05, () => { part(NF); const q = T(J, 0, 16.4, S.bulk), n = pj([q[0], q[1], 0]); ell(n, Math.sqrt((5.6 * YS) ** 2 + (6.6 * YC) ** 2), 3.2, 0, pc(S.scarf)); });
       push3(L, baseD - 4 * YC + (YC < 0 ? 0.1 : 0), () => {
@@ -3189,7 +3537,7 @@ const DFIG = (() => {
     NOW = opt.now || 0; F = 1;
     if (S.kind !== 'doll') return drawTurnSprite(g, u, S, P, Object.assign({}, opt, { yaw }));
     if (!hdOn()) return draw(g, u, S, P, Object.assign({}, opt, { f: 1 }));
-    cur = 0;
+    cur = 0; S = idSpec(S);
     drawHD(g, S, P, Object.assign({}, opt, { f: 1, yaw, prev: null }));
     return null;
   }
@@ -3197,6 +3545,7 @@ const DFIG = (() => {
   function turnBox(u, S, P, yaw, now) {
     if (S.kind !== 'doll') { const sz = 16 * S.scale; return [-sz / 2, -sz * 15 / 16 - (S.fly ? 10 : 0), sz / 2, sz / 16]; }
     NOW = now || 0; F = 1; cur = 0;
+    if (hdOn()) S = idSpec(S);
     REC = { parts: [] }; CUR_S = S;
     try { turnDoll(S, P, { yaw }); } finally { YS = 1; YC = 0; XOFF = 0; }
     const Rr = REC; REC = null;
