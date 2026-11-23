@@ -242,6 +242,7 @@ function warmParty(ids) {
 })();
 function showCamp() {
   B = null;
+  fixOldReclassStats(); persist();
   show('camp');
   music('camp');
   prepareStage(Math.min(S.stage, STAGES.length - 1));
@@ -325,6 +326,34 @@ function hiddenInfo(d) {
     .map(x => ({ ...x, ok: Object.entries(x.need).every(([k, v]) => masteryOf(d, k) >= v) }));
 }
 function needText(need) { return Object.entries(need).map(([k, v]) => `${CLASSES[k].line} Lv${v}`).join('、'); }
+// 转职所换职业时的能力换算：把在旧职业升级所得（每级成长 + 转职加成）换成新职业同样等级会得到的数值
+// （例：神官转拳师，原本神官的魔力成长换成拳师的攻击成长）；更早职业留下的能力照样保留
+function classGain(cls, lv, path) {
+  const C = CLASSES[cls], g = {}, bl = branchLv(C);
+  for (const k of STATS) g[k] = 0;
+  for (let l = 2; l <= lv; l++) { const G = path === 'b' && C.alt && l >= bl ? C.alt.growth : C.growth; for (const k of STATS) g[k] += G[k] || 0; }
+  for (let t = 1; t <= tierForLevel(cls, lv); t++) { const P = (path === 'b' && C.alt && t >= C.alt.at ? C.alt.promo : C.promo) || {}; for (const k of STATS) g[k] += P[k] || 0; }
+  return g;
+}
+const STAT_FIELD = k => (k === 'hp' ? 'mhp' : k === 'mp' ? 'mmp' : k);
+function reclassStats(d, fromCls, fromLv, fromPath, toCls) {
+  const a = classGain(fromCls, fromLv, fromPath), b = classGain(toCls, fromLv, 'a'), out = {};
+  for (const k of STATS) out[STAT_FIELD(k)] = Math.max(k === 'hp' ? 10 : k === 'mp' ? 0 : 1, Math.round(d[STAT_FIELD(k)] - a[k] + b[k]));
+  return out;
+}
+function reclassStatText(d, k) {
+  const n = reclassStats(d, d.cls, d.lv, d.path, k);
+  return STATS.filter(s => n[STAT_FIELD(s)] !== d[STAT_FIELD(s)]).map(s => `${STAT_NAME[s]} ${d[STAT_FIELD(s)]}→${n[STAT_FIELD(s)]}`).join(' · ');
+}
+// 旧存档：以前转职所不换算能力（只保留），对只转过一次职的角色补算一次
+function fixOldReclassStats() {
+  for (const d of Object.values(S.roster || {})) {
+    if (d.rcFix) continue;
+    const prev = Object.keys(d.mastery || {}).filter(k => k !== d.cls && CLASSES[k]);
+    if (prev.length === 1) Object.assign(d, reclassStats(d, prev[0], d.mastery[prev[0]], undefined, d.cls));
+    if (prev.length) d.rcFix = 1;
+  }
+}
 function reclassPool(d) {
   const c = curCampaign(), h = HEROES[d.id] || {};
   const base = h.pool || [...(h.lines || []), ...(c.classPool || [])]; // h.pool：主角专属的转职范围（[] = 不能转职）
@@ -342,14 +371,14 @@ $('#camp').addEventListener('click', async e => {
     const opts = pool.map(k => { const C = CLASSES[k]; return {
       value: k, u: previewUnit(d, { cls: k, tier: 0, lv: 1, path: undefined }), label: C.tiers[0].name + (C.needItem || C.hiddenOf ? ' ✦隐藏' : ''),
       tiers: C.tiers.map(t => t.name).join(' → '), focus: C.line + (C.needItem ? ` · 消耗${ITEMS[C.needItem].name}` : ''),
-      desc: C.passive ? `特殊能力：${C.passive.map(p => PERK_NAME[p] || p).join('、')}` : '', skills: firstSkills(C),
+      stats: reclassStatText(d, k), desc: C.passive ? `特殊能力：${C.passive.map(p => PERK_NAME[p] || p).join('、')}` : '', skills: firstSkills(C),
     }; });
     for (const x of hiddenInfo(d).filter(x => !x.ok && x.cls !== d.cls)) opts.push({
       locked: true, u: previewUnit(d, { cls: x.cls, tier: 0, lv: 1, path: undefined }), label: '🔒 ' + CLASSES[x.cls].tiers[0].name,
       focus: `${d.name}专属隐藏职业`, desc: `条件：${needText(x.need)}（目前 ${Object.keys(x.need).map(k => `${CLASSES[k].line} ${masteryOf(d, k)}`).join('、')}）`,
     });
     const fromCls = d.cls, fromTier = d.tier, fromPath = d.path;
-    const k = await promoPicker(`${esc(d.name)} · 转职所`, '转职后等级回到 Lv1（能力值保留），已学会的招式全部保留，可以一直循环转职。', opts,
+    const k = await promoPicker(`${esc(d.name)} · 转职所`, '转职后等级回到 Lv1，在原职业练出的能力会换算成新职业的成长（卡片上可看到变化），已学会的招式全部保留，可以一直循环转职。', opts,
       { u: previewUnit(d), label: tierDef(previewUnit(d)).name }, [{ label: '取消', value: null }], { dismiss: null });
     if (!k) return;
     const u = Object.assign({ status: {}, buffs: [] }, d);
@@ -359,7 +388,7 @@ $('#camp').addEventListener('click', async e => {
     d.mastery = Object.assign({}, d.mastery, { [d.cls]: masteryOf(d, d.cls) }); // 记下职业经历
     const hx = (HEROES[d.id].hidden || []).find(x => x.cls === k); // 选了隐藏职业：同组的另一个消失
     if (hx) d.hiddenPick = Object.assign({}, d.hiddenPick, { [hx.group]: k });
-    Object.assign(d, { cls: k, lv: 1, exp: 0, tier: 0, path: undefined });
+    Object.assign(d, reclassStats(d, d.cls, d.lv, d.path, k), { cls: k, lv: 1, exp: 0, tier: 0, path: undefined, rcFix: 1 });
     const u2 = Object.assign({ status: {}, buffs: [] }, d);
     if (d.weapon && !canUseWeapon(u2, d.weapon)) { S.inv[d.weapon] = (S.inv[d.weapon] || 0) + 1; d.weapon = null; }
     persist();
