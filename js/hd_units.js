@@ -2,7 +2,7 @@
 // 以 sprites.js 的 16×16 字符画 / portraits.js 的 64×72 立绘为底稿，自动「去像素化」成平滑的 Q 版插画：
 //   EPX 放大 → 按色块做高斯加权的标签插值（边缘变成平滑曲线）→ 边界超采样抗锯齿
 //   → 左上光源的柔和赛璐璐明暗 + 轮廓光 → 色块间细描线 → 外描边；人形单位叠加矢量动画大眼。
-// 导出：getSpriteHD(key, tier, team, hair, variant, gear) → 128×128 画布（取景与 getSprite 相同）
+// 导出：getSpriteHD(key, tier, team, hair, variant, gear, hero?) → 128×128 画布（取景与 getSprite 相同）；hero = 英雄 id 时套用该英雄的个人特征
 //       hdPortrait(canvas, opts) → ×4 高清立绘：getPortrait 的立绘交给 portraits.js 以 5 倍解析度重画；其他来源平滑放大（opts.bg === false 时背景透明）
 'use strict';
 
@@ -169,7 +169,7 @@ const sstep = (a, b, x) => { const t = x <= a ? 0 : x >= b ? 1 : (x - a) / (b - 
 // ---------- 单位 ----------
 // 同组字母视为同一材质（阴影不在组内的明暗两色之间重复叠加，也不在其间描线）
 const GROUP = {};
-['sS', 'pq', 'mnijv', 'bB', 'fF', 'yY', 'dD', 'GH', 'cC', 'rRe', 'ga', '1234', '5678', 'kK', 'tT', 'wuO'].forEach((s, gi) => { for (const ch of s) GROUP[ch] = gi + 1; });
+['sS', 'pq', 'mnijv', 'bB', 'fF', 'yY', 'dD', 'GH', 'cC', 'rRe', 'ga', '1234', '5678', 'kK', 'tT', 'wuO', 'xX', 'zZ', 'MN', 'EJ', 'Ql'].forEach((s, gi) => { for (const ch of s) GROUP[ch] = gi + 1; });
 let GROUP_NEXT = 40;
 const METALISH = new Set('mnijv1234567gaLc'.split(''));
 
@@ -194,8 +194,8 @@ function findFace(g) {
 }
 
 // 矢量动画眼：cx,cy 为眼中心（输出像素），s = 每个 16 格像素的输出像素数
-function drawEye(ctx, cx, cy, s, iris, flip) {
-  const w = s * 0.86, h = s * 1.12;
+function drawEye(ctx, cx, cy, s, iris, flip, sq) {
+  const w = s * 0.86, h = s * 1.12 * (sq || 1);
   ctx.save();
   ctx.translate(cx, cy);
   // 眼白（下半）
@@ -222,8 +222,9 @@ function drawEye(ctx, cx, cy, s, iris, flip) {
   ctx.beginPath(); ctx.arc(w * 0.34, h * 0.5, s * 0.13, 0, Math.PI * 2); ctx.fill();
   ctx.restore();
 }
-function drawFace(ctx, f, S, skinRGB, irisHex, blush) {
+function drawFace(ctx, f, S, skinRGB, irisHex, blush, lk) {
   const cy = (f.y + 1) * S, lx = (f.lx + 1) * S, rx = (f.rx + 1) * S;
+  if (lk) return drawHeroFace(ctx, f, S, skinRGB, irisHex, blush, lk);
   // 腮红
   if (blush) {
     for (const bx of [lx - S * 1.15, rx + S * 1.15]) {
@@ -245,6 +246,373 @@ function irisFor(hair, eyeHex, eyeCh) {
   let c = lum(h) < 0.22 ? mixc(h, [70, 110, 190], 0.55) : mixc(h, [40, 30, 60], 0.25);
   if (lum(c) > 0.6) c = mixc(c, [40, 60, 120], 0.4);
   return '#' + c.map(v => Math.max(0, Math.min(255, v | 0)).toString(16).padStart(2, '0')).join('');
+}
+
+// =====================================================================
+// 英雄个人特征（portraits.js 的 heroLook）：同职业的英雄在地图上也要认得出来
+//   肤色、瞳色、发型轮廓、头饰、胡子、围巾、服装点缀色直接改 16×16 底稿（与职业造型同一套平滑 / 明暗 / 描边），
+//   眼镜、面具、眼罩、伤疤、战纹、耳环等细节在矢量脸上补画
+// =====================================================================
+const toHex = c => '#' + c.map(v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, '0')).join('');
+const mixHex = (a, b, t) => toHex(mixc(hx(a), hx(b), t));
+const darkHex = (a, t) => toHex(mixc(hx(a), [24, 14, 34], t));
+function hueOf(c) {
+  const [r, g, b] = c, mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  if (d < 1) return { h: 0, s: 0 };
+  let h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return { h: (h * 60 + 360) % 360, s: d / mx };
+}
+// 两色是否太像（色相接近且都有彩度）：个人服色与阵营色太像时改用另一种点缀色
+function nearHue(a, b) {
+  const A = hueOf(hx(a)), B = hueOf(hx(b));
+  if (A.s < 0.25 || B.s < 0.25) return false;
+  const d = Math.abs(A.h - B.h); return Math.min(d, 360 - d) < 28;
+}
+// 由（hero 参数 | 发色 + 阵营 + 精灵键）找出英雄的外观描述；敌方与一般单位回传 null
+function lookFor(hero, key, team, hair) {
+  if (hero === false || typeof G.heroLook !== 'function') return null;
+  let id = hero && typeof hero === 'object' ? hero.id : hero;
+  if (!id) {
+    if (team === 'enemy' || !hair || typeof HEROES === 'undefined') return null;
+    const h = String(hair).toLowerCase(), cand = [];
+    for (const k in HEROES) if (String(HEROES[k].hair || '').toLowerCase() === h) cand.push(k);
+    let list = cand;
+    if (cand.length > 1) {
+      list = cand.filter(k => {
+        try {
+          const r = typeof S !== 'undefined' && S && S.roster && S.roster[k], C = CLASSES[(r && r.cls) || HEROES[k].cls];
+          return C.sprite === key || (C.alt && C.alt.sprite === key);
+        } catch (e) { return false; }
+      });
+    }
+    if (list.length !== 1) return null;
+    id = list[0];
+  }
+  let L = null;
+  try { L = G.heroLook(id); } catch (e) { L = null; }
+  return L && L.kind === 'human' ? L : null;
+}
+const BEHIND_OK = new Set(['.']);
+const HELM_CH = new Set('yYWv'.split('')); // 头盔常用的钢灰 / 白色（加上 METALISH）
+const CLOTH_PAIR = { b: 'B', d: 'D', f: 'F', G: 'H', T: 't', r: 'R', o: 'O', c: 'C', U: '', w: '', B: 'b', D: 'd', F: 'f', H: 'G', t: 'T', R: 'r', O: 'o', C: 'c' };
+const CLOTH_LIGHT = new Set('bdfGTrocUw'.split(''));
+// 改 16×16 底稿与调色盘；回传给矢量脸的选项（脸找不到 → 只换肤色与瞳色）
+function applyLook(g, L, pal, team) {
+  const face = findFace(g);
+  pal.s = L.skin; pal.S = L.skinShade;
+  const lk = { L, hair: pal.h, iris: L.iris, blush: L.sex === 'f' || (!L.beard && L.skinTone !== 'old'), face: !!face };
+  if (!face || face.rx - face.lx !== 4) return lk;
+  const ox = face.lx - 5, oy = face.y - 6;
+  const at = (x, y) => { const r = g[y + oy]; return r ? r[x + ox] : undefined; };
+  const set = (x, y, c) => {
+    const yy = y + oy, xx = x + ox;
+    if (yy < 0 || yy > 15 || xx < 0 || xx > 15) return;
+    if ((y === 6 || y === 7) && x >= 4 && x <= 11) return; // 眼睛与两眼之间的脸不动（矢量脸靠它定位）
+    g[yy][xx] = c;
+  };
+  // 头部状态：头发外露的帽状发型 / 金属头盔 / 布帽兜帽
+  let hairN = 0, metalN = 0, topN = 0;
+  for (let y = 0; y <= 4; y++) for (let x = 3; x <= 12; x++) { const c = at(x, y); if (c === 'h') hairN++; if (METALISH.has(c) || HELM_CH.has(c)) metalN++; if (c && c !== '.' && c !== 'k') topN++; }
+  const cap = hairN >= 16, helm = !cap && metalN >= 8, softHat = !cap && !helm;
+  const B = (x, y, c) => { if (BEHIND_OK.has(at(x, y))) set(x, y, c || 'h'); };             // 只画在空白处（头后的头发）
+  const P = (x, y, c) => { const v = at(x, y); if (v === undefined) return; if (cap || v === '.') set(x, y, c || 'h'); }; // 盖在头上（头盔时退化为 B）
+  const onHair = (x, y, c) => { const v = at(x, y); if (v === 'h' || v === 'k' || v === '.') set(x, y, c); };
+  // ---- 发型 ----
+  const st = L.hairStyle, raw = L.hairRaw;
+  const longSides = (deep) => {
+    for (let y = 5; y <= 8; y++) { P(2, y); P(13, y); }
+    for (let y = 5; y <= deep; y++) { B(1, y); B(14, y); }
+    for (let y = 9; y <= deep; y++) { B(2, y); B(13, y); }
+    B(3, 9); B(12, 9);
+  };
+  switch (st) {
+    case 'short': if (raw === 'neat') { P(3, 5); P(4, 5); P(5, 5); P(6, 5); B(13, 1); } break; // 侧分浏海
+    case 'swept': P(9, 5); P(10, 5); P(11, 5); P(8, 5); B(14, 3); B(2, 1); break;
+    case 'messy': P(6, 5); P(9, 5); lk.spikes = 'messy'; break;
+    case 'shaggy': for (let y = 5; y <= 7; y++) { P(2, y); P(13, y); B(1, y); B(14, y); } B(1, 4); B(14, 4); P(6, 5); P(9, 5); break;
+    case 'spiky': // 尖刺在矢量层画（头后），这里只做锯齿浏海
+      P(5, 5); P(10, 5); lk.spikes = 'spiky'; break;
+    case 'wild': case 'mane':
+      P(5, 5); P(10, 5); P(2, 5); P(13, 5); lk.spikes = 'wild';
+      if (st === 'mane') longSides(12); break;
+    case 'long': case 'wavy':
+      longSides(st === 'wavy' ? 11 : 12);
+      if (st === 'wavy') { B(0, 7); B(15, 7); B(0, 8); B(15, 8); }
+      if (raw === 'hime') for (let x = 5; x <= 10; x++) P(x, 5);
+      break;
+    case 'ponytail': {
+      const pts = [[2, 1], [1, 1], [1, 2], [0, 2], [0, 3], [1, 3], [0, 4], [1, 4], [0, 5], [0, 6], [1, 7]];
+      for (const [x, y] of pts) B(x, y);
+      if (cap) set(2, 2, 'M');
+      P(9, 5); break;
+    }
+    case 'twin-tails':
+      for (const [x, y] of [[1, 2], [0, 3], [1, 3], [0, 4], [1, 4], [0, 5], [1, 5], [0, 6], [1, 7]]) { B(x, y); B(15 - x, y); }
+      if (cap) { set(2, 2, 'M'); set(13, 2, 'M'); }
+      break;
+    case 'bob':
+      for (let y = 5; y <= 7; y++) { P(2, y); P(13, y); }
+      for (let y = 4; y <= 8; y++) { B(1, y); B(14, y); }
+      B(2, 8); B(13, 8); P(5, 5); P(6, 5); P(9, 5); P(10, 5); break;
+    case 'tied': if (cap) for (let x = 6; x <= 9; x++) set(x, 0, 'h'); if (cap) { set(7, 1, 'M'); set(8, 1, 'M'); } break;
+    case 'braid': for (const [x, y] of [[1, 5], [1, 6], [1, 7], [2, 8], [2, 9], [1, 10], [2, 11], [1, 12]]) B(x, y); break;
+    case 'bald': case 'sides':
+      if (cap) {
+        for (let y = 0; y <= (st === 'bald' ? 5 : 3); y++) for (let x = 3; x <= 12; x++) if (at(x, y) === 'h') set(x, y, 's');
+        if (st === 'sides') { for (let x = 5; x <= 10; x++) if (at(x, 4) === 'h') set(x, 4, 's'); for (let x = 5; x <= 10; x++) if (at(x, 5) === 'h') set(x, 5, 's'); }
+      }
+      if (st === 'sides') { B(1, 5); B(14, 5); B(1, 6); B(14, 6); P(2, 5); P(13, 5); }
+      break;
+  }
+  // 金属头盔：头盔边缘下露出两鬓的头发（短发只到耳际，长发 / 鲍伯头到下巴）
+  if (helm && st !== 'bald' && st !== 'sides') {
+    const y1 = st === 'short' || st === 'swept' || st === 'tied' ? 7 : 8;
+    for (let y = 5; y <= y1; y++) for (const x of [2, 13]) { const v = at(x, y); if (v === 'k' || v === '.') set(x, y, 'h'); }
+    for (let y = 5; y <= y1 - 1; y++) { B(1, y); B(14, y); }
+  }
+  // 外轮廓上的黑线：两侧都已是头发时并进头发（新加的发丝与原头部连成一片）
+  for (let y = 0; y <= 9; y++) for (let x = 0; x <= 15; x++) {
+    if (at(x, y) !== 'k') continue;
+    if ((at(x - 1, y) === 'h' && at(x + 1, y) === 'h') || (at(x, y - 1) === 'h' && at(x, y + 1) === 'h')) set(x, y, 'h');
+  }
+  // ---- 头饰 ----
+  const H = L.head;
+  const metalCh = col => { const c = hueOf(hx(col)); return c.s < 0.25 ? 'i' : 'g'; };
+  // 饰品色与发色太接近时拉开明度（粉色蝴蝶结配粉发也要看得见）
+  const apart = col => { const a = hx(col), h = hx(pal.h || L.hair); if (Math.abs(a[0] - h[0]) + Math.abs(a[1] - h[1]) + Math.abs(a[2] - h[2]) > 64) return col; return lum(h) > 0.5 ? darkHex(col, 0.45) : mixHex(col, '#ffffff', 0.45); };
+  const band = (col) => { col = apart(col); pal.M = col; pal.N = darkHex(col, 0.35); };
+  const acc = (col) => { col = apart(col); pal.E = col; pal.J = darkHex(col, 0.35); };
+  if (L.hood && cap) { // 兜帽：盖住头顶与两侧，露出浏海
+    acc(L.hood);
+    for (let y = 0; y <= 4; y++) for (let x = 2; x <= 13; x++) { const v = at(x, y); if (v === 'h' || (v === 'k' && y > 0)) set(x, y, 'E'); }
+    for (let y = 5; y <= 8; y++) { set(2, y, 'E'); set(13, y, 'E'); B(1, y, 'E'); B(14, y, 'E'); }
+    for (let y = 1; y <= 4; y++) { B(1, y, 'E'); B(14, y, 'E'); }
+    B(2, 9, 'J'); B(13, 9, 'J');
+    if (L.hoodTrim) { pal.I = L.hoodTrim; for (let x = 5; x <= 10; x++) set(x, 4, 'I'); }
+  }
+  if (H) {
+    const t = H.type;
+    const okTop = cap || (softHat && (t === 'tiara' || t === 'flower' || t === 'ribbon' || t === 'leaves' || t === 'horns' || t === 'crown'));
+    if (okTop) switch (t) {
+      case 'headband': {
+        band(H.color);
+        // 职业造型本来就有头巾（斗士）：改它的颜色，不再叠一条
+        let bandY = -1, bandCh = null;
+        for (let y = 2; y <= 4 && bandY < 0; y++) { const c0 = at(7, y); if (!c0 || 'hks.'.includes(c0)) continue; let n = 0; for (let x = 3; x <= 12; x++) if (at(x, y) === c0) n++; if (n >= 8) { bandY = y; bandCh = c0; } }
+        if (bandY >= 0) { for (let y = 0; y <= 6; y++) for (let x = 0; x <= 15; x++) { const v = at(x, y); if (v === bandCh) set(x, y, 'M'); else if (CLOTH_PAIR[bandCh] && v === CLOTH_PAIR[bandCh]) set(x, y, 'N'); } }
+        else for (let x = 2; x <= 13; x++) if (at(x, 4) !== '.') set(x, 4, 'M');
+        B(14, 4, 'M'); B(15, 5, 'N'); B(14, 5, 'N');
+        if (H.gem) { pal.I = H.gem; set(7, 4, 'I'); set(8, 4, 'I'); }
+        if (H.feather) { acc(H.feather); B(12, 0, 'E'); B(13, 0, 'E'); B(13, 1, 'E'); B(14, 1, 'J'); }
+        break;
+      }
+      case 'bandana': case 'turban':
+        band(H.color);
+        for (let y = 0; y <= 4; y++) for (let x = 2; x <= 13; x++) { const v = at(x, y); if (v === 'h' || (v === 'k' && y > 0 && x > 2 && x < 13)) set(x, y, y === 4 ? 'N' : 'M'); }
+        B(14, 3, 'M'); B(15, 4, 'N'); B(14, 4, 'N');
+        break;
+      case 'tiara': {
+        const m = metalCh(H.color);
+        for (let x = 4; x <= 11; x++) onHair(x, 4, m);
+        if (H.gem) { pal.I = H.gem; set(7, 3, 'I'); set(8, 3, 'I'); } else { set(7, 3, m); set(8, 3, m); }
+        break;
+      }
+      case 'crown':
+        for (const x of [4, 6, 9, 11]) set(x, 0, 'g');
+        for (const x of [5, 7, 8, 10]) if (at(x, 0) === 'k') set(x, 0, '.');
+        for (let x = 4; x <= 11; x++) set(x, 1, 'g');
+        pal.I = H.gem || '#d02030'; set(7, 1, 'I'); set(8, 1, 'I');
+        break;
+      case 'mitre':
+        acc(H.color);
+        for (let y = 0; y <= 3; y++) for (let x = 5; x <= 10; x++) set(x, y, x === 7 || x === 8 ? 'g' : 'E');
+        for (let x = 4; x <= 11; x++) set(x, 4, 'g');
+        set(4, 1, '.'); set(11, 1, '.');
+        break;
+      case 'hat':
+        acc(H.color);
+        if (H.shape === 'tricorne') {
+          for (let x = 5; x <= 10; x++) set(x, 0, 'E');
+          for (let x = 3; x <= 12; x++) set(x, 1, 'E');
+          for (let x = 1; x <= 14; x++) set(x, 2, x === 1 || x === 14 ? 'J' : 'E');
+          B(0, 1, 'J'); B(15, 1, 'J');
+          if (H.color2) { pal.I = H.color2; set(3, 0, 'I'); set(4, 0, 'I'); set(4, 1, 'I'); }
+        } else if (H.shape === 'witch') {
+          for (let y = 0; y <= 3; y++) for (let x = 6 - y; x <= 9 + y; x++) set(x, y, 'E');
+          for (let x = 1; x <= 14; x++) set(x, 4, 'J');
+        } else { // cap / 帽子
+          for (let y = 0; y <= 3; y++) for (let x = 3; x <= 12; x++) { const v = at(x, y); if (v === 'h' || v === 'k') set(x, y, 'E'); }
+          for (let x = 2; x <= 13; x++) set(x, 3, 'E');
+          for (let x = 2; x <= 9; x++) set(x, 4, 'J');
+          if (H.color2) { pal.I = H.color2; B(13, 0, 'I'); B(13, 1, 'I'); B(14, 1, 'I'); set(12, 1, 'I'); }
+        }
+        break;
+      case 'horns':
+        acc(H.color); B(2, 0, 'E'); B(3, 0, 'E'); B(12, 0, 'E'); B(13, 0, 'E'); B(1, 1, 'J'); B(14, 1, 'J');
+        break;
+      case 'leaves':
+        acc(H.color);
+        for (const x of [3, 5, 7, 9, 11]) onHair(x, 4, 'E');
+        for (const x of [4, 8, 12]) onHair(x, 3, 'J');
+        if (H.color2) { pal.I = H.color2; set(11, 3, 'I'); }
+        break;
+      case 'flower':
+        acc(H.color); set(11, 2, 'E'); set(12, 2, 'E'); set(11, 3, 'E'); set(12, 3, 'J'); B(13, 2, 'E'); B(13, 3, 'E');
+        pal.I = '#fff0a0'; set(12, 2, 'I');
+        break;
+      case 'ribbon':
+        acc(H.color);
+        for (const [x, y] of [[9, 0], [10, 0], [10, 1], [13, 0], [14, 0], [13, 1]]) { if (at(x, y) === '.' || at(x, y) === 'k' || at(x, y) === 'h') set(x, y, 'E'); }
+        set(11, 1, 'J'); set(12, 1, 'J'); B(14, 1, 'J'); B(15, 1, 'E');
+        break;
+      case 'veil':
+        acc(H.color);
+        for (let y = 1; y <= 4; y++) for (let x = 2; x <= 13; x++) { const v = at(x, y); if (v === 'h' || (v === 'k' && x > 2 && x < 13)) set(x, y, 'E'); }
+        for (let y = 5; y <= 9; y++) { B(1, y, 'E'); B(14, y, 'E'); }
+        if (H.gem) { pal.I = H.gem; set(7, 4, 'I'); set(8, 4, 'I'); }
+        break;
+      case 'fins': acc(H.color); B(1, 3, 'E'); B(0, 4, 'E'); B(14, 3, 'E'); B(15, 4, 'E'); break;
+      case 'goggles':
+        band(H.color); pal.I = H.gem || '#60c0e0';
+        { // 职业造型本来就戴护目镜（炼金术士）：只换颜色
+          let gy = -1; for (let y = 2; y <= 4 && gy < 0; y++) { let n = 0; for (let x = 3; x <= 12; x++) if (at(x, y) === 'c') n++; if (n >= 2) gy = y; }
+          if (gy >= 0) { for (let x = 2; x <= 13; x++) { const v = at(x, gy); if (v === 'c') set(x, gy, 'I'); else if (v && v !== 'h' && v !== 'k' && v !== '.') set(x, gy, 'M'); } break; }
+        }
+        for (let x = 2; x <= 13; x++) if (at(x, 3) !== '.') set(x, 3, 'M');
+        for (const x of [4, 5, 10, 11]) set(x, 3, 'I');
+        set(4, 2, 'g'); set(5, 2, 'g'); set(10, 2, 'g'); set(11, 2, 'g');
+        break;
+      case 'feathers':
+        acc(H.color); B(4, 0, 'E'); B(11, 0, 'E'); B(2, 1, 'E'); B(13, 1, 'E'); break;
+    }
+  }
+  // 尖耳
+  if (L.ears === 'elf') { pal.V = L.skin; B(1, 6, 's'); B(0, 5, 's'); B(14, 6, 's'); B(15, 5, 's'); }
+  // ---- 胡子（发色；胡渣 = 皮肤与发色之间）----
+  if (L.beard && L.beard !== 'stubble') { // 胡渣在矢量脸上淡淡画一层
+    const bc = 'h';
+    const row8 = L.beard === 'mustache' ? [6, 7, 8, 9] : L.beard === 'goatee' ? [7, 8] : [4, 5, 6, 7, 8, 9, 10, 11];
+    for (const x of row8) set(x, 8, bc);
+    if (L.beard === 'full' || L.beard === 'long' || L.beard === 'goatee') for (let x = L.beard === 'goatee' ? 7 : 5; x <= (L.beard === 'goatee' ? 8 : 10); x++) set(x, 9, bc);
+    if (L.beard === 'long') { for (let x = 6; x <= 9; x++) set(x, 10, 'h'); set(7, 11, 'h'); set(8, 11, 'h'); }
+    if (L.beard === 'full') { set(3, 7, 'h'); set(12, 7, 'h'); }
+  }
+  // ---- 围巾（领口一圈 + 往左飘的巾尾）----
+  if (L.scarf) {
+    band(L.scarf);
+    for (let x = 4; x <= 11; x++) { const v = at(x, 9); if (v && v !== '.' && v !== 'h') set(x, 9, 'M'); }
+    B(3, 9, 'M'); B(2, 10, 'N'); B(1, 11, 'N'); B(3, 10, 'N');
+  }
+  // ---- 服装点缀色：身上最多的非阵营布料色 → 个人服色；次多 → 饰边色 ----
+  const mounted = typeof isMounted === 'function' && isMounted(g), yb = mounted ? 10 + oy : 14, xa = mounted ? 5 : 3, xb = mounted ? 10 : 12;
+  // 披风：没骑马时，身体两侧露出个人披风色
+  if (L.cape && !mounted) {
+    pal.Q = L.cape; pal.l = darkHex(L.cape, 0.4);
+    for (const [x, y, c] of [[3, 9, 'Q'], [2, 10, 'Q'], [3, 10, 'Q'], [2, 11, 'l'], [3, 11, 'Q'], [2, 12, 'l'], [3, 12, 'l'], [12, 9, 'Q'], [12, 10, 'Q'], [13, 10, 'Q'], [12, 11, 'Q'], [13, 11, 'l'], [12, 12, 'l'], [13, 12, 'l']]) B(x, y, c);
+  }
+  const cnt = {};
+  for (let y = 9 + oy; y <= yb && y <= 15; y++) for (let x = xa; x <= xb; x++) { const c = g[y] && g[y][x]; if (c && CLOTH_PAIR[c] !== undefined) { const k = CLOTH_LIGHT.has(c) ? c : CLOTH_PAIR[c]; cnt[k] = (cnt[k] || 0) + 1; } }
+  const order = Object.keys(cnt).filter(k => cnt[k] >= 2).sort((a, b) => cnt[b] - cnt[a]);
+  const teamP = pal.p;
+  let cloth = L.cloth, trim = L.trim;
+  if (cloth && teamP && nearHue(cloth, teamP)) cloth = trim && !nearHue(trim, teamP) ? trim : null;
+  if (trim && teamP && nearHue(trim, teamP)) trim = null;
+  if (trim && cloth && trim.toLowerCase() === cloth.toLowerCase()) trim = null;
+  const tint = (ch, col, lt, dk) => {
+    const base = pal[ch], d = CLOTH_PAIR[ch] && pal[CLOTH_PAIR[ch]];
+    pal[lt] = mixHex(base, col, 0.72); pal[dk] = d ? mixHex(d, darkHex(col, 0.38), 0.72) : darkHex(pal[lt], 0.3);
+    for (let y = 8 + oy; y <= Math.min(15, yb); y++) for (let x = xa; x <= xb; x++) { const c = g[y][x]; if (c === ch) g[y][x] = lt; else if (d && c === CLOTH_PAIR[ch]) g[y][x] = dk; }
+  };
+  if (order[0] && cloth) tint(order[0], cloth, 'x', 'X');
+  if (order[1] && trim) tint(order[1], trim, 'z', 'Z');
+  else if (!order[1] && order[0] && !cloth && trim) tint(order[0], trim, 'z', 'Z');
+  return lk;
+}
+// 刺猬头：在头后画一圈发刺（发刺根部被头部轮廓盖住，看起来是从头发里刺出来）
+const SPIKES = { // [角度°（0 = 右，-90 = 正上）, 长度, 根部半宽（弧度）]
+  spiky: [[-176, 1, 0.2], [-150, 1.05, 0.22], [-126, 0.8, 0.2], [-54, 0.8, 0.2], [-30, 1.05, 0.22], [-4, 1, 0.2], [158, 0.7, 0.16], [22, 0.7, 0.16]],
+  messy: [[-160, 0.55, 0.2], [-132, 0.5, 0.18], [-48, 0.5, 0.18], [-20, 0.55, 0.2]],
+  wild: [[-178, 0.6, 0.24], [-152, 0.6, 0.22], [168, 0.55, 0.2], [-28, 0.6, 0.22], [-2, 0.6, 0.24], [12, 0.55, 0.2]],
+};
+// 刺猬头 / 乱发：在头后画一圈发束（根部在头部轮廓下，看起来是从头发里刺出来的）
+function spikesBehind(body, f, hairRGB, kind, half) {
+  const S = HD / 16, cx = (f.lx + f.rx + 2) / 2 * S, cy = (f.y - 1.5) * S, out = document.createElement('canvas');
+  out.width = out.height = HD;
+  const x = out.getContext('2d'), base = rgbStr(hairRGB), dark = rgbStr(shadowOf(hairRGB)), lite = rgbStr(lightOf(hairRGB));
+  const rx = Math.max(5.9, (half || 0) + 3.2) * S, ry = 4.5 * S, pt = (a, k) => [cx + Math.cos(a) * rx * k, Math.max(S * 0.25, cy + Math.sin(a) * ry * k)];
+  x.lineJoin = 'round'; x.lineWidth = S * 0.4; x.strokeStyle = OUTLINE;
+  for (const [deg, len, da] of SPIKES[kind] || SPIKES.spiky) {
+    const a = deg * Math.PI / 180, bend = (Math.cos(a) > 0 ? 1 : -1) * 0.06;
+    const [x0, y0] = pt(a - da, 0.9), [x1, y1] = pt(a + da, 0.9), [tx, ty] = pt(a + bend * 2, 1.12 + 0.42 * len), [mx, my] = pt(a + bend, 1.02 + 0.2 * len);
+    x.beginPath(); x.moveTo(x0, y0); x.quadraticCurveTo((x0 + mx) / 2, (y0 + my) / 2, tx, ty); x.quadraticCurveTo((x1 + mx) / 2, (y1 + my) / 2, x1, y1); x.closePath();
+    const gr = x.createLinearGradient((x0 + x1) / 2, (y0 + y1) / 2, tx, ty); gr.addColorStop(0, dark); gr.addColorStop(0.5, base); gr.addColorStop(1, Math.sin(a) < -0.3 ? lite : base);
+    x.fillStyle = gr; x.stroke(); x.fill();
+  }
+  x.drawImage(body, 0, 0);
+  return out;
+}
+// 矢量脸（英雄版）：眼型、嘴型、面具 / 眼镜 / 眼罩 / 伤疤 / 战纹 / 耳环
+function drawHeroFace(ctx, f, S, skinRGB, irisHex, blush, lk) {
+  const L = lk.L, cy = (f.y + 1) * S, lx = (f.lx + 1) * S, rx = (f.rx + 1) * S;
+  if (blush) {
+    for (const bx of [lx - S * 1.15, rx + S * 1.15]) {
+      const gr = ctx.createRadialGradient(bx, cy + S * 1.25, 0, bx, cy + S * 1.25, S * 0.95);
+      gr.addColorStop(0, 'rgba(255,120,140,0.5)'); gr.addColorStop(1, 'rgba(255,120,140,0)');
+      ctx.fillStyle = gr; ctx.fillRect(bx - S, cy, S * 2, S * 2.5);
+    }
+  }
+  ctx.save(); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  if (L.paint) { // 战纹：两颊各两道
+    ctx.strokeStyle = L.paint; ctx.lineWidth = S * 0.3;
+    for (const [bx, d] of [[lx - S * 0.9, -1], [rx + S * 0.9, 1]]) for (const k of [0, 1]) { ctx.beginPath(); ctx.moveTo(bx - d * S * 0.5, cy + S * (0.95 + k * 0.5)); ctx.lineTo(bx + d * S * 0.45, cy + S * (1.1 + k * 0.5)); ctx.stroke(); }
+  }
+  if (L.faceAcc === 'mask') { // 面具：遮住眼周的深色面罩
+    ctx.fillStyle = '#c4c8d6'; ctx.strokeStyle = OUTLINE; ctx.lineWidth = S * 0.22;
+    ctx.beginPath(); ctx.moveTo(lx - S * 1.9, cy - S * 0.9); ctx.quadraticCurveTo((lx + rx) / 2, cy - S * 1.35, rx + S * 1.9, cy - S * 0.9);
+    ctx.lineTo(rx + S * 1.7, cy + S * 0.9); ctx.quadraticCurveTo((lx + rx) / 2, cy + S * 0.55, lx - S * 1.7, cy + S * 0.9); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(40,30,60,0.55)'; for (const x of [lx, rx]) { ctx.beginPath(); ctx.ellipse(x, cy + S * 0.1, S * 1.2, S * 0.95, 0, 0, Math.PI * 2); ctx.fill(); }
+  }
+  const ey = L.eyes, sq = ey === 'kind' ? 0.7 : ey === 'stern' || ey === 'fierce' ? 0.78 : ey === 'sharp' ? 0.86 : ey === 'adult' ? 0.9 : 1;
+  const eyeAt = (x, flip) => {
+    if (ey === 'closed') { ctx.strokeStyle = OUTLINE; ctx.lineWidth = S * 0.3; ctx.beginPath(); ctx.arc(x, cy - S * 0.1, S * 0.75, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke(); return; }
+    drawEye(ctx, x, cy + S * 0.05 + (1 - sq) * S * 0.5, S, irisHex, flip, sq);
+  };
+  eyeAt(lx, true);
+  if (L.faceAcc === 'eyepatch') {
+    ctx.strokeStyle = '#141018'; ctx.lineWidth = S * 0.25;
+    ctx.beginPath(); ctx.moveTo(lx + S * 0.8, cy - S * 1.6); ctx.lineTo(rx + S * 2.2, cy - S * 0.2); ctx.stroke();
+    ctx.fillStyle = '#18141e'; ctx.beginPath(); ctx.ellipse(rx, cy + S * 0.15, S * 0.95, S * 0.85, 0, 0, Math.PI * 2); ctx.fill();
+  } else eyeAt(rx, false);
+  if (L.faceAcc === 'glasses') {
+    ctx.strokeStyle = '#3a2430'; ctx.lineWidth = S * 0.2;
+    for (const x of [lx, rx]) { ctx.beginPath(); ctx.ellipse(x, cy + S * 0.15, S * 1.08, S * 0.95, 0, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.beginPath(); ctx.moveTo(lx + S * 1.05, cy); ctx.quadraticCurveTo((lx + rx) / 2, cy - S * 0.3, rx - S * 1.05, cy); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = S * 0.14;
+    for (const x of [lx, rx]) { ctx.beginPath(); ctx.arc(x, cy + S * 0.15, S * 0.75, Math.PI * 1.1, Math.PI * 1.4); ctx.stroke(); }
+  }
+  if (L.beard === 'stubble') {
+    const hr = hx(lk.hair || L.hair), gr = ctx.createRadialGradient((lx + rx) / 2, cy + S * 2.1, S * 0.4, (lx + rx) / 2, cy + S * 2.1, S * 2.4);
+    gr.addColorStop(0, `rgba(${hr[0] | 0},${hr[1] | 0},${hr[2] | 0},0.42)`); gr.addColorStop(1, `rgba(${hr[0] | 0},${hr[1] | 0},${hr[2] | 0},0)`);
+    ctx.fillStyle = gr; ctx.fillRect(lx - S * 2, cy + S * 1.2, rx - lx + S * 4, S * 1.8);
+  }
+  if (L.scar) { ctx.strokeStyle = rgbStr(mixc(shadowOf(skinRGB), [120, 40, 40], 0.4)); ctx.lineWidth = S * 0.18; ctx.beginPath(); ctx.moveTo(rx + S * 0.7, cy + S * 0.7); ctx.lineTo(rx + S * 1.5, cy + S * 1.6); ctx.stroke(); }
+  if (L.earring) { ctx.fillStyle = '#f0c840'; ctx.strokeStyle = OUTLINE; ctx.lineWidth = S * 0.12; for (const x of [lx - S * 2.55, rx + S * 2.55]) { ctx.beginPath(); ctx.arc(x, cy + S * 1.75, S * 0.3, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); } }
+  // 嘴：随个性（胡子浓密时省略）
+  const bigBeard = L.beard === 'full' || L.beard === 'long';
+  if (!bigBeard) {
+    const mx = (lx + rx) / 2, my = cy + S * (L.beard === 'mustache' ? 1.75 : 1.45), m = L.mouth || 'smile';
+    const lc = rgbStr(mixc(shadowOf(skinRGB), [120, 30, 40], 0.55));
+    ctx.strokeStyle = lc; ctx.lineWidth = S * 0.2;
+    ctx.beginPath();
+    if (m === 'grin' || m === 'open') {
+      ctx.fillStyle = '#8a2a3a'; ctx.moveTo(mx - S * 0.42, my - S * 0.12); ctx.quadraticCurveTo(mx, my + S * 0.55, mx + S * 0.42, my - S * 0.12); ctx.closePath(); ctx.fill(); ctx.stroke();
+    } else if (m === 'stern' || m === 'neutral' || m === 'frown') {
+      ctx.moveTo(mx - S * 0.3, my + (m === 'frown' ? S * 0.08 : 0)); ctx.quadraticCurveTo(mx, my - (m === 'frown' ? S * 0.12 : 0), mx + S * 0.3, my + (m === 'frown' ? S * 0.08 : 0)); ctx.stroke();
+    } else if (m === 'smirk') {
+      ctx.moveTo(mx - S * 0.3, my); ctx.quadraticCurveTo(mx + S * 0.1, my + S * 0.12, mx + S * 0.38, my - S * 0.18); ctx.stroke();
+    } else { ctx.moveTo(mx - S * 0.32, my - S * 0.05); ctx.quadraticCurveTo(mx, my + S * 0.22, mx + S * 0.32, my - S * 0.05); ctx.stroke(); }
+  }
+  ctx.restore();
 }
 
 
@@ -412,7 +780,7 @@ function stripOuterK(src, lab, kI, KI) {
 }
 
 const HD_CACHE = {};
-function buildSprite(g16, pal) {
+function buildSprite(g16, pal, lk) {
   g16 = g16.map(r => r.slice());
   // 1) 人脸：先把像素眼、腮红抹成皮肤色，稍后用矢量重画
   const face = findFace(g16);
@@ -475,20 +843,31 @@ function buildSprite(g16, pal) {
   // 5) 矢量脸
   if (face) {
     const eh = pal[face.eye];
-    drawFace(bx, face, HD / 16, pastel(hx(pal[face.skin])), irisFor(pal.h, eh, face.eye), blush || pal[face.skin] === PAL_BASE.s);
+    if (lk && lk.face) drawFace(bx, face, HD / 16, pastel(hx(pal[face.skin])), lk.iris || irisFor(pal.h, eh, face.eye), lk.blush, lk);
+    else drawFace(bx, face, HD / 16, pastel(hx(pal[face.skin])), (lk && lk.iris) || irisFor(pal.h, eh, face.eye), blush || pal[face.skin] === PAL_BASE.s);
+    if (lk && lk.spikes) {
+      let x0 = 16, x1 = -1; // 头发左右边界（女生的长侧发比较宽）
+      for (let y = Math.max(0, face.y - 5); y <= face.y; y++) for (let x = 0; x < 16; x++) if (g16[y][x] === 'h') { if (x < x0) x0 = x; if (x > x1) x1 = x; }
+      return spikesBehind(body, face, pastel(hx(pal.h || '#3a2a1a')), lk.spikes, x1 >= x0 ? Math.max(face.lx + 1 - x0, x1 + 1 - face.rx - 1) : 0);
+    }
   }
   return body;
 }
 
-function getSpriteHD(key, tier, team, hair, variant, gear) {
+// hero（可省略）：英雄 id、带 id 的单位，或 false = 不套个人特征；省略时由「我方 / 友军 + 发色 + 精灵键」认出英雄
+function getSpriteHD(key, tier, team, hair, variant, gear, hero) {
   const gs = gearSig(gear);
-  const id = `${key}|${tier}|${team}|${hair || ''}|${variant || ''}` + (gs ? '|' + gs : '');
+  let look = null;
+  try { look = lookFor(hero, key, team, hair); } catch (e) { look = null; }
+  const id = `${key}|${tier}|${team}|${hair || ''}|${variant || ''}` + (gs ? '|' + gs : '') + (look ? '|@' + look.id + '|' + look.key : '');
   const hit = HD_CACHE[id]; if (hit) return hit;
   let c;
   try {
-    const g = spriteGrid(key, tier, gear);
+    let g = spriteGrid(key, tier, gear);
     const pal = Object.assign({}, PAL_BASE, TEAM_PAL[team] || TEAM_PAL.enemy, { h: hair || '#3a2a1a' }, VARIANT_PAL[variant] || {}, gs ? gearPal(gear) : {});
-    c = buildSprite(g, pal);
+    let lk = null;
+    if (look) { g = g.map(r => r.slice()); try { lk = applyLook(g, look, pal, team); } catch (e) { if (G.console) console.warn('applyLook', look.id, e); g = spriteGrid(key, tier, gear); lk = null; } }
+    c = buildSprite(g, pal, lk);
   } catch (e) {
     if (G.console) console.warn('getSpriteHD', key, e);
     const s = getSprite(key, tier, team, hair, variant, gear);

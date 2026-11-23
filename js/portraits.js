@@ -2736,6 +2736,7 @@ const HG = {
     const j = piece(c, ell(31, 11, 1.8, 2.1), rp('#e02a5a'), 'acc', { s: 0, hl: 1 }); p.px(30.5, 10, j, 5);
   },
 };
+tagLook(HG);
 const GOLD = METAL.gold, SILVER = METAL.silver, STEEL = METAL.steel;
 const STEEL_BLUE = ['#10162a', '#2e4470', '#46649c', '#6a8ac4', '#a8c4ec', '#eef6ff'];
 // 每位英雄：native = 当前设定对应的阶（tier 未指定时即此外观）；t[i] = 第 i 阶的覆盖项
@@ -3094,6 +3095,7 @@ const HB = {
   // 新月印记（额头）
   crescent: (col) => c => { const id = piece(c, ring(ell(31, 21, 2.6, 2.6), ell(32.4, 20.2, 2.2, 2.2)), rp(col, { lit: 0.55 }), 'acc', { s: 0, hl: 1 }); },
 };
+tagLook(HB);
 const NAVY_GOLD = '#1e3a8a';
 // 每位英雄：b[tier] = 覆盖项（相对基础设定 HERO_SPECS）
 const BRANCH_LOOK = {
@@ -3214,6 +3216,7 @@ const HG2 = {
     for (const x of [21, 41]) piece(c, ell(x, 21, 1.4, 1.4), rp('#f4f8ff', { lit: 0.5 }), 'acc', { s: 0, hl: 1 });
   },
 };
+tagLook(HG2);
 const GB2 = {
   // 蝙蝠翼（背后）
   batWings: (col) => c => {
@@ -3515,6 +3518,7 @@ const HG3 = {
   // 第三只眼（魔化）
   thirdEye: c => { const { p } = c; const id = p.add(ell(31, 17.5, 2.2, 1.6), ['#200008', '#80101a', '#e02030', '#ff6040', '#ffd0a0', '#ffffff'], 'eye3'); p.px(31, 17.5, id, 0); p.px(30.5, 17, id, 5); },
 };
+tagLook(HG3);
 // —— 身体（画面 / 身体坐标）——
 const GB3 = {
   // 皱领（小丑）
@@ -3771,6 +3775,7 @@ const HG4 = {
   // 疤（眼下）
   scarUnder: c => { c.p.line([c.F.fx + 1.6, c.F.ey + 8, c.F.fx + 6, c.F.ey + 10.6], c.face, 1, true); c.p.line([c.F.fx + 3, c.F.ey + 8.4, c.F.fx + 3.6, c.F.ey + 10.8], c.face, 1, true); },
 };
+tagLook(HG4);
 // —— 身体 ——
 const GB4 = {
   // 狮鹫纹章（盾形红底金狮鹫）
@@ -4104,6 +4109,129 @@ function heroGear(id) {
 }
 
 // =====================================================================
+// 角色外观描述（heroLook）：把立绘设定整理成与绘制方式无关的简短描述，
+// 供地图小人（hd_units.js）、决斗纸娃娃等其他绘制器共用
+// =====================================================================
+// 头饰工厂（HG / HG2 / HG3 / HG4 / HB）产生的绘制函数带上 __look = { k: 名称, a: 参数 }，heroLook 才认得出是什么头饰
+function tagLook(T) {
+  for (const k of Object.keys(T)) {
+    const f = T[k];
+    if (typeof f !== 'function' || f.__look) continue;
+    if (/^\s*\(?\s*c\s*\)?\s*=>/.test(String(f))) { f.__look = { k }; continue; } // 直接绘制（不带参数）
+    const w = function (...a) { const r = f.apply(this, a); if (typeof r === 'function' && !r.__look) r.__look = { k, a }; return r; };
+    w.__look = { k, factory: true };
+    T[k] = w;
+  }
+}
+const lookHex = x => (Array.isArray(x) ? x[3] : typeof x === 'string' && x[0] === '#' ? x : null);
+const HS_NORM = { none: 'short', neat: 'short', short: 'short', swept: 'swept', messy: 'messy', shaggy: 'shaggy', spiky: 'spiky', wild: 'wild', snakes: 'wild',
+  wildLong: 'mane', mane: 'mane', hime: 'long', sage: 'long', wavy: 'wavy', ponytail: 'ponytail', twintails: 'twin-tails', 'twin-tails': 'twin-tails',
+  bob: 'bob', tied: 'tied', braid: 'braid', bald: 'bald', sides: 'sides' };
+const HELMS = new Set(['plumeHelm', 'kettle', 'fullHelm', 'kabuto', 'hawkHelm', 'skullHelm', 'demonHelm', 'heavyHelm', 'crownHelm']);
+// 单个头饰 → { type, color?, color2?, gem? }；脸部配件写进 out.faceAcc / out.paint / out.scar
+function headPart(h, S, out) {
+  if (!h) return null;
+  if (typeof h === 'string') {
+    switch (h) {
+      case 'headband': return { type: 'headband', color: S.band || '#c83a2a', gem: S.bandGem || (S.bandPlate ? '#c0c8d8' : null) };
+      case 'bandana': return { type: 'bandana', color: S.band || '#a03a2a' };
+      case 'turban': return { type: 'turban', color: S.band || '#d8c8a0' };
+      case 'hood': case 'hoodShadow': out.hood = S.hood || (h === 'hood' ? '#f0eef4' : '#4a2a6a'); return null;
+      case 'mitre': return { type: 'mitre', color: S.mitre || '#f2eef4', color2: '#e0aa30' };
+      case 'tiara': return { type: 'tiara', color: '#e0aa30', gem: '#e02a5a' };
+      case 'crown': return { type: 'crown', color: '#e0aa30', gem: '#d02030' };
+      case 'tricorne': return { type: 'hat', shape: 'tricorne', color: S.hat || '#2a2440', color2: lookHex(S.hatTrim) || S.hatFeather || '#e8e0d0' };
+      case 'feathers': return { type: 'feathers', color: S.featherCol || '#f0e8dc', color2: lookHex(S.featherBand) || '#b02a2a' };
+      case 'halo': return { type: 'halo', color: '#fff0a0' };
+      case 'mask': out.faceAcc = 'mask'; return null;
+      case 'glasses': out.faceAcc = 'glasses'; return null;
+      default: return HELMS.has(h) ? { type: 'helmet', color: lookHex(S.helmMetal) || '#9aa4bc', color2: S.plume || null } : null;
+    }
+  }
+  const L = typeof h === 'function' && h.__look;
+  if (!L) return null;
+  const a = L.a || [];
+  switch (L.k) {
+    case 'circlet': case 'clockCirclet': return { type: 'tiara', color: lookHex(a[0]) || '#e0aa30', gem: a[1] || null };
+    case 'hoodGold': return null;
+    case 'hoodGem': return null;
+    case 'featherCap': return { type: 'hat', shape: 'cap', color: a[0] || '#3a5a2a', color2: a[1] || '#e8e0d0' };
+    case 'mageHat': return { type: 'hat', shape: 'witch', color: a[0] || '#3a2a6a', color2: a[1] || null };
+    case 'skullcap': case 'judgeCap': return { type: 'hat', shape: 'cap', color: a[0] || '#2a2030' };
+    case 'hoodHorns': case 'antlers': return { type: 'horns', color: a[0] || '#b89a6a' };
+    case 'phoenix': case 'shellCrown': case 'crescent': return { type: 'crown', color: '#e0aa30' };
+    case 'flower': return { type: 'flower', color: a[0] || '#f070a0' };
+    case 'leafCrown': return { type: 'leaves', color: a[0] || '#4aa04a', color2: a[1] || null };
+    case 'ribbon': return { type: 'ribbon', color: a[0] || '#e04a7a' };
+    case 'desertVeil': return { type: 'veil', color: a[0] || '#f4f8ff', gem: a[1] || null };
+    case 'featherBand': return { type: 'headband', color: a[0] || '#6a3a1a', feather: a[1] || '#d84a2a' };
+    case 'finCrest': return { type: 'fins', color: a[0] || '#3ab0a4' };
+    case 'goggles': case 'techVisor': return { type: 'goggles', color: (L.k === 'goggles' ? a[0] : lookHex(a[0])) || '#5a3a1e', gem: (L.k === 'goggles' ? a[1] : a[1]) || '#60c0e0' };
+    case 'eyepatch': out.faceAcc = 'eyepatch'; return null;
+    case 'whiteMask': case 'ninjaMask': out.faceAcc = 'mask'; return null;
+    case 'warpaint': case 'jesterPaint': out.paint = a[0] || '#c81e1e'; return null;
+    case 'scarUnder': out.scar = true; return null;
+    case 'thirdEye': out.thirdEye = true; return null;
+    case 'skullHelm': case 'demonHelm': case 'heavyHelm': case 'crownHelm': return { type: 'helmet', color: lookHex(a[0]) || '#9aa4bc' };
+    default: return null;
+  }
+}
+// 角色的「个人」设定（不含转职造型）：一代英雄 = HERO_SPECS（后作再叠上 G2_OLDER），二代起 = G2_HEROES[id].base
+function personalSpec(id) {
+  if (HERO_SPECS[id]) return laterCamp() && G2_OLDER[id] ? Object.assign({}, HERO_SPECS[id], G2_OLDER[id]) : HERO_SPECS[id];
+  if (G2_HEROES[id]) return G2_HEROES[id].base;
+  return null;
+}
+const LOOK_CACHE = {};
+// heroLook(id) → 标准化外观描述（未知角色回传 null）：
+//   { id, kind: 'human' | 'beast', sex: 'm' | 'f', skin, skinShade, skinTone, hair, hairStyle, hairRaw, iris, eyes（立绘眼型）, mouth,
+//     head: { type, color?, color2?, gem?, shape?, feather? } | null,   // type: headband bandana turban tiara crown mitre hat helmet hood
+//                                                                       //   feathers horns leaves flower ribbon veil fins goggles halo
+//     hood: 颜色 | null, faceAcc: 'glasses' | 'mask' | 'eyepatch' | null, paint, scar, ears: 'elf' | null, earring,
+//     beard: 'stubble' | 'mustache' | 'goatee' | 'full' | 'long' | null,
+//     cloth, trim, scarf, cape,                                           // 服装点缀色（hex 或 null）
+//     sig: { type, color? } | null,                                       // 招牌特征（围巾、披风、尖耳、耳环、伤疤、战纹……）
+//     key }                                                               // 外观签名（作快取键）
+function heroLook(id) {
+  if (typeof id !== 'string' || id.startsWith('enemy:')) return null;
+  const camp = typeof CUR_CAMPAIGN !== 'undefined' ? CUR_CAMPAIGN : '';
+  const ck = id + '|' + camp;
+  if (LOOK_CACHE[ck] !== undefined) return LOOK_CACHE[ck];
+  let out = null;
+  try {
+    const S = personalSpec(id);
+    let H = null; try { H = typeof HEROES !== 'undefined' && HEROES[id]; } catch (e) { /* 无 HEROES */ }
+    if (S || H) {
+      const s = S || {};
+      const beast = !!s.special || id === 'guluru';
+      let sex = s.face === 'f' ? 'f' : null;
+      if (!sex) { try { sex = (H && CLASSES[H.cls] && CLASSES[H.cls].sex) || 'm'; } catch (e) { sex = 'm'; } }
+      const tone = SKIN[s.skin] ? s.skin : 'fair';
+      out = {
+        id, kind: beast ? 'beast' : 'human', sex,
+        skinTone: tone, skin: SKIN[tone][3], skinShade: SKIN[tone][2],
+        hair: s.hair || (H && H.hair) || '#3a2a20', hairRaw: s.hairStyle || 'short', hairStyle: HS_NORM[s.hairStyle] || 'short',
+        iris: s.iris || null, eyes: s.eyes || 'hero', mouth: s.mouth || 'smile',
+        head: null, hood: null, faceAcc: s.acc === 'glasses' ? 'glasses' : null, paint: null, scar: !!s.scar, thirdEye: false,
+        ears: s.elfEar ? 'elf' : null, earring: !!s.earring,
+        beard: s.beard || null,
+        cloth: s.cloth || lookHex(s.metal) || null, trim: s.trim || s.band || null, scarf: s.scarf || null, cape: s.cape || null,
+        sig: null,
+      };
+      if (s.headBack === 'hood') out.hood = s.hood || '#f0eef4';
+      for (const h of [].concat(s.head || [])) { const p = headPart(h, s, out); if (p && !out.head) out.head = p; }
+      if (out.hood && out.head && out.head.type === 'tiara') out.hoodTrim = out.head.color; // 兜帽下的额饰
+      out.sig = out.scarf ? { type: 'scarf', color: out.scarf } : out.ears ? { type: 'elfEars' } : out.paint ? { type: 'warpaint', color: out.paint }
+        : out.scar ? { type: 'scar' } : out.cape ? { type: 'cape', color: out.cape } : out.earring ? { type: 'earring', color: '#e8c040' } : null;
+      out.key = [out.skinTone, out.hair, out.hairStyle, out.iris, out.eyes, out.mouth, out.head && JSON.stringify(out.head), out.hood, out.faceAcc, out.paint, out.scar ? 1 : 0, out.ears,
+        out.earring ? 1 : 0, out.beard, out.cloth, out.trim, out.scarf, out.cape].join(',');
+      Object.freeze(out.head); Object.freeze(out.sig); Object.freeze(out);
+    }
+  } catch (e) { if (G.console) console.warn('heroLook', id, e); out = null; }
+  return (LOOK_CACHE[ck] = out);
+}
+
+// =====================================================================
 // 对外接口
 // =====================================================================
 const CACHE = {};
@@ -4243,4 +4371,5 @@ G.getPortraitHD = getPortraitHD;
 G.portraitHDOf = portraitHDOf;
 G.warmPortraitsHD = warmPortraitsHD;
 G.getPortrait = getPortrait;
+G.heroLook = heroLook;
 })(typeof window !== 'undefined' ? window : this);
