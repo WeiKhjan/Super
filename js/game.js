@@ -97,6 +97,7 @@ async function runStage(idx, opts) {
 
 async function chapterCard(st) {
   if (AUTO) return;
+  if (typeof SCN_chapterCard === 'function') { const sp = SCN_chapterCard(st); if (sp) return sp; } // 剧情演出：章节标题卡（js/scenes.js）
   const c = $('#chapter-card');
   c.innerHTML = `<div>${st.part ? `<small class="cc-part">${esc(st.part)}</small>` : ''}<small>${st.secretStage ? '隐藏关' : `第 ${st.no} 关`}</small>${esc(st.title)}</div>`;
   c.hidden = false; c.classList.add('on');
