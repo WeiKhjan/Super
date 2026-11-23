@@ -864,6 +864,7 @@ function render(now) {
     }
   }
 
+  if (HD && typeof unitAnimGround === 'function') unitAnimGround(ctx, now, ts); // unitanim.js：会淡去的脚印（画在单位下方）
   const list = B.units.filter(u => u.hp > 0 || u.dying).sort((a, b) => (a.py ?? a.y) - (b.py ?? b.y));
   OVQ.length = 0;
   const bob = Math.floor(now / 400) % 2;
@@ -901,8 +902,10 @@ function render(now) {
       const px = Math.round(size * DPR); spr = fitSprite(spr, px);
       dx = Math.round(sx0 * DPR) / DPR; dy = Math.round(sy0 * DPR) / DPR; dsz = px / DPR;
     }
+    if (!(sprHD && typeof unitAnimDraw === 'function' && unitAnimDraw(ctx, u, spr, dx, dy, dsz, now, ts))) { // unitanim.js：高清单位的待机 / 步态 / 动作姿势（含受击闪光）；没接手就照旧画
     ctx.drawImage(spr, dx, dy, dsz, dsz);
     if (u.flash && now < u.flash) { const a0 = ctx.globalAlpha; ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.7 * a0; ctx.drawImage(spr, dx, dy, dsz, dsz); ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = a0; }
+    } // unitanim.js
     ctx.imageSmoothingEnabled = false;
     if (HD) { OVQ.push(u, ux, uy, ctx.globalAlpha); ctx.globalAlpha = 1; continue; } // 叠加资讯第二轮再画，免得被下一排的小人挡住
     if (u.hp > 0) {
@@ -927,6 +930,7 @@ function render(now) {
     for (const k of B.hlAttack) { if (B.hlArea && B.hlArea.has(k)) continue; const i = k.indexOf(','), x = +k.slice(0, i), y = +k.slice(i + 1); if (unitAt(x, y)) ctx.drawImage(t, x * ts, y * ts, ts, ts); }
     ctx.globalAlpha = 1;
   }
+  if (HD && typeof unitAnimFront === 'function') unitAnimFront(ctx, now, ts); // unitanim.js：脚下尘土 / 水花、龙息、升级星光
   for (let i = 0; i < OVQ.length; i += 4) { ctx.globalAlpha = OVQ[i + 3]; drawUnitOverlayHD(OVQ[i], OVQ[i + 1], OVQ[i + 2], ts); }
   ctx.globalAlpha = 1;
   if (HD && ADV_LAB.size) {
@@ -1611,6 +1615,7 @@ async function strike(a, d, calc, ranged) {
   const hit = Math.random() * 100 < calc.hit;
   const crit = hit && Math.random() * 100 < calc.crit;
   const dmg = Math.max(1, Math.round(calc.dmg * (0.9 + Math.random() * 0.2) * (crit ? 1.5 : 1)));
+  if (!DUEL.on && !AUTO && typeof unitAnimWindup === 'function') await unitAnimWindup(a, d, ranged); // unitanim.js：出手前朝目标蓄势
   sfx(ranged ? 'arrow' : 'slash');
   if (DUEL.on) await duelStrike(a, d, hit, dmg, crit, ranged);
   else if (ranged) await addFx('arrow', d.x, d.y, 200, { sx: a.x, sy: a.y });
@@ -1667,6 +1672,7 @@ async function gainExp(u, amt) {
       if (r.promoted && !r.choose) await showPromotion(u, r);
       if (r.promoted && typeof promoteAnim === 'function') await promoteAnim(u, r.from);
       sfx('levelup');
+      if (typeof unitAnimLevelUp === 'function') await unitAnimLevelUp(u); // unitanim.js：升级时开心一跳 + 星光
       const rows = STATS.map(k => `<div class="lv-row"><span>${STAT_NAME[k]}</span><b>${k === 'hp' ? u.mhp : k === 'mp' ? u.mmp : u[k]}</b>${r.gains[k] ? `<em>+${r.gains[k]}</em>` : ''}</div>`).join('');
       let extra = '';
       if (r.promoted) extra += `<p class="promo">✦ 转职为「${className(u)}」！</p>`;
