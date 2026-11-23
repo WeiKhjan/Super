@@ -865,6 +865,7 @@ function render(now) {
     }
   }
 
+  if (typeof supDrawLinks === 'function') supDrawLinks(ctx, ts, now); // 支援系统：搭档间的连线（support.js）
   const list = B.units.filter(u => u.hp > 0 || u.dying).sort((a, b) => (a.py ?? a.y) - (b.py ?? b.y));
   OVQ.length = 0;
   const bob = Math.floor(now / 400) % 2;
@@ -2343,7 +2344,7 @@ function forecastHtml() {
     return `<div class="fc fc-duel">
       <div class="fc-side me t-${u.team}"><div class="fc-port" data-fport="${u.uid}"></div><div class="fc-txt"><b>${esc(u.name)}</b>${advText(c.adv, c.pos)}${hpAfter(u, counter ? counter.dmg : 0)}<div>伤害 <em>${c.dmg}</em> 命中 ${c.hit}% 暴击 ${c.crit}%</div></div></div>
       <div class="fc-vs">VS</div>
-      <div class="fc-side foe t-${t.team}"><div class="fc-port" data-fport="${t.uid}"></div><div class="fc-txt"><b>${esc(t.name)}</b>${hpAfter(t, c.dmg)}<div>${counter ? `反击 <em>${counter.dmg}</em> 命中 ${counter.hit}%` : '无法反击'}</div></div></div>
+      <div class="fc-side foe t-${t.team}"><div class="fc-port" data-fport="${t.uid}"></div><div class="fc-txt"><b>${esc(t.name)}</b>${hpAfter(t, c.dmg)}<div>${counter ? `反击 <em>${counter.dmg}</em> 命中 ${counter.hit}%` : '无法反击'}</div></div></div>${typeof supForecastTag === 'function' ? supForecastTag(u) : '' /* 支援加成（support.js） */}
     </div>`;
   }
   if (B.mode === 'spell') {
@@ -2364,7 +2365,7 @@ function forecastHtml() {
         default: { const c = skillCalc(u, o, sp, partner); const dd = Math.round(c.dmg * (sp.area && !shaped(sp) && (o.x !== p.x || o.y !== p.y) ? 0.7 : 1)); return `${ally ? '<span class="warn">误伤</span> ' : ''}${esc(o.name)} 伤害 <em>${dd}</em>${c.hit < 100 ? ` (${c.hit}%)` : ''}${advText(c.adv, c.pos)}`; }
       }
     }).join('<br>');
-    return `<div class="fc fc-spell"><div class="fc-port" data-fport="${u.uid}"></div><div class="fc-side"><div class="fc-title"><b>${sp.name}</b> <span class="dim">MP ${sp.mp}${partner ? ` · 与${esc(partner.name)}合击` : ''}</span></div><div class="fc-rows">${rows || '<span class="dim">范围内没有目标</span>'}</div></div></div>`;
+    return `<div class="fc fc-spell"><div class="fc-port" data-fport="${u.uid}"></div><div class="fc-side"><div class="fc-title"><b>${sp.name}</b> <span class="dim">MP ${sp.mp}${partner ? ` · 与${esc(partner.name)}合击` : ''}</span></div>${typeof supForecastTag === 'function' ? supForecastTag(u, partner) : '' /* 支援加成（support.js） */}<div class="fc-rows">${rows || '<span class="dim">范围内没有目标</span>'}</div></div></div>`;
   }
   return '';
 }
