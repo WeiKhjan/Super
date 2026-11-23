@@ -112,6 +112,7 @@ async function battleMenu() {
     { label: `音效：${OPT.sound ? '开' : '关'}`, value: 'sound' },
     { label: `战斗速度：${OPT.fast ? '快' : '标准'}`, value: 'fast' },
     { label: `战斗画面：${OPT.anim ? '开' : '关'}`, value: 'anim' },
+    ...(typeof camzMenuItem === 'function' ? [camzMenuItem()] : []), // 敌方回合：正常 / 快进（camera.js）
     { label: `画风：${artHD() ? '高清' : '像素'}`, value: 'art' },
     { label: `难度：${OPT.easy ? '简单' : '标准'}（下次进入战斗生效）`, value: 'easy' },
     { label: '重新开始本关', value: 'restart' },
@@ -122,6 +123,7 @@ async function battleMenu() {
   if (v === 'music') { OPT.music = !OPT.music; saveOpt(); music(battleTheme(B && B.phase)); return battleMenu(); }
   if (v === 'fast') { OPT.fast = !OPT.fast; saveOpt(); return battleMenu(); }
   if (v === 'anim') { OPT.anim = !OPT.anim; saveOpt(); return battleMenu(); }
+  if (typeof camzMenuPick === 'function' && camzMenuPick(v)) return battleMenu(); // 敌方回合快进（camera.js）
   if (v === 'art') { toggleArt(); return battleMenu(); }
   if (v === 'easy') { OPT.easy = !OPT.easy; saveOpt(); return battleMenu(); }
   if (['restart', 'camp', 'title'].includes(v)) {

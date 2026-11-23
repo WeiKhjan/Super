@@ -18,7 +18,7 @@ const OPT = { sound: true, music: true, fast: false, easy: false, anim: true, ar
 // 画风：'hd' 高清（默认）| 'pixel' 原像素风
 const artHD = () => OPT.art !== 'pixel';
 let AUTO = false; // 自动对战（测试用）：我方也由 AI 控制，跳过动画与对话
-const T = ms => (AUTO ? 0 : OPT.fast ? ms / 2.5 : ms);
+const T = ms => (AUTO ? 0 : OPT.fast ? ms / 2.5 : ms) * (typeof camzSpeed === 'function' ? camzSpeed() : 1); // camzSpeed：敌方回合快进（camera.js）
 const wait = ms => (T(ms) > 0 ? sleep(T(ms)) : Promise.resolve());
 
 // =====================================================================
@@ -424,6 +424,7 @@ function resize() {
   if (!W || !H) return;
   TS = Math.max(16, Math.floor(Math.min(W / B.w, H / B.h)));
   DPR = Math.min(3, window.devicePixelRatio || 1);
+  if (typeof camzOnResize === 'function') camzOnResize(W, H); // 地图缩放 / 平移（camera.js）：按缩放放大 TS、限制 DPR、摆放画布
   cv.style.width = TS * B.w + 'px'; cv.style.height = TS * B.h + 'px';
   cv.width = Math.round(TS * B.w * DPR); cv.height = Math.round(TS * B.h * DPR);
   resetOverlayCache();
