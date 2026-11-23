@@ -81,7 +81,8 @@ function duelText(u, text, color, big) { DUEL.fx.push({ type: 'dmg', u, text, ki
 
 // ---------- 角色状态与动作播放 ----------
 function duelFig(u) {
-  return DUEL.fig[u.uid] || (DUEL.fig[u.uid] = { spec: DFIG.specOf(u), anim: null, flash: 0, seed: Math.random() * 6, anch: null });
+  // HD 怪物立绘（js/hd_monsters.js）：收录的怪物换成带 mon 的规格；像素画风 / 未收录者回传 null，维持原样
+  return DUEL.fig[u.uid] || (DUEL.fig[u.uid] = { spec: (typeof hdMonSpec === 'function' && hdMonSpec(u)) || DFIG.specOf(u), anim: null, flash: 0, seed: Math.random() * 6, anch: null });
 }
 function duelPlay(u, A) {
   const st = duelFig(u);
@@ -113,6 +114,7 @@ async function duelStrike(att, def, hit, dmg, crit, ranged) {
   const A = duelFig(att), D = duelFig(def), cam = DUEL.cam;
   const kill = hit && def.hp - dmg <= 0;
   const pl = DFIG.plan(A.spec, ranged, crit);
+  if (A.spec.mon && typeof hdMonPlan === 'function') hdMonPlan(pl, A.spec, ranged, crit); // HD 怪物立绘：换成专属的扑咬 / 吐息 / 施法编排
   const HDs = duelHD() && cam.tgt;
   A.crit = crit; DUEL.actor = att;
   if (HDs) {
@@ -149,7 +151,7 @@ async function duelStrike(att, def, hit, dmg, crit, ranged) {
   cam.pushT = 0;
   const now = duelNow(), real = performance.now(), dir = att === DUEL.left ? 1 : -1;
   if (!hit) {
-    duelPlay(def, DFIG.react(D.spec, 'dodge'));
+    duelPlay(def, (D.spec.mon && typeof hdMonReact === 'function' && hdMonReact(D.spec, 'dodge')) || DFIG.react(D.spec, 'dodge')); // HD 怪物立绘：专属反应
     DUEL.fx.push({ type: 'dmg', u: def, text: 'MISS', kind: 'miss', r0: real, dir });
     DUEL.fx.push({ type: 'whoosh', u: def, t0: now, dur: T(260), dir });
     cam.trauma = Math.min(1, cam.trauma + 0.12);
@@ -175,7 +177,7 @@ async function duelStrike(att, def, hit, dmg, crit, ranged) {
     if (kill) { DUEL.vigT = real; DUEL.fx.push({ type: 'shatter', u: def, t0: now + T(500), dur: T(700) }); }
     DUEL.lastHit[def.uid] = { crit, big: crit || dmg >= def.mhp * 0.2, real };
     DUEL.fx.push({ type: 'dmg', u: def, text: String(dmg), kind: crit ? 'crit' : 'hit', r0: real, dir });
-    duelPlay(def, DFIG.react(D.spec, kill ? 'die' : crit ? 'crit' : 'hit'));
+    duelPlay(def, (D.spec.mon && typeof hdMonReact === 'function' && hdMonReact(D.spec, kill ? 'die' : crit ? 'crit' : 'hit')) || DFIG.react(D.spec, kill ? 'die' : crit ? 'crit' : 'hit')); // HD 怪物立绘：专属反应
     if (kill) D.dead = true;
     duelBuzz(kill ? [40, 30, 80] : crit ? [30, 20, 40] : 15);
   }
@@ -306,14 +308,14 @@ function duelRenderFrame(now, real) {
       for (const k of [3, 2, 1]) {
         const Q = duelPose(st, now - k * 32);
         g.save(); g.globalAlpha = 0.14 * (4 - k);
-        if (Q.al > 0.3) DFIG.draw(g, u, st.spec, Q, { x: xOf(Q), feet, s, f: fB * (Q.fl > 0.5 ? -1 : 1), now, sil: '#a8dcff', dpr, zoom: zoom * 0.6, q: DUEL.q });
+        if (Q.al > 0.3) (st.spec.mon && typeof hdMonDraw === 'function' ? hdMonDraw : DFIG.draw)(g, u, st.spec, Q, { x: xOf(Q), feet, s, f: fB * (Q.fl > 0.5 ? -1 : 1), now, sil: '#a8dcff', dpr, zoom: zoom * 0.6, q: DUEL.q });
         g.restore();
       }
     }
     let prev = null;
     if (P.tr > 0.05 && st.anim) prev = [14, 28, 42, 56, 70].map(dt => duelPose(st, now - dt));
     const flash = (st.flash || 0) > now || ((st.blinkUntil || 0) > now && Math.floor(now / 55) % 2 === 0);
-    st.anch = DFIG.draw(g, u, st.spec, P, { x, feet, s, f, now, flash, prev, crit: st.crit, dpr, zoom, q: DUEL.q, rim: HDm && !flash ? duelRim(u, st, real) : null });
+    st.anch = (st.spec.mon && typeof hdMonDraw === 'function' ? hdMonDraw : DFIG.draw)(g, u, st.spec, P, { x, feet, s, f, now, flash, prev, crit: st.crit, dpr, zoom, q: DUEL.q, rim: HDm && !flash ? duelRim(u, st, real) : null });
     if (st.anch) st.anch.feet = [x, feet];
     if (HDm) duelFigHD(u, st, P, x, feet, s, f, fly, now);
     drawn.push([u, st, P, x, s, f]);
@@ -1157,7 +1159,7 @@ function duelImpactHD(g, W, H, M, real, drawn, feet, s, now) {
     duelStreak(g, C[0] + Math.cos(a) * W, C[1] + Math.sin(a) * W, C[0] + Math.cos(a) * r0, C[1] + Math.sin(a) * r0, w, fg + '0.95)', fg + '0)');
   }
   const sil = inv ? '#fff6e8' : '#1a0a1e';
-  for (const [u, st, P, x, sS, f] of drawn) DFIG.draw(g, u, st.spec, P, { x, feet, s: sS, f, now, sil, dpr: DUEL.dpr });
+  for (const [u, st, P, x, sS, f] of drawn) (st.spec.mon && typeof hdMonDraw === 'function' ? hdMonDraw : DFIG.draw)(g, u, st.spec, P, { x, feet, s: sS, f, now, sil, dpr: DUEL.dpr });
 }
 
 // ================= HD 电影化演出 =================
@@ -1283,6 +1285,7 @@ function duelFigHD(u, st, P, x, feet, s, f, fly, now) {
     const half = sp.kind === 'sprite' ? 16 * sp.scale * s * 0.5 : (sp.mount ? 30 : 22) * s;
     const top = sp.kind === 'sprite' ? st.anch.top[1] - 16 * sp.scale * s * 0.15 - (sp.fly ? 3 * s : 0) : st.anch.top[1] - (sp.wings || sp.bwings ? 12 : 6) * s - (sp.head && /wizhat|mitre|crown|horns|feather/.test(sp.head.t || '') ? 8 * s : 0);
     st.ext = [x - half, top, x + half];
+    if (st.anch.ext) st.ext = st.anch.ext; // HD 怪物立绘回传的精确外框（构图用）
   }
   if (u === DUEL.actor && st.anim && !fly && P.Y > -4 && P.al > 0.5 && (st.v || 0) > 150 * s / 2.33 && (st.v || 0) < 9000 * s / 2.33 && now - (st.dustT || 0) > 38) {
     st.dustT = now;
