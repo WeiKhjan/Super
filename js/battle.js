@@ -49,7 +49,7 @@ const atkOf = u => Math.max(0, u.atk + gear(u, 'atk') + buffOf(u, 'atk'));
 const magOf = u => Math.max(0, u.mag + gear(u, 'mag') + buffOf(u, 'mag'));
 const defOf = u => Math.max(0, u.def + gear(u, 'def') + buffOf(u, 'def') + (u.status && u.status.petrify ? 10 : 0));
 const spdOf = u => u.spd + gear(u, 'spd');
-const movOf = u => Math.max(1, tierDef(u).mov + gear(u, 'mov') + buffOf(u, 'mov'));
+const movOf = u => Math.max(1, tierDef(u).mov + gear(u, 'mov') + buffOf(u, 'mov') + (typeof wxMov === 'function' ? wxMov(u) : 0)); // 天气（weather.js）：雪地开阔地 −1
 const moveTypeOf = u => (buffOf(u, 'fly') > 0 && tierDef(u).move !== 'water' ? 'fly' : tierDef(u).move);
 const rangeOf = u => tierDef(u).range;
 const hitBonus = u => gear(u, 'hit') + buffOf(u, 'skill');
@@ -336,14 +336,16 @@ function physCalc(a, d, power = 0, sure = false) {
   dmg = Math.max(1, Math.round(dmg * advMult(a, d) * pos.m));
   const hit = sure ? 100 : clamp(88 + (spdOf(a) - spdOf(d)) * 2 - t.avoid + hitBonus(a), 30, 100);
   const crit = clamp(3 + Math.max(0, spdOf(a) - spdOf(d)) + (typeOf(a) === '弓箭手' ? 5 : 0) + (a.boss ? 5 : 0) + critBonus(a), 0, 45);
-  return { dmg, hit, crit, adv: advMult(a, d), pos: pos.tag };
+  const res = { dmg, hit, crit, adv: advMult(a, d), pos: pos.tag };
+  return typeof wxCalc === 'function' ? wxCalc(res, a, d, null, sure) : res; // 天气修正命中（weather.js）
 }
 function magCalc(a, d, sp) {
   let dmg = sp.power + magOf(a) * 0.85 - (defOf(d) * 0.35 + magOf(d) * 0.35);
   if (sp.vsDark && DARK_TYPES.includes(typeOf(d))) dmg *= sp.vsDark;
   const adv = advMult(a, d); // 兵种相克：魔法攻击也一样有加成 / 减成
   dmg *= adv;
-  return { dmg: Math.max(1, Math.round(dmg)), hit: 100, crit: 0, adv };
+  const res = { dmg: Math.max(1, Math.round(dmg)), hit: 100, crit: 0, adv };
+  return typeof wxCalc === 'function' ? wxCalc(res, a, d, sp) : res; // 天气修正法术威力（weather.js）
 }
 // 合击伙伴：一般双人剑式要剑术系伙伴；情侣合技（sp.partner）要指定角色相邻且好感度足够
 function pairPartner(u, sp) {
@@ -776,7 +778,7 @@ function dangerAll() {
   const h = dangerHash();
   if (B.dangerCache && B.dangerCache.h === h) return B.dangerCache.set;
   const set = new Set();
-  for (const u of alive()) if (side(u.team) !== 'P' && canAct(u)) for (const k of threatTiles(u).set) set.add(k);
+  for (const u of alive()) if (side(u.team) !== 'P' && canAct(u) && !(typeof wxHidden === 'function' && wxHidden(u))) for (const k of threatTiles(u).set) set.add(k); // 雾 / 夜：看不见的敌人不列入
   B.dangerCache = { h, set };
   if (OVL) OVL.danger = null;
   return set;
@@ -821,6 +823,7 @@ function render(now) {
   ctx.imageSmoothingEnabled = false;
   ctx.setTransform(DPR, 0, 0, DPR, shx, shy);
   const ts = TS;
+  if (typeof wxDrawUnder === 'function') wxDrawUnder(ctx, now, ts); // 天气：地图调色、波光、云影、灯火、地形警示（weather.js）
 
   for (const c of B.chests) if (!c.hidden || c.opened || searcherOn()) { drawChestArt(c.x * ts, c.y * ts, ts, c.opened); if (c.locked && !c.opened) { ctx.fillStyle = '#ffd25a'; ctx.font = `${Math.round(ts * 0.36)}px sans-serif`; ctx.fillText('🔒', c.x * ts + ts * 0.55, c.y * ts + ts * 0.4); } }
   // 目标地点
@@ -858,13 +861,14 @@ function render(now) {
   const sel = B.sel, ADV_LAB = new Map();
   if (sel && sel.team === 'player' && sel.hp > 0 && ['move', 'move2', 'action', 'target', 'spell'].includes(B.mode)) {
     for (const e of alive()) {
-      if (!hostile(sel, e)) continue;
+      if (!hostile(sel, e) || (typeof wxHidden === 'function' && wxHidden(e))) continue; // 雾 / 夜：看不见的敌人不标
       const up = advMult(sel, e) > 1, down = advMult(e, sel) > 1;
       if (up || down) ADV_LAB.set(e, up && down ? ['互克', '#e8a818'] : up ? ['克', '#22b858'] : ['危', '#e8303a']);
     }
   }
 
   const list = B.units.filter(u => u.hp > 0 || u.dying).sort((a, b) => (a.py ?? a.y) - (b.py ?? b.y));
+  if (typeof wxFilterUnits === 'function') wxFilterUnits(list); // 雾 / 夜：不画视野外的敌人（weather.js）
   OVQ.length = 0;
   const bob = Math.floor(now / 400) % 2;
   for (const u of list) {
@@ -921,6 +925,7 @@ function render(now) {
     ctx.globalAlpha = 1;
   }
 
+  if (typeof wxDrawOver === 'function') wxDrawOver(ctx, now, ts); // 天气：视野遮罩、雨雪风沙、雾层、阳光（weather.js）
   if (HD && B.hlAttack) { // 可攻击的目标：单位本身挡住了格子，再在上方描一圈红框
     const t = hlTile('attackTop');
     ctx.globalAlpha = 0.85;
@@ -945,7 +950,7 @@ function render(now) {
     const pulse = 0.75 + 0.25 * Math.sin(now / 220);
     ctx.font = `bold ${Math.round(ts * 0.5)}px sans-serif`; ctx.textAlign = 'center';
     for (const e of alive()) {
-      if (!hostile(sel, e)) continue;
+      if (!hostile(sel, e) || (typeof wxHidden === 'function' && wxHidden(e))) continue; // 雾 / 夜：看不见的敌人不标
       const up = advMult(sel, e) > 1, down = advMult(e, sel) > 1;
       if (!up && !down) continue;
       const lab = up && down ? '互克' : up ? '克' : '危', col = up && down ? '#f0c030' : up ? '#3ad86a' : '#ff4a4a';
@@ -1437,6 +1442,7 @@ function startBattle(stageIdx, deploy) {
   });
   for (const spec of st.units || []) B.units.push(spawnSpec(spec));
   for (const u of B.units) if (!u.dir) u.dir = { x: 0, y: u.team === 'player' ? -1 : 1 };
+  if (typeof wxStart === 'function') wxStart(B); // 本关天气与地形事件（weather.js）
   show('battle');
   $('#hud-title').textContent = st.title;
   resize();
@@ -1523,6 +1529,7 @@ async function phaseStart(team) {
     sfx('turn');
     const lim = B.def.win.turns;
     await banner(`第 ${B.turn} 回合`, label + (lim ? `（剩余 ${lim - B.turn + 1} 回合）` : ''), 'player');
+    if (typeof wxPhase === 'function') await wxPhase(team); // 天气转变、地形事件（weather.js）
     for (const [i, ev] of (B.def.events || []).entries()) {
       if (ev.turn === B.turn && !B.firedEvents.has(i) && condOk(ev.if)) {
         B.firedEvents.add(i);
@@ -1738,9 +1745,9 @@ function spellTiles(u, spId) {
       if (c && !hostile(u, c) && !(c.buffs || []).some(b => b.stat === sp.stat)) out.push(t);
     } else if (sp.area || sp.line) {
       // 范围 / 直线攻击：可以空地为中心，只要范围内有可命中的敌人
-      if (spellAffected(u, spId, t.x, t.y).some(o => hostile(u, o) && !(sp.groundOnly && isFlying(o)) && !(sp.kind === 'status' && hasStatus(o, sp.status)))) out.push(t);
+      if (spellAffected(u, spId, t.x, t.y).some(o => hostile(u, o) && !(sp.groundOnly && isFlying(o)) && !(sp.kind === 'status' && hasStatus(o, sp.status)) && (typeof wxCanTarget !== 'function' || wxCanTarget(u, o)))) out.push(t); // 雾 / 夜：要有看得见的目标
     } else {
-      if (c && hostile(u, c) && !(sp.groundOnly && isFlying(c))) {
+      if (c && hostile(u, c) && !(sp.groundOnly && isFlying(c)) && (typeof wxCanTarget !== 'function' || wxCanTarget(u, c))) { // 雾 / 夜：看不见的敌人不能指定
         if (sp.kind === 'status' && hasStatus(c, sp.status)) continue;
         out.push(t);
       }
@@ -1971,7 +1978,8 @@ cv.addEventListener('click', e => {
 let busy = false;
 async function onTap(x, y) {
   if (busy || B.over || B.phase !== 'player' || !B.endPhase) return;
-  const u = unitAt(x, y);
+  let u = unitAt(x, y);
+  if (u && typeof wxHidden === 'function' && wxHidden(u)) u = null; // 雾 / 夜：看不见的敌人点不到
   B.focusTile = { x, y };
   switch (B.mode) {
     case 'idle': case 'inspect':
@@ -2045,7 +2053,7 @@ function afterMove() {
 }
 function attackTargets(u) {
   const [r0, r1] = rangeOf(u);
-  return tilesInRange(u.x, u.y, r0, r1).map(t => unitAt(t.x, t.y)).filter(o => o && hostile(u, o));
+  return tilesInRange(u.x, u.y, r0, r1).map(t => unitAt(t.x, t.y)).filter(o => o && hostile(u, o) && (typeof wxCanTarget !== 'function' || wxCanTarget(u, o))); // 雾 / 夜（weather.js）
 }
 async function confirmPending() {
   const u = B.sel, p = B.pending;
@@ -2178,7 +2186,7 @@ async function runAI(team) {
   for (const u of list) {
     if (B.over) return;
     if (u.hp <= 0 || u.acted || !canAct(u)) continue;
-    if (!AUTO) { B.focus = u; B.cursor = { x: u.x, y: u.y }; refreshPanel(); await wait(140); }
+    if (!AUTO && !(typeof wxHidden === 'function' && wxHidden(u))) { B.focus = u; B.cursor = { x: u.x, y: u.y }; refreshPanel(); await wait(140); } // 雾 / 夜：不暴露看不见的敌人
     await aiUnit(u);
     if (u.hp > 0) await finishUnit(u); else checkEnd();
     await wait(90);
@@ -2235,7 +2243,7 @@ async function aiUnit(u) {
     const ox = u.x, oy = u.y; u.x = st.x; u.y = st.y;
     for (const f of foes) {
       const d = mdist(st.x, st.y, f.x, f.y);
-      if (d >= r0 && d <= r1) {
+      if (d >= r0 && d <= r1 && (typeof wxCanTarget !== 'function' || wxCanTarget(u, f))) { // 雾 / 夜：只打看得见的
         const c = physCalc(u, f);
         let s = c.dmg * c.hit / 100 + (c.dmg >= f.hp ? 40 * c.hit / 100 : 0) + (f.lord ? 6 : 0) + tdef * 0.04 - st.c * 0.05;
         const ctr = c.dmg < f.hp && canCounter(f, u) ? physCalc(f, u).dmg : 0;
@@ -2249,6 +2257,7 @@ async function aiUnit(u) {
       for (const t of tilesInRange(st.x, st.y, sp.range[0], sp.range[1])) {
         const c0 = unitAt(t.x, t.y);
         if (!shaped(sp) && (!c0 || !hostile(u, c0))) continue;
+        if (!shaped(sp) && typeof wxCanTarget === 'function' && !wxCanTarget(u, c0)) continue; // 雾 / 夜：只打看得见的
         let s = 0;
         for (const f of spellAffected(u, id, t.x, t.y)) {
           const enemy = hostile(u, f);
@@ -2393,6 +2402,7 @@ function refreshPanel() {
   else if (B.focusTile) { const t = terrAt(B.focusTile.x, B.focusTile.y); html = `<div class="ui-hint"><div class="hint-title">${esc(t.name)}</div><div>防御 +${t.def}% · 回避 +${t.avoid}${t.heal ? ' · 每回合回复 ' + t.heal + '% HP' : ''}</div><div class="dim">点击我方单位进行移动与行动，点击敌人查看其攻击范围。</div></div>`; }
   else { const o = objectiveText(); html = `<div class="ui-hint"><div class="hint-title">作战目标</div><div><b class="win-c">胜利</b> ${esc(o.win)}</div><div><b class="lose-c">失败</b> ${esc(o.lose)}</div><div class="dim">点击我方单位进行移动与行动，点击敌人查看其攻击范围。</div></div>`; }
   info.innerHTML = html;
+  if (typeof wxPanelAfter === 'function') wxPanelAfter(info); // 天气说明（weather.js）
   if (f && !B.pending) setPortrait(info.querySelector('[data-port]'), f, 96);
   for (const el of info.querySelectorAll('[data-fport]')) { const o = B.units.find(v => String(v.uid) === el.dataset.fport); if (o) setPortrait(el, o, 44); }
   for (const el of info.querySelectorAll('[data-wt]')) { const [wt, team] = el.dataset.wt.split('|'); const n = 26, src = badgeIcon(wt, team, n); if (src) el.appendChild(src); }
